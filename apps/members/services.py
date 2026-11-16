@@ -21,7 +21,15 @@ from apps.audit import services as audit
 from apps.gyms.models import Branch, Gym, StaffAssignment
 from apps.gyms.permissions import FRONT_DESK_ROLES, MANAGER_ROLES, OWNER_ONLY, require_role
 from apps.members.durations import end_date_for
-from apps.members.models import DurationUnit, Gender, Member, Membership, MembershipFreeze, Package
+from apps.members.models import (
+    RENEWABLE_UNITS,
+    DurationUnit,
+    Gender,
+    Member,
+    Membership,
+    MembershipFreeze,
+    Package,
+)
 from apps.people import services as people_services
 from apps.people.phones import InvalidPhoneNumber, normalize_phone
 
@@ -445,11 +453,14 @@ def new_member_count(gym: Gym, start: date, end: date) -> int:
 
 
 def _not_renewed(memberships):
-    """Keep only memberships with nothing bought to follow them."""
+    """
+    Keep only memberships worth following up (a month or longer, not day or
+    week passes) with nothing bought to follow them.
+    """
     later = Membership.objects.filter(
         member=OuterRef("member"), cancelled_at__isnull=True, start_date__gt=OuterRef("end_date")
     )
-    return memberships.filter(~Exists(later))
+    return memberships.filter(duration_unit__in=RENEWABLE_UNITS).filter(~Exists(later))
 
 
 def ending_soon(gym: Gym, today: date, within_days: int):

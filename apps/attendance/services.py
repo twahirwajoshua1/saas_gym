@@ -102,7 +102,7 @@ def assess(member: Member, on: date | None = None) -> Assessment:
             allowed=True,
             membership=current,
             days_left=days_left,
-            expiring_soon=days_left <= EXPIRING_SOON_DAYS,
+            expiring_soon=current.is_renewable and days_left <= EXPIRING_SOON_DAYS,
             owes_rwf=owes,
             already_today=already,
         )

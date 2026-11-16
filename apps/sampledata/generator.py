@@ -65,6 +65,7 @@ class SimGym:
     people: list = field(default_factory=list)
     arrivals_left: float = 0.0
     arrivals_per_day: float = 0.0
+    arrival_carry: float = 0.0
     unpaid: list = field(default_factory=list)  # (due day, invoice, staff)
     branches: dict = field(default_factory=dict)  # branch id -> branch
 
@@ -306,10 +307,12 @@ class Generator:
     def simulate_day(self, sim: SimGym, day: date):
         branches = list(sim.desk)
 
-        sim.arrivals_left_today = sim.arrivals_per_day + (self.rng.random() - 0.5)
-        while sim.arrivals_left > 0 and sim.arrivals_left_today > 0:
+        # New members arrive spread over the whole period: each day adds a share
+        # (more on some days, fewer on others) and whole people walk in.
+        sim.arrival_carry += sim.arrivals_per_day * self.rng.uniform(0.3, 1.7)
+        while sim.arrivals_left >= 1 and sim.arrival_carry >= 1:
             sim.arrivals_left -= 1
-            sim.arrivals_left_today -= 1
+            sim.arrival_carry -= 1
             branch_id = self.rng.choice(branches)
             hour = self.rng.randint(8, 19)
             with self.at(day, hour, self.rng.randint(0, 59)):

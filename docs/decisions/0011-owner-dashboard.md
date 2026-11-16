@@ -33,6 +33,11 @@ Status: Accepted
 | Check-ins today / this month | Visits recorded |
 | Not seen for 14 days | Members with a membership valid today, registered at least 14 days ago, with no visit in the last 14 days |
 
+Day and week passes are left out of "Ending within 7 days", "Lapsed", the
+Renewals page and the desk's renewal warning (added 2026-11-17, after sample
+data showed drop-in visitors filling the renewal lists). They are bought visit
+by visit, so there is nothing to chase.
+
 "Sold" and "collected" are different on purpose: one is what members agreed to
 pay, the other is cash received. Both are labelled on screen.
 

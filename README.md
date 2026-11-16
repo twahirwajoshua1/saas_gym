@@ -3,10 +3,12 @@
 A multi-tenant SaaS platform for gyms in Rwanda: members, memberships, payments,
 check-in and reporting first, with further modules added over time.
 
-**Status:** Step 3 (first commercial product), increment 5. A gym can define
-packages, import or register members, sell memberships, record payments, print
-receipts, check members in, see the owner's figures, and export to Excel. The
-member's own card page and screens for staff and branches are next.
+**Status:** First commercial release (Step 3) complete, pending a pilot with
+real gyms. A gym can be registered by the platform team; its owner adds staff,
+branches and packages; members are imported or registered; memberships are
+sold, paid in full or in part, frozen or extended; receipts are printed;
+members check in by search or QR card; the owner sees figures and renewals;
+data can be exported. See "What is not built yet" below.
 
 ## How the project is organised
 
@@ -21,6 +23,11 @@ member's own card page and screens for staff and branches are next.
 | `apps/audit/` | The permanent audit log |
 | `apps/modules/` | Which of the nine applications each gym has switched on |
 | `apps/spreadsheets/` | Importing members from Excel or CSV, and exporting to Excel |
+| `apps/team/` | Staff: adding people with a role and login, changing and removing them |
+| `apps/memberapp/` | The member's card page (private link with QR code) and the card API |
+| `apps/platformadmin/` | Pages for platform staff: gyms, owners, applications, suspension |
+| `apps/sampledata/` | The `create_sample_gyms` command (demonstration data only) |
+| `scripts/` | Backup and restore scripts |
 | `apps/dashboard/` | The owner's figures and the renewals list (reads from the other modules) |
 | `apps/attendance/` | Attendance and Access: checking members in |
 | `apps/billing/` | Payments and Finance: invoices, payments, receipts and the ledger |
@@ -142,6 +149,17 @@ history, and prints every login. It takes several minutes. See
 ## Backups
 
 See `docs/operations.md` for nightly backups, restoring, and the restore drill.
+
+## What is not built yet
+
+- Live mobile-money collection (payments are recorded by staff), SMS and
+  WhatsApp messages, password reset by SMS.
+- Leads, trials, campaigns, loyalty (Sales and Growth, Retention and Loyalty).
+- Trainers' client lists, classes and bookings; inventory.
+- The organization (corporate wellness) portal.
+- Platform subscriptions and billing gyms; logged support access.
+- Kinyarwanda and French translations (screens are prepared for them).
+- Deployment to a server (hosting choice and data location are open questions).
 
 ## Where to read more
 

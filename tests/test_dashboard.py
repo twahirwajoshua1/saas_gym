@@ -394,3 +394,28 @@ def test_empty_figures_for_a_new_gym_explain_themselves(alpha, sign_in):
     assert "Nothing collected yet this month." in page
     assert "No memberships sold yet this month." in page
     assert "No memberships end in the next 7 days without a renewal." in page
+
+
+def test_day_and_week_passes_are_not_chased_for_renewal(alpha):
+    day_pass = members.create_package(
+        by=alpha.assignment,
+        name="Daily pass",
+        price_rwf=3000,
+        duration_count=1,
+        duration_unit="day",
+    )
+    weekly = members.create_package(
+        by=alpha.assignment, name="Weekly", price_rwf=8000, duration_count=1, duration_unit="week"
+    )
+    visitor = member(alpha, "Drop-in visitor", "0788100001")
+    sell(alpha, visitor, day_pass)
+    weekly_member = member(alpha, "Weekly member", "0788100002")
+    set_dates(sell(alpha, weekly_member, weekly).membership, days(-20), days(-14))
+
+    figures = services.overview(alpha.gym, today())
+
+    assert figures.active_members == 1  # the day pass is valid today
+    assert figures.ending_soon == 0 and figures.lapsed == 0
+    from apps.attendance import services as desk
+
+    assert desk.assess(visitor).allowed and not desk.assess(visitor).expiring_soon

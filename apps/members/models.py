@@ -103,6 +103,10 @@ class Member(GymOwnedModel):
         return self.person.phone
 
 
+# Memberships long enough that the gym follows up on renewing them.
+RENEWABLE_UNITS = (DurationUnit.MONTH, DurationUnit.YEAR)
+
+
 class MembershipStatus(models.TextChoices):
     UPCOMING = "upcoming", "Starts later"
     ACTIVE = "active", "Active"
@@ -175,6 +179,14 @@ class Membership(GymOwnedModel):
     @property
     def status_label(self) -> str:
         return MembershipStatus(self.status).label
+
+    @property
+    def is_renewable(self) -> bool:
+        """
+        Whether staff should chase a renewal. Day and week passes are bought
+        visit by visit, so they are left out of renewal lists and warnings.
+        """
+        return self.duration_unit in RENEWABLE_UNITS
 
     @property
     def days_left(self) -> int:
