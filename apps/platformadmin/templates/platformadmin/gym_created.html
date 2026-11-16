@@ -1,0 +1,11 @@
+{% extends "layouts/platform.html" %}
+{% block title %}Gym registered · Platform{% endblock %}
+{% block content %}
+  <div class="page-head"><h1>{{ created.gym.name }} is registered</h1></div>
+  {% if created.owner_temporary_password %}
+    {% include "team/_temporary_password.html" with person=created.owner password=created.owner_temporary_password %}
+  {% else %}
+    <div class="card"><p>The owner already had a login and signs in with their own password.</p></div>
+  {% endif %}
+  <div class="form-actions"><a class="btn btn-primary" href="{% url 'platformadmin:gym_detail' created.gym.public_id %}">Choose its applications</a></div>
+{% endblock %}

@@ -10,8 +10,9 @@ class DatabaseRoleMiddleware:
     Two exceptions, both deliberate:
       * The status page. It must still answer when the database is down, so it
         cannot depend on the database. It touches no gym data.
-      * The platform admin. Signed-in platform staff opening /admin/ pages work
-        as the normal database user, so they can see every gym.
+      * The platform pages. Signed-in platform staff opening /admin/ or
+        /platform/ pages work as the normal database user, so they can see
+        every gym. Their changes are recorded in each gym's audit log.
     """
 
     def __init__(self, get_response):
@@ -22,7 +23,7 @@ class DatabaseRoleMiddleware:
             return self.get_response(request)
 
         user = request.user
-        is_platform_admin_page = request.path.startswith(reverse("admin:index"))
+        is_platform_admin_page = request.path.startswith((reverse("admin:index"), "/platform/"))
         if is_platform_admin_page and user.is_authenticated and user.is_staff:
             return self.get_response(request)
 

@@ -231,3 +231,9 @@ details.card > summary { cursor: pointer; min-height: 32px; }
 .link-text { overflow-wrap: anywhere; font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--muted); }
 .center { text-align: center; }
 .scan-area video { width: 100%; max-width: 420px; border-radius: 12px; background: #000; }
+
+/* --- 15. Platform pages --- */
+.platform-bar { background: var(--ink); color: #fff; padding: 14px 24px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }
+.platform-bar a { color: #fff; text-decoration: none; }
+.platform-bar nav { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.platform-main { margin: 0 auto; }

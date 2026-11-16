@@ -16,7 +16,7 @@
     <h1>Welcome, {{ user.person.full_name }}</h1>
     <p>You are signed in as {{ user.person.phone }}, but you are not staff at any gym yet.</p>
     {% if user.is_staff %}
-      <p><a href="{% url 'admin:index' %}">{% translate "Open the platform admin" %}</a></p>
+      <p><a class="btn btn-primary" href="{% url 'platformadmin:gym_list' %}">{% translate "Open the platform pages" %}</a></p>
     {% endif %}
   {% endif %}
   <form method="post" action="{% url 'accounts:logout' %}">

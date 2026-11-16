@@ -1,0 +1,56 @@
+{% extends "layouts/platform.html" %}
+{% block title %}{{ gym.name }} · Platform{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'platformadmin:gym_list' %}">← Gyms</a>
+  <div class="page-head">
+    <div>
+      <h1>{{ gym.name }}</h1>
+      <p class="muted">Registered {{ gym.created_at|date:"j M Y" }} · {{ branches|length }} branch{{ branches|length|pluralize:"es" }}: {% for b in branches %}{{ b.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+    </div>
+    {% if gym.is_active %}<span class="badge badge-on">Active</span>{% else %}<span class="badge badge-danger">Suspended</span>{% endif %}
+  </div>
+
+  <div class="card stack">
+    <h2>Applications</h2>
+    <ul class="item-list">
+      {% for status in statuses %}
+        <li>
+          <div class="item-main">
+            <strong>{{ status.module.name }}</strong>
+            <span class="muted small">{{ status.module.description }}{% if status.missing and not status.enabled %} Needs: {% for need in status.missing %}{{ need.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}</span>
+          </div>
+          {% if status.module.always_on %}
+            <span class="badge badge-on">Always included</span>
+          {% else %}
+            <form method="post" action="{% url 'platformadmin:gym_module' gym.public_id %}" class="inline-form">
+              {% csrf_token %}
+              <input type="hidden" name="module" value="{{ status.module.code }}">
+              {% if status.enabled %}
+                <span class="badge badge-on">On</span>
+                <input type="hidden" name="on" value="no"><button type="submit" class="btn btn-small">Switch off</button>
+              {% else %}
+                <input type="hidden" name="on" value="yes"><button type="submit" class="btn btn-small btn-primary">Switch on</button>
+              {% endif %}
+            </form>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="card stack">
+    <h2>{% if gym.is_active %}Suspend this gym{% else %}Restore this gym{% endif %}</h2>
+    <form method="post" action="{% url 'platformadmin:gym_active' gym.public_id %}" class="form">
+      {% csrf_token %}
+      {% if gym.is_active %}
+        <p class="muted small">Nobody can open the gym while it is suspended, for example for an unpaid subscription. Nothing is deleted.</p>
+        <input type="hidden" name="active" value="no">
+        <div class="field"><label for="reason">Reason</label><input id="reason" name="reason" maxlength="300"></div>
+        <div class="form-actions"><button type="submit" class="btn">Suspend</button></div>
+      {% else %}
+        <input type="hidden" name="active" value="yes">
+        <div class="form-actions"><button type="submit" class="btn btn-primary">Restore</button></div>
+      {% endif %}
+    </form>
+  </div>
+{% endblock %}

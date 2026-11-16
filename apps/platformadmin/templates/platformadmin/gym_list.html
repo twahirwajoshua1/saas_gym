@@ -1,0 +1,30 @@
+{% extends "layouts/platform.html" %}
+{% block title %}Gyms · Platform{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div><h1>Gyms</h1><p class="muted">{{ rows|length }} on the platform.</p></div>
+    <div class="actions"><a class="btn btn-primary" href="{% url 'platformadmin:gym_create' %}">Register a gym</a></div>
+  </div>
+  <div class="card">
+    {% if rows %}
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th scope="col">Gym</th><th scope="col">Owner</th><th scope="col">Members</th><th scope="col">Applications</th><th scope="col">Status</th></tr></thead>
+          <tbody>
+            {% for row in rows %}
+              <tr>
+                <td><a href="{% url 'platformadmin:gym_detail' row.gym.public_id %}">{{ row.gym.name }}</a></td>
+                <td>{{ row.owners|join:", "|default:"—" }}</td>
+                <td>{{ row.members }}</td>
+                <td>{{ row.modules }} of 9</td>
+                <td>{% if row.gym.is_active %}<span class="badge badge-on">Active</span>{% else %}<span class="badge badge-danger">Suspended</span>{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No gyms yet.</p>
+    {% endif %}
+  </div>
+{% endblock %}

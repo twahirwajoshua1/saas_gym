@@ -1,0 +1,16 @@
+{% extends "layouts/platform.html" %}
+{% block title %}Register a gym · Platform{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'platformadmin:gym_list' %}">← Gyms</a>
+  <div class="page-head"><div><h1>Register a gym</h1><p class="muted">Creates the gym, its main branch and the owner's login. Gym Operations is included; switch on other applications afterwards.</p></div></div>
+  <div class="card">
+    <form method="post" class="form" novalidate>
+      {% csrf_token %}
+      {% if error %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endif %}
+      <div class="field"><label for="gym_name">Gym name</label><input id="gym_name" name="gym_name" value="{{ values.gym_name }}" maxlength="150"></div>
+      <div class="field"><label for="owner_name">Owner's full name</label><input id="owner_name" name="owner_name" value="{{ values.owner_name }}" maxlength="150"></div>
+      <div class="field"><label for="owner_phone">Owner's phone number</label><input id="owner_phone" name="owner_phone" value="{{ values.owner_phone }}" inputmode="tel"><p class="help">They sign in with this number.</p></div>
+      <div class="form-actions"><button type="submit" class="btn btn-primary">Register gym</button><a class="btn" href="{% url 'platformadmin:gym_list' %}">Cancel</a></div>
+    </form>
+  </div>
+{% endblock %}
