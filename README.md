@@ -126,6 +126,10 @@ You need Python 3.12 or newer, Git, and either Docker or PostgreSQL 16.
 | `python manage.py unlock_sign_in --phone 0788123456` | Remove a sign-in lock early |
 | `ruff format .` | Tidy the code layout |
 
+## Backups
+
+See `docs/operations.md` for nightly backups, restoring, and the restore drill.
+
 ## Where to read more
 
 - Architecture and development plan: the "Gym Business Operating System:
