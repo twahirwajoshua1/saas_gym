@@ -24,6 +24,8 @@
           {% blocktranslate count days=result.days_left %}Membership ends today. Offer a renewal.{% plural %}Membership ends in {{ days }} days. Offer a renewal.{% endblocktranslate %}
         </p>
       {% endif %}
+    {% elif result.reason == "frozen" %}
+      <p>{% blocktranslate with package=result.membership.package_name day=result.frozen_until|date:"j M Y" %}{{ package }} is frozen until {{ day }}. The owner or a manager can end the freeze early.{% endblocktranslate %}</p>
     {% elif result.reason == "expired" %}
       <p>{% blocktranslate with package=result.membership.package_name day=result.membership.end_date|date:"j M Y" %}{{ package }} ended on {{ day }}. Entry is refused until renewed.{% endblocktranslate %}</p>
     {% elif result.reason == "not_started" %}
@@ -47,7 +49,7 @@
       {% endif %}
       {% if role_is_front_desk %}
         {% if 'payments_finance' in modules_on %}
-          {% if not result.allowed or result.expiring_soon %}
+          {% if result.reason != "frozen" and not result.allowed or result.expiring_soon %}
             <a class="btn {% if not result.allowed %}btn-primary btn-big{% endif %}" href="{% url 'billing:sell' result.member.public_id %}">{% if result.membership %}{% translate "Renew" %}{% else %}{% translate "Sell membership" %}{% endif %}</a>
           {% endif %}
         {% endif %}

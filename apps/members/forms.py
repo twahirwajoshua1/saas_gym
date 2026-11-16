@@ -7,6 +7,7 @@ live in services.py.
 """
 
 from django import forms
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.amounts import parse_rwf
@@ -83,3 +84,24 @@ class MemberForm(forms.Form):
         if editing:
             # The phone number identifies the person and is not changed here.
             del self.fields["phone"]
+
+
+class ExtendForm(forms.Form):
+    days = forms.IntegerField(label=_("Add days"), min_value=1, max_value=365)
+    reason = forms.CharField(
+        label=_("Reason"),
+        max_length=300,
+        help_text=_("For example: the gym was closed for repairs."),
+    )
+
+
+class FreezeForm(forms.Form):
+    start = forms.DateField(label=_("Freeze from"), widget=forms.DateInput(attrs={"type": "date"}))
+    days = forms.IntegerField(label=_("For how many days"), min_value=1, max_value=90)
+    reason = forms.CharField(
+        label=_("Reason"), max_length=300, help_text=_("For example: travelling, or an injury.")
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["start"].initial = timezone.localdate()

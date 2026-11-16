@@ -35,6 +35,7 @@ class Reason:
     NO_MEMBERSHIP = "no_membership"
     EXPIRED = "expired"
     NOT_STARTED = "not_started"
+    FROZEN = "frozen"
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ class Assessment:
     member: Member
     allowed: bool
     reason: str = ""  # one of Reason, when not allowed
+    frozen_until: date | None = None
     membership: Membership | None = None  # the valid one, or the one that explains the refusal
     days_left: int = 0
     expiring_soon: bool = False
@@ -80,6 +82,16 @@ def assess(member: Member, on: date | None = None) -> Assessment:
         owes = max(billing_services.member_balance(member), 0)
 
     current = member_services.current_membership(member, on=today)
+    freeze = member_services.freeze_on(current, today) if current is not None else None
+    if freeze is not None:
+        return Assessment(
+            member=member,
+            allowed=False,
+            reason=Reason.FROZEN,
+            membership=current,
+            frozen_until=freeze.end_date,
+            owes_rwf=owes,
+        )
     if current is not None:
         days_left = (current.end_date - today).days + 1
         already = (

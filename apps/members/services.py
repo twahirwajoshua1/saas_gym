@@ -20,7 +20,7 @@ from apps.audit import services as audit
 from apps.gyms.models import Branch, Gym, StaffAssignment
 from apps.gyms.permissions import FRONT_DESK_ROLES, MANAGER_ROLES, OWNER_ONLY, require_role
 from apps.members.durations import end_date_for
-from apps.members.models import DurationUnit, Gender, Member, Membership, Package
+from apps.members.models import DurationUnit, Gender, Member, Membership, MembershipFreeze, Package
 from apps.people import services as people_services
 from apps.people.phones import InvalidPhoneNumber, normalize_phone
 
@@ -552,3 +552,161 @@ def record_existing_membership(
         details={"member": member.public_id, "package": package.public_id},
     )
     return membership
+
+
+# --- Freezing and extending ---------------------------------------------------
+
+MAX_EXTEND_DAYS = 365
+MAX_FREEZE_DAYS = 90
+
+
+def freeze_on(membership: Membership, day: date) -> MembershipFreeze | None:
+    """The freeze covering a day, if the membership is frozen then."""
+    return freezes_for(membership).filter(start_date__lte=day, end_date__gte=day).first()
+
+
+def freezes_for(membership: Membership):
+    """A membership's freezes that count (not called off before they began)."""
+    return MembershipFreeze.objects.for_gym(membership.gym).filter(
+        membership=membership, cancelled=False
+    )
+
+
+def _adjustable(by: StaffAssignment, membership: Membership) -> None:
+    require_role(by, MANAGER_ROLES)
+    _same_gym(by, membership)
+    if membership.cancelled_at is not None or membership.end_date < timezone.localdate():
+        raise InvalidDetails("membership", "not_current")
+
+
+def _move_end(membership: Membership, new_end: date) -> None:
+    """Move a membership's last day, refusing if it would run into a later membership."""
+    later = memberships_for(membership.member).filter(
+        cancelled_at__isnull=True, start_date__gt=membership.end_date
+    )
+    clash = later.filter(start_date__lte=new_end).order_by("start_date").first()
+    if clash is not None:
+        raise InvalidDetails("days", "runs_into_next")
+    membership.end_date = new_end
+    membership.save(update_fields=["end_date"])
+
+
+def _days(value, maximum: int) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= maximum:
+        raise InvalidDetails("days", "out_of_range")
+    return value
+
+
+def _reason(value: str) -> str:
+    reason = _clean_text(value)
+    if not reason:
+        raise InvalidDetails("reason", "required")
+    return reason[:300]
+
+
+@transaction.atomic
+def extend_membership(
+    *, by: StaffAssignment, membership: Membership, days: int, reason: str
+) -> Membership:
+    """Add days to the end of a current or coming membership. Owner and branch manager."""
+    _adjustable(by, membership)
+    days, reason = _days(days, MAX_EXTEND_DAYS), _reason(reason)
+    old_end = membership.end_date
+    _move_end(membership, old_end + timedelta(days=days))
+    audit.record(
+        action="membership.extended",
+        summary=(
+            f"{membership.member.full_name}'s {membership.package_name} was extended by "
+            f"{days} days, to {membership.end_date:%d %b %Y}: {reason[:120]}"
+        ),
+        gym=by.gym,
+        actor=by.person,
+        target=membership,
+        details={"days": days, "end_before": old_end, "reason": reason},
+    )
+    return membership
+
+
+@transaction.atomic
+def freeze_membership(
+    *, by: StaffAssignment, membership: Membership, start: date, days: int, reason: str
+) -> MembershipFreeze:
+    """
+    Pause a membership for some days from a start date. The member may not come
+    in during the freeze, and the membership ends that many days later.
+    Owner and branch manager.
+    """
+    _adjustable(by, membership)
+    days, reason = _days(days, MAX_FREEZE_DAYS), _reason(reason)
+    today = timezone.localdate()
+    if not isinstance(start, date) or start < max(today, membership.start_date):
+        raise InvalidDetails("start", "out_of_range")
+    if start > membership.end_date:
+        raise InvalidDetails("start", "after_end")
+    end = start + timedelta(days=days - 1)
+    if freezes_for(membership).filter(start_date__lte=end, end_date__gte=start).exists():
+        raise InvalidDetails("start", "overlaps")
+
+    _move_end(membership, membership.end_date + timedelta(days=days))
+    freeze = MembershipFreeze.objects.create(
+        gym=by.gym,
+        membership=membership,
+        start_date=start,
+        end_date=end,
+        reason=reason,
+        created_by=by.person,
+    )
+    audit.record(
+        action="membership.frozen",
+        summary=(
+            f"{membership.member.full_name}'s {membership.package_name} was frozen from "
+            f"{start:%d %b} to {end:%d %b %Y}; it now ends {membership.end_date:%d %b %Y}"
+        ),
+        gym=by.gym,
+        actor=by.person,
+        target=membership,
+        details={"start": start, "days": days, "reason": reason},
+    )
+    return freeze
+
+
+@transaction.atomic
+def end_freeze(*, by: StaffAssignment, freeze: MembershipFreeze) -> MembershipFreeze:
+    """
+    End a freeze before its planned end, for example when the member comes back
+    early. The days not used are taken off the membership's end again.
+    Owner and branch manager.
+    """
+    require_role(by, MANAGER_ROLES)
+    _same_gym(by, freeze)
+    today = timezone.localdate()
+    if freeze.ended_early_at is not None or freeze.end_date < today:
+        raise InvalidDetails("freeze", "already_over")
+
+    membership = freeze.membership
+    if freeze.start_date >= today:
+        # Not begun, or begins today: call it off entirely, so the member can
+        # come in today.
+        unused = freeze.days
+        freeze.cancelled = True
+    else:
+        # Begun on an earlier day: it ends yesterday.
+        unused = (freeze.end_date - today).days + 1
+        freeze.end_date = today - timedelta(days=1)
+    membership.end_date -= timedelta(days=unused)
+    membership.save(update_fields=["end_date"])
+    freeze.ended_early_at = timezone.now()
+    freeze.save(update_fields=["end_date", "ended_early_at", "cancelled"])
+    audit.record(
+        action="membership.freeze_ended",
+        summary=(
+            f"The freeze on {membership.member.full_name}'s {membership.package_name} was ended "
+            f"early; {unused} unused days were taken off, so it now ends "
+            f"{membership.end_date:%d %b %Y}"
+        ),
+        gym=by.gym,
+        actor=by.person,
+        target=membership,
+        details={"unused_days": unused},
+    )
+    return freeze

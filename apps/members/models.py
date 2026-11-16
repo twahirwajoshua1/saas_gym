@@ -176,3 +176,36 @@ class Membership(GymOwnedModel):
     def days_left(self) -> int:
         """Days remaining including today. Zero or less means it has ended."""
         return (self.end_date - timezone.localdate()).days + 1
+
+
+class MembershipFreeze(GymOwnedModel):
+    """
+    A pause in a membership, for example while the member travels or recovers
+    from an injury. During a freeze the member may not come in, and the
+    membership's end date is moved later by the length of the freeze.
+    """
+
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    membership = models.ForeignKey(Membership, on_delete=models.PROTECT, related_name="freezes")
+    start_date = models.DateField()
+    end_date = models.DateField()  # the last frozen day
+    reason = models.CharField(max_length=300)
+    created_by = models.ForeignKey(Person, null=True, on_delete=models.PROTECT, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    # Set when the freeze was ended before its planned end.
+    ended_early_at = models.DateTimeField(null=True, blank=True)
+    # True when it was called off before it began. It is kept as history only.
+    cancelled = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["start_date"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(end_date__gte=models.F("start_date")),
+                name="freeze_ends_on_or_after_start",
+            ),
+        ]
+
+    @property
+    def days(self) -> int:
+        return (self.end_date - self.start_date).days + 1

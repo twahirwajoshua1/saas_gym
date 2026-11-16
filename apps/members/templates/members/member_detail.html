@@ -20,6 +20,9 @@
         <a class="btn btn-primary btn-small" href="{% url 'billing:sell' member.public_id %}">{% if memberships %}{% translate "Renew or sell another" %}{% else %}{% translate "Sell membership" %}{% endif %}</a>
       {% endif %}
     </div>
+    {% if current_freeze %}
+      <p class="notice notice-warn">{% blocktranslate with day=current_freeze.end_date|date:"j M Y" %}Frozen until {{ day }}: {% endblocktranslate %}{{ current_freeze.reason }}</p>
+    {% endif %}
     {% if current_membership %}
       <p>
         <span class="badge badge-on">{% translate "Active" %}</span>
@@ -41,7 +44,12 @@
               <strong>{{ membership.package_name }}</strong>
               <span class="muted small">{{ membership.start_date|date:"j M Y" }} – {{ membership.end_date|date:"j M Y" }}{% if membership.imported %} · {% translate "brought in from previous records" %}{% endif %}</span>
             </div>
-            <span class="badge {% if membership.status == 'active' %}badge-on{% elif membership.status == 'upcoming' %}badge-warn{% else %}badge-off{% endif %}">{{ membership.status_label }}</span>
+            <div class="item-actions">
+              {% if role_is_manager and membership.status == 'active' or role_is_manager and membership.status == 'upcoming' %}
+                <a class="btn btn-small" href="{% url 'members:membership_adjust' membership.public_id %}">{% translate "Extend or freeze" %}</a>
+              {% endif %}
+              <span class="badge {% if membership.status == 'active' %}badge-on{% elif membership.status == 'upcoming' %}badge-warn{% else %}badge-off{% endif %}">{{ membership.status_label }}</span>
+            </div>
           </li>
         {% endfor %}
       </ul>

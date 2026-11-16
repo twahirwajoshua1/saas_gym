@@ -1,0 +1,65 @@
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% translate "Extend or freeze" %} · {{ member.full_name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'members:member_detail' member.public_id %}">← {{ member.full_name }}</a>
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Extend or freeze" %}</h1>
+      <p class="muted">{{ membership.package_name }} · {{ membership.start_date|date:"j M Y" }} – {{ membership.end_date|date:"j M Y" }}</p>
+    </div>
+  </div>
+
+  {% if freezes %}
+    <div class="card stack">
+      <h2>{% translate "Freezes" %}</h2>
+      <ul class="item-list">
+        {% for freeze in freezes %}
+          <li>
+            <div class="item-main">
+              <strong>{{ freeze.start_date|date:"j M" }} – {{ freeze.end_date|date:"j M Y" }}</strong>
+              <span class="muted small">{{ freeze.reason }}{% if freeze.ended_early_at %} · {% translate "ended early" %}{% endif %}</span>
+            </div>
+            {% if not freeze.ended_early_at and freeze.end_date >= today %}
+              <form method="post" action="{% url 'members:freeze_end' freeze.public_id %}" class="inline-form">
+                {% csrf_token %}<button type="submit" class="btn btn-small">{% if freeze.start_date >= today %}{% translate "Call off" %}{% else %}{% translate "End now" %}{% endif %}</button>
+              </form>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <div class="two-col">
+    <div class="card stack">
+      <div>
+        <h2>{% translate "Freeze" %}</h2>
+        <p class="muted small">{% translate "The member cannot come in during the freeze. The membership ends that many days later. Up to 90 days." %}</p>
+      </div>
+      <form method="post" class="form" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="action" value="freeze">
+        {% for error in freeze_form.non_field_errors %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endfor %}
+        {% include "components/field.html" with field=freeze_form.start %}
+        {% include "components/field.html" with field=freeze_form.days %}
+        {% include "components/field.html" with field=freeze_form.reason %}
+        <div class="form-actions"><button type="submit" class="btn btn-primary">{% translate "Freeze" %}</button></div>
+      </form>
+    </div>
+    <div class="card stack">
+      <div>
+        <h2>{% translate "Extend" %}</h2>
+        <p class="muted small">{% translate "Add free days to the end, for example as compensation. Up to 365 days." %}</p>
+      </div>
+      <form method="post" class="form" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="action" value="extend">
+        {% for error in extend_form.non_field_errors %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endfor %}
+        {% include "components/field.html" with field=extend_form.days %}
+        {% include "components/field.html" with field=extend_form.reason %}
+        <div class="form-actions"><button type="submit" class="btn btn-primary">{% translate "Extend" %}</button></div>
+      </form>
+    </div>
+  </div>
+{% endblock %}
