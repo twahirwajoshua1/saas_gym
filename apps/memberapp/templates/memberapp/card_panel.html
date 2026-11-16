@@ -1,0 +1,7 @@
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% translate "Member card" %} · {{ member.full_name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'members:member_detail' member.public_id %}">← {{ member.full_name }}</a>
+  {% include "memberapp/_card_panel.html" %}
+{% endblock %}

@@ -8,11 +8,12 @@ it in the audit log, all in one database transaction.
 """
 
 import re
+import secrets
 from dataclasses import dataclass
 from datetime import date, timedelta
 
 from django.core.exceptions import PermissionDenied
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
@@ -710,3 +711,58 @@ def end_freeze(*, by: StaffAssignment, freeze: MembershipFreeze) -> MembershipFr
         details={"unused_days": unused},
     )
     return freeze
+
+
+# --- The member's card link ---------------------------------------------------
+
+CARD_LINK_PATTERN = re.compile(r"(?:/card/)?([A-Za-z0-9_-]{32,64})/?")
+
+
+def _new_card_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+@transaction.atomic
+def create_card_link(*, by: StaffAssignment, member: Member, renew: bool = False) -> str:
+    """
+    Give the member a card link, or (with renew=True) a new one, after which the
+    old link stops working. Front-desk roles. Returns the token.
+    """
+    require_role(by, FRONT_DESK_ROLES)
+    _same_gym(by, member)
+    if member.card_token and not renew:
+        return member.card_token
+    member.card_token = _new_card_token()
+    member.save(update_fields=["card_token"])
+    audit.record(
+        action="member.card_link_renewed" if renew else "member.card_link_created",
+        summary=f"{'A new' if renew else 'A'} card link was made for {member.full_name}",
+        gym=by.gym,
+        actor=by.person,
+        target=member,
+    )
+    return member.card_token
+
+
+def find_by_card_code(gym: Gym, text: str) -> Member | None:
+    """The gym's member whose card link or code this is (as read by a QR scanner)."""
+    match = CARD_LINK_PATTERN.search((text or "").strip())
+    if not match:
+        return None
+    return Member.objects.for_gym(gym).filter(card_token=match.group(1)).first()
+
+
+def gym_id_for_card(token: str) -> int | None:
+    """
+    Which gym a card link belongs to, or None.
+
+    A card is opened by someone who is not signed in, so no gym has been chosen
+    and tenant isolation (lock 2) hides every member. This asks a small database
+    function that may look up exactly one thing: the gym of the member holding
+    this exact token. The caller then works within that gym only.
+    """
+    if not CARD_LINK_PATTERN.fullmatch(token or ""):
+        return None
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT app_gym_for_card(%s)", [token])
+        return cursor.fetchone()[0]

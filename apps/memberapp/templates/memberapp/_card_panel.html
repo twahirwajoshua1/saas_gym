@@ -1,0 +1,29 @@
+{% load i18n %}
+{% comment %}The member's card link, for staff. Shown inside the member's page.{% endcomment %}
+<div class="card stack" id="member-card-panel">
+  <div class="card-head">
+    <h2>{% translate "Member card" %}</h2>
+  </div>
+  {% if card_url %}
+    <div class="card-panel">
+      <div class="qr-small">{{ qr|safe }}</div>
+      <div class="stack">
+        <p class="small muted">{% translate "The member opens this private link on their phone and shows the QR code at reception." %}</p>
+        <p class="link-text small">{{ card_url }}</p>
+        <div class="form-actions">
+          <a class="btn btn-small btn-primary" href="{{ whatsapp_url }}" target="_blank" rel="noopener">{% translate "Send by WhatsApp" %}</a>
+          <a class="btn btn-small" href="{{ card_url }}" target="_blank" rel="noopener">{% translate "Open card" %}</a>
+          <form method="post" action="{% url 'memberapp:card_link' member.public_id %}" class="inline-form">
+            {% csrf_token %}<input type="hidden" name="renew" value="yes">
+            <button type="submit" class="btn btn-small" title="{% translate 'The old link stops working' %}">{% translate "Make a new link" %}</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <p class="muted">{% translate "No card link yet. Create one to send to the member." %}</p>
+    <form method="post" action="{% url 'memberapp:card_link' member.public_id %}">
+      {% csrf_token %}<button type="submit" class="btn btn-primary btn-small">{% translate "Create card link" %}</button>
+    </form>
+  {% endif %}
+</div>

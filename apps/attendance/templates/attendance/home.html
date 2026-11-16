@@ -1,6 +1,57 @@
 {% extends "layouts/gym.html" %}
 {% load i18n %}
 {% block title %}{% translate "Check-in" %} · {{ gym.name }}{% endblock %}
+
+{% block scripts %}
+<script>
+/*
+  Reads a member's QR card with the phone or tablet camera, where the browser
+  can (for example Chrome on Android), and types the result into the search
+  box. Nothing is checked in automatically: staff still press "Check in".
+*/
+(function () {
+  if (!("BarcodeDetector" in window) || !navigator.mediaDevices) return;
+  var start = document.getElementById("scan-start");
+  var area = document.getElementById("scan-area");
+  var video = document.getElementById("scan-video");
+  var stop = document.getElementById("scan-stop");
+  var input = document.getElementById("checkin-search");
+  if (!start || !input) return;
+  var detector = new BarcodeDetector({ formats: ["qr_code"] });
+  var stream = null;
+  start.hidden = false;
+
+  function finish() {
+    if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+    stream = null;
+    area.hidden = true;
+  }
+  function look() {
+    if (!stream) return;
+    detector.detect(video).then(function (codes) {
+      if (codes.length) {
+        input.value = codes[0].rawValue;
+        finish();
+        input.dispatchEvent(new Event("search"));
+      } else {
+        requestAnimationFrame(look);
+      }
+    }).catch(function () { requestAnimationFrame(look); });
+  }
+  start.addEventListener("click", function () {
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+      .then(function (s) { stream = s; video.srcObject = s; area.hidden = false; return video.play(); })
+      .then(look)
+      .catch(function () {
+        finish();
+        start.textContent = "{{ _('The camera could not be opened') }}";
+        start.disabled = true;
+      });
+  });
+  stop.addEventListener("click", finish);
+})();
+</script>
+{% endblock %}
 {% block content %}
   <div class="page-head">
     <div>
@@ -34,6 +85,15 @@
              hx-trigger="input changed delay:250ms, search"
              hx-target="#checkin-results">
     </form>
+
+    <div class="form-actions">
+      <button type="button" class="btn" id="scan-start" hidden>{% translate "Scan card with camera" %}</button>
+    </div>
+    <div class="scan-area stack" id="scan-area" hidden>
+      <video id="scan-video" playsinline muted></video>
+      <div><button type="button" class="btn" id="scan-stop">{% translate "Stop camera" %}</button></div>
+    </div>
+    <p class="muted small">{% translate "A USB or Bluetooth QR scanner also works: scan into the box above." %}</p>
 
     <div id="checkin-results" class="stack">
       {% include "attendance/_results.html" %}

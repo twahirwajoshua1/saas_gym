@@ -78,6 +78,10 @@ class Member(GymOwnedModel):
     emergency_contact_phone = models.CharField(max_length=16, blank=True)
     notes = models.TextField(blank=True)
 
+    # The secret part of the member's card link (/card/<token>/). Anyone with
+    # the link can see the card, so it is long and random, and can be renewed.
+    card_token = models.CharField(max_length=64, unique=True, null=True, blank=True)
+
     joined_on = models.DateField(default=timezone.localdate)
     registered_by = models.ForeignKey(
         Person, null=True, blank=True, on_delete=models.PROTECT, related_name="+"

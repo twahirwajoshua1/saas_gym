@@ -216,3 +216,18 @@ details.card > summary { cursor: pointer; min-height: 32px; }
 
 /* --- 13. Staff --- */
 .password-shown { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 1.3rem; font-weight: 700; letter-spacing: 0.04em; }
+
+/* --- 14. Member card --- */
+.member-card { background: var(--ink); color: #fff; border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 16px; }
+.member-card-no { background: #3a1d14; }
+.member-card .card-dim { color: #c9d4ce; }
+.member-card-name { font-size: 1.35rem; font-weight: 700; }
+.qr-box { background: #fff; border-radius: 12px; padding: 12px; align-self: center; line-height: 0; }
+.qr-box svg { width: 220px; height: 220px; }
+.qr-small { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px; line-height: 0; }
+.qr-small svg { width: 120px; height: 120px; }
+.card-panel { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.card-panel > .stack { flex: 1 1 240px; min-width: 0; }
+.link-text { overflow-wrap: anywhere; font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--muted); }
+.center { text-align: center; }
+.scan-area video { width: 100%; max-width: 420px; border-radius: 12px; background: #000; }

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% load i18n money %}
+{% block title %}{{ card.gym_name }} · {{ card.member.full_name }}{% endblock %}
+{% block body %}
+  {% with s=card.status %}
+  <main class="plain">
+    <div class="plain-card stack">
+      <div class="member-card {% if s.allowed %}member-card-ok{% else %}member-card-no{% endif %}">
+        <div class="card-head">
+          <div>
+            <strong>{{ card.gym_name }}</strong>
+            <p class="small card-dim">{% translate "Membership card" %}</p>
+          </div>
+          {% if s.allowed %}<span class="badge badge-on">{% translate "Valid" %}</span>{% else %}<span class="badge badge-danger">{% translate "Not valid" %}</span>{% endif %}
+        </div>
+        <div>
+          <p class="member-card-name">{{ card.member.full_name }}</p>
+          <p class="small card-dim">{{ card.phone_masked }}</p>
+        </div>
+        <div class="qr-box" role="img" aria-label="{% translate 'QR code to show at reception' %}">{{ qr|safe }}</div>
+        <p class="small card-dim">{% translate "Show this code at reception to check in." %}</p>
+      </div>
+
+      <div class="card stack">
+        {% if s.allowed %}
+          <p><strong>{{ s.membership.package_name }}</strong></p>
+          <p>{% blocktranslate with day=s.membership.end_date|date:"j F Y" %}Valid until {{ day }}{% endblocktranslate %} ·
+             {% blocktranslate count days=s.days_left %}{{ days }} day left{% plural %}{{ days }} days left{% endblocktranslate %}</p>
+          {% if s.expiring_soon %}<p class="notice notice-warn">{% translate "Your membership ends soon. Renew at reception." %}</p>{% endif %}
+        {% elif s.reason == "frozen" %}
+          <p>{% blocktranslate with day=s.frozen_until|date:"j F Y" %}Your membership is frozen until {{ day }}.{% endblocktranslate %}</p>
+        {% elif s.reason == "expired" %}
+          <p>{% blocktranslate with day=s.membership.end_date|date:"j F Y" %}Your membership ended on {{ day }}. Renew at reception.{% endblocktranslate %}</p>
+        {% elif s.reason == "not_started" %}
+          <p>{% blocktranslate with day=s.membership.start_date|date:"j F Y" %}Your membership starts on {{ day }}.{% endblocktranslate %}</p>
+        {% else %}
+          <p>{% translate "You do not have a membership yet. Ask at reception." %}</p>
+        {% endif %}
+        {% if s.owes_rwf > 0 %}<p class="notice notice-warn">{% blocktranslate with amount=s.owes_rwf|rwf %}Still to pay: {{ amount }}.{% endblocktranslate %}</p>{% endif %}
+      </div>
+
+      {% if card.receipts %}
+        <div class="card stack">
+          <h2>{% translate "Receipts" %}</h2>
+          <ul class="item-list">
+            {% for p in card.receipts %}
+              <li>
+                <div class="item-main">
+                  <strong>{{ p.display_number }}</strong>
+                  <span class="muted small">{{ p.received_on|date:"j M Y" }} · {{ p.get_method_display }}{% if p.is_reversed %} · {% translate "reversed" %}{% endif %}</span>
+                </div>
+                <span class="amount">{{ p.amount_rwf|rwf }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+      <p class="muted small center">{% translate "This page is private to you. Do not share the link." %}</p>
+    </div>
+  </main>
+  {% endwith %}
+{% endblock %}

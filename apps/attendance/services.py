@@ -130,6 +130,10 @@ def find_for_check_in(gym: Gym, query: str) -> list[Assessment]:
     query = " ".join((query or "").split())
     if len(query) < MIN_SEARCH_LENGTH:
         return []
+    # A QR scanner (or the camera) types the member's card link into the box.
+    if member_services.CARD_LINK_PATTERN.fullmatch(query) or "/card/" in query:
+        member = member_services.find_by_card_code(gym, query)
+        return [assess(member)] if member else []
     members = member_services.search_members(gym, query)[:MAX_SEARCH_RESULTS]
     return [assess(member) for member in members]
 
