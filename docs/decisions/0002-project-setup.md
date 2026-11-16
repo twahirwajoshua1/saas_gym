@@ -21,7 +21,7 @@ Status: Accepted
 Django recommends deciding on a custom user model before the first database
 migration, because changing it afterwards is difficult. Our users will log in
 mainly by phone number, which needs a custom user model. That model is built
-in the next increment (people and login). Until then we do not run
+in increment 2 (see decision 0003). Until that increment we did not run
 `python manage.py migrate` on the development database.
 
 The automated tests are not affected: pytest creates its own temporary

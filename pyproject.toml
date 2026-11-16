@@ -10,3 +10,7 @@ extend-exclude = [".venv"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "DJ"]
+
+[tool.ruff.lint.per-file-ignores]
+# Migrations are written by Django; we do not reformat their long lines.
+"*/migrations/*.py" = ["E501"]

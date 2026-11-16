@@ -3,8 +3,8 @@
 A multi-tenant SaaS platform for gyms in Rwanda: members, memberships, payments,
 check-in and reporting first, with further modules added over time.
 
-**Status:** Step 2 (Foundation), increment 1. The project runs and connects to
-PostgreSQL. There are no members, logins or gyms yet.
+**Status:** Step 2 (Foundation), increment 2. People can be registered and can
+sign in with a phone number and password. There are no gyms, roles or members yet.
 
 ## How the project is organised
 
@@ -14,6 +14,9 @@ PostgreSQL. There are no members, logins or gyms yet.
 | `config/` | Project-wide settings and the main list of web addresses |
 | `apps/` | Our own modules. Each of the nine applications gets its own folder here |
 | `apps/core/` | The shared foundation used by every other module |
+| `apps/people/` | One record per human being, identified by phone number |
+| `apps/accounts/` | Login accounts: sign in with phone number and password |
+| `templates/` | Page layouts shared by all modules |
 | `tests/` | Automated tests |
 | `docs/decisions/` | A record of important architecture decisions and why we made them |
 | `.env` | Private settings for your machine (passwords, secret key). Never saved to Git |
@@ -74,6 +77,7 @@ You need Python 3.12 or newer, Git, and either Docker or PostgreSQL 16.
 
    ```
    python manage.py check     # Django checks its own configuration
+   python manage.py migrate   # creates or updates the database tables
    pytest                     # runs the automated tests
    python manage.py runserver # starts the app
    ```
@@ -81,13 +85,20 @@ You need Python 3.12 or newer, Git, and either Docker or PostgreSQL 16.
    Then open http://127.0.0.1:8000/ in a browser. You should see
    "Application: running" and "Database: connected".
 
-Do not run `python manage.py migrate` yet. See decision 0002 for the reason.
+6. Create your own administrator account, then sign in at
+   http://127.0.0.1:8000/accounts/login/ :
+
+   ```
+   python manage.py create_platform_admin --name "Your Name" --phone 0788123456
+   ```
 
 ## Everyday commands
 
 | Command | What it does |
 |---|---|
 | `python manage.py runserver` | Start the app on your computer |
+| `python manage.py migrate` | Apply new database changes after a `git pull` |
+| `docker compose up -d` | Start the database |
 | `pytest` | Run all automated tests |
 | `ruff check .` | Look for common mistakes in the code |
 | `ruff format .` | Tidy the code layout |

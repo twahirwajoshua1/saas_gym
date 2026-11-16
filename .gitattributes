@@ -1,0 +1,3 @@
+# Store text files with the same line endings on every operating system,
+# so Git does not report files as changed when nothing really changed.
+* text=auto eol=lf

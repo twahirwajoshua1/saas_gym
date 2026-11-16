@@ -46,6 +46,8 @@ DJANGO_APPS = [
 # as its own entry when it is built.
 LOCAL_APPS = [
     "apps.core",
+    "apps.people",
+    "apps.accounts",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS
@@ -88,6 +90,16 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": env.db("DATABASE_URL"),
 }
+
+
+# --- Login ------------------------------------------------------------------
+
+# Our own user model: people sign in with a phone number.
+AUTH_USER_MODEL = "accounts.User"
+
+# Where to send someone who must sign in first, and where they go afterwards.
+LOGIN_URL = "accounts:login"
+LOGIN_REDIRECT_URL = "accounts:home"
 
 
 # --- Passwords --------------------------------------------------------------
