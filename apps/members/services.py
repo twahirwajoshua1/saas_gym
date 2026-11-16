@@ -9,7 +9,7 @@ it in the audit log, all in one database transaction.
 
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
@@ -19,12 +19,18 @@ from django.utils import timezone
 from apps.audit import services as audit
 from apps.gyms.models import Branch, Gym, StaffAssignment
 from apps.gyms.permissions import FRONT_DESK_ROLES, OWNER_ONLY, require_role
-from apps.members.models import DurationUnit, Gender, Member, Package
+from apps.members.durations import end_date_for
+from apps.members.models import DurationUnit, Gender, Member, Membership, Package
 from apps.people import services as people_services
 from apps.people.phones import InvalidPhoneNumber, normalize_phone
 
 MAX_PRICE_RWF = 100_000_000
 MAX_DURATION_COUNT = 999
+
+# How far from today a membership may start. Reception sometimes records a sale
+# a few days late, or sells a renewal in advance.
+MAX_DAYS_BACKDATED = 31
+MAX_DAYS_AHEAD = 366
 
 
 class InvalidDetails(ValueError):
@@ -305,3 +311,91 @@ def search_members(gym: Gym, query: str = ""):
         # "0788..." is stored as "+250788...", so the leading 0 must not be searched for.
         matches |= Q(person__phone__contains=digits.lstrip("0") or digits)
     return members.filter(matches)
+
+
+# --- Memberships ------------------------------------------------------------
+
+
+def memberships_for(member: Member):
+    """A member's memberships, newest first, without cancelled ones hidden."""
+    return Membership.objects.for_gym(member.gym).filter(member=member)
+
+
+def current_membership(member: Member, on: date | None = None) -> Membership | None:
+    """The membership that is valid on the given day (today by default), if any."""
+    day = on or timezone.localdate()
+    return (
+        memberships_for(member)
+        .filter(cancelled_at__isnull=True, start_date__lte=day, end_date__gte=day)
+        .first()
+    )
+
+
+def next_start_date(member: Member) -> date:
+    """
+    The natural start for a new membership: the day after the member's last
+    one ends, or today if they have none that reaches today.
+    """
+    today = timezone.localdate()
+    latest = (
+        memberships_for(member)
+        .filter(cancelled_at__isnull=True, end_date__gte=today)
+        .order_by("-end_date")
+        .first()
+    )
+    return latest.end_date + timedelta(days=1) if latest else today
+
+
+@transaction.atomic
+def create_membership(
+    *, by: StaffAssignment, member: Member, package: Package, start_date: date
+) -> Membership:
+    """
+    Give a member a membership for a package, starting on a date. Front-desk roles.
+
+    This only creates the membership. Charging for it is done by the billing
+    module, which calls this function as part of a sale.
+    """
+    require_role(by, FRONT_DESK_ROLES)
+    _same_gym(by, member)
+    _same_gym(by, package)
+    if not package.is_active:
+        raise InvalidDetails("package", "archived")
+
+    today = timezone.localdate()
+    earliest = today - timedelta(days=MAX_DAYS_BACKDATED)
+    latest = today + timedelta(days=MAX_DAYS_AHEAD)
+    if not isinstance(start_date, date) or not earliest <= start_date <= latest:
+        raise InvalidDetails("start_date", "out_of_range")
+
+    end_date = end_date_for(start_date, package.duration_count, package.duration_unit)
+    overlapping = memberships_for(member).filter(
+        cancelled_at__isnull=True, start_date__lte=end_date, end_date__gte=start_date
+    )
+    if overlapping.exists():
+        raise InvalidDetails("start_date", "overlaps")
+
+    membership = Membership.objects.create(
+        gym=by.gym,
+        member=member,
+        package=package,
+        package_name=package.name,
+        price_rwf=package.price_rwf,
+        duration_count=package.duration_count,
+        duration_unit=package.duration_unit,
+        start_date=start_date,
+        end_date=end_date,
+        sold_by=by.person,
+    )
+    audit.record(
+        action="membership.created",
+        summary=(
+            f"{member.full_name} got {package.name} from {start_date:%d %b %Y} "
+            f"to {end_date:%d %b %Y}"
+        ),
+        gym=by.gym,
+        actor=by.person,
+        target=membership,
+        details={"member": member.public_id, "package": package.public_id},
+    )
+    return membership

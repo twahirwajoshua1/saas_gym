@@ -97,3 +97,77 @@ class Member(GymOwnedModel):
     @property
     def phone(self) -> str:
         return self.person.phone
+
+
+class MembershipStatus(models.TextChoices):
+    UPCOMING = "upcoming", "Starts later"
+    ACTIVE = "active", "Active"
+    EXPIRED = "expired", "Expired"
+    CANCELLED = "cancelled", "Cancelled"
+
+
+class Membership(GymOwnedModel):
+    """
+    One purchase of a package by a member: valid from start_date to end_date.
+
+    It keeps its own copy of the package's name, price and length as they were
+    on the day of the sale, so changing the package later does not rewrite history.
+
+    Whether it is active or expired is worked out from the dates each time it is
+    asked, so memberships expire by themselves with nothing to run overnight.
+    """
+
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    member = models.ForeignKey(Member, on_delete=models.PROTECT, related_name="memberships")
+    package = models.ForeignKey(Package, on_delete=models.PROTECT, related_name="+")
+
+    # Copied from the package at the moment of sale.
+    package_name = models.CharField(max_length=80)
+    price_rwf = models.PositiveIntegerField()
+    duration_count = models.PositiveSmallIntegerField()
+    duration_unit = models.CharField(max_length=5, choices=DurationUnit.choices)
+
+    start_date = models.DateField()
+    end_date = models.DateField()  # the last valid day
+
+    sold_by = models.ForeignKey(
+        Person, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancel_reason = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["-start_date", "-id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(end_date__gte=models.F("start_date")),
+                name="membership_ends_on_or_after_start",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.package_name}: {self.start_date} to {self.end_date}"
+
+    def status_on(self, day) -> str:
+        if self.cancelled_at is not None:
+            return MembershipStatus.CANCELLED
+        if day < self.start_date:
+            return MembershipStatus.UPCOMING
+        if day > self.end_date:
+            return MembershipStatus.EXPIRED
+        return MembershipStatus.ACTIVE
+
+    @property
+    def status(self) -> str:
+        return self.status_on(timezone.localdate())
+
+    @property
+    def status_label(self) -> str:
+        return MembershipStatus(self.status).label
+
+    @property
+    def days_left(self) -> int:
+        """Days remaining including today. Zero or less means it has ended."""
+        return (self.end_date - timezone.localdate()).days + 1

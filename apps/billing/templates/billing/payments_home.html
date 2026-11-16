@@ -1,0 +1,74 @@
+{% extends "layouts/gym.html" %}
+{% load i18n money %}
+{% block title %}{% translate "Payments" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Payments" %}</h1>
+      <p class="muted">{{ today|date:"l j F Y" }}</p>
+    </div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="card stat">
+      <span class="stat-label">{% translate "Collected today" %}</span>
+      <span class="stat-value amount">{{ collected_today|rwf }}</span>
+    </div>
+    <div class="card stat">
+      <span class="stat-label">{% translate "Owed by members" %}</span>
+      <span class="stat-value amount">{{ total_outstanding|rwf }}</span>
+    </div>
+  </div>
+
+  {% if unpaid_invoices %}
+    <div class="card stack">
+      <h2>{% translate "Unpaid invoices" %}</h2>
+      <ul class="item-list">
+        {% for invoice in unpaid_invoices %}
+          <li>
+            <div class="item-main">
+              <a href="{% url 'members:member_detail' invoice.member.public_id %}"><strong>{{ invoice.member.full_name }}</strong></a>
+              <span class="muted small">{{ invoice.display_number }} · {{ invoice.issued_on|date:"j M Y" }}</span>
+            </div>
+            <div class="item-actions">
+              <span class="badge badge-warn">{% translate "Owes" %} {{ invoice.owed_rwf|rwf }}</span>
+              <a class="btn btn-small" href="{% url 'billing:payment_record' invoice.public_id %}">{% translate "Record payment" %}</a>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <div class="card stack">
+    <h2>{% translate "Recent payments" %}</h2>
+    {% if payments %}
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th scope="col">{% translate "Receipt" %}</th>
+              <th scope="col">{% translate "Member" %}</th>
+              <th scope="col" class="hide-narrow">{% translate "Date" %}</th>
+              <th scope="col" class="hide-narrow">{% translate "Paid by" %}</th>
+              <th scope="col">{% translate "Amount" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for payment in payments %}
+              <tr>
+                <td class="nowrap"><a href="{% url 'billing:receipt' payment.public_id %}">{{ payment.display_number }}</a></td>
+                <td>{{ payment.member.full_name }}</td>
+                <td class="hide-narrow nowrap">{{ payment.received_on|date:"j M Y" }}</td>
+                <td class="hide-narrow">{{ payment.get_method_display }}</td>
+                <td class="amount">{{ payment.amount_rwf|rwf }}{% if payment.is_reversed %} <span class="badge badge-danger">{% translate "Reversed" %}</span>{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">{% translate "No payments have been recorded yet." %}</p>
+    {% endif %}
+  </div>
+{% endblock %}

@@ -52,6 +52,7 @@ LOCAL_APPS = [
     "apps.gyms",
     "apps.modules",
     "apps.members",
+    "apps.billing",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS
@@ -82,6 +83,8 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 # The current gym and the person's role, for navigation.
                 "apps.gyms.context.current_gym",
+                # Which applications the gym has switched on, for menus.
+                "apps.modules.context.enabled_modules",
             ],
         },
     },
@@ -112,6 +115,12 @@ AUTHENTICATION_BACKENDS = ["apps.accounts.backends.ThrottledPhoneBackend"]
 # Where to send someone who must sign in first, and where they go afterwards.
 LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "gyms:enter"
+
+
+# One-time notices such as "Payment recorded." are kept in the signed-in
+# person's session, so signing out (or someone else signing in on the same
+# computer) throws away any notice that was still waiting to be shown.
+MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"
 
 
 # --- Passwords --------------------------------------------------------------

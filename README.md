@@ -3,9 +3,10 @@
 A multi-tenant SaaS platform for gyms in Rwanda: members, memberships, payments,
 check-in and reporting first, with further modules added over time.
 
-**Status:** Step 3 (first commercial product), increment 1. A gym can define the
-packages it sells and register, find and edit members, on screens that work on
-a phone. Selling memberships, payments and check-in are next.
+**Status:** Step 3 (first commercial product), increment 2. A gym can define
+packages, register members, sell memberships, record full or part payments,
+print receipts and reverse a wrong payment. Check-in and Excel import/export
+are next.
 
 ## How the project is organised
 
@@ -19,7 +20,8 @@ a phone. Selling memberships, payments and check-in are next.
 | `apps/accounts/` | Login accounts: sign in with phone number and password |
 | `apps/audit/` | The permanent audit log |
 | `apps/modules/` | Which of the nine applications each gym has switched on |
-| `apps/members/` | Gym Operations: members and the packages a gym sells |
+| `apps/billing/` | Payments and Finance: invoices, payments, receipts and the ledger |
+| `apps/members/` | Gym Operations: members, packages and memberships |
 | `apps/gyms/` | Gyms (the tenants), branches, staff roles and the tenant isolation helper |
 | `templates/` | Page layouts and form pieces shared by all modules |
 | `static/` | The stylesheet (`css/app.css`) and third-party JavaScript (`vendor/`) |

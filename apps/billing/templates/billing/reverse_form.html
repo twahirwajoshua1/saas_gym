@@ -1,0 +1,20 @@
+{% extends "layouts/gym.html" %}
+{% load i18n money %}
+{% block title %}{% translate "Reverse payment" %} · {{ payment.display_number }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'billing:receipt' payment.public_id %}">← {{ payment.display_number }}</a>
+  <div class="page-head"><h1>{% translate "Reverse payment" %}</h1></div>
+  <p class="notice notice-warn">
+    {% blocktranslate with number=payment.display_number amount=payment.amount_rwf|rwf name=payment.member.full_name %}Reversing {{ number }} ({{ amount }} from {{ name }}) puts that amount back onto what the member owes. The payment stays in the history, marked as reversed. This cannot be undone.{% endblocktranslate %}
+  </p>
+  <div class="card">
+    <form method="post" class="form" novalidate>
+      {% csrf_token %}
+      {% include "components/field.html" with field=form.reason %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{% translate "Reverse payment" %}</button>
+        <a class="btn" href="{% url 'billing:receipt' payment.public_id %}">{% translate "Cancel" %}</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

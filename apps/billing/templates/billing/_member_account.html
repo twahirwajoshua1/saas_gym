@@ -1,0 +1,59 @@
+{% load i18n money %}
+{% comment %}A member's invoices and payments. Shown on its own page and inside the member's page.{% endcomment %}
+<div class="card stack" id="member-account">
+  <div class="card-head">
+    <h2>{% translate "Payments" %}</h2>
+    {% if balance > 0 %}
+      <span class="badge badge-warn">{% translate "Owes" %} {{ balance|rwf }}</span>
+    {% elif invoices %}
+      <span class="badge badge-on">{% translate "Nothing owed" %}</span>
+    {% endif %}
+  </div>
+
+  {% if invoices %}
+    <ul class="item-list">
+      {% for invoice in invoices %}
+        <li>
+          <div class="item-main">
+            <strong>{% for line in invoice.lines.all %}{{ line.description }}{% endfor %}</strong>
+            <span class="muted small">
+              {{ invoice.display_number }} · {{ invoice.issued_on|date:"j M Y" }} ·
+              {% translate "Total" %} <span class="amount">{{ invoice.total_rwf|rwf }}</span> ·
+              {% translate "Paid" %} <span class="amount">{{ invoice.paid_rwf|rwf }}</span>
+            </span>
+          </div>
+          <div class="item-actions">
+            {% if invoice.owed_rwf > 0 %}
+              <span class="badge badge-warn">{% translate "Owes" %} {{ invoice.owed_rwf|rwf }}</span>
+              <a class="btn btn-small btn-primary" href="{% url 'billing:payment_record' invoice.public_id %}">{% translate "Record payment" %}</a>
+            {% else %}
+              <span class="badge badge-on">{% translate "Paid" %}</span>
+            {% endif %}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">{% translate "No invoices yet." %}</p>
+  {% endif %}
+
+  {% if payments %}
+    <div>
+      <p class="form-section">{% translate "Receipts" %}</p>
+      <ul class="item-list" style="margin-top: 10px">
+        {% for payment in payments %}
+          <li>
+            <div class="item-main">
+              <a href="{% url 'billing:receipt' payment.public_id %}"><strong>{{ payment.display_number }}</strong></a>
+              <span class="muted small">{{ payment.received_on|date:"j M Y" }} · {{ payment.get_method_display }}{% if payment.reference %} · {{ payment.reference }}{% endif %}</span>
+            </div>
+            <div class="item-actions">
+              {% if payment.is_reversed %}<span class="badge badge-danger">{% translate "Reversed" %}</span>{% endif %}
+              <span class="amount">{{ payment.amount_rwf|rwf }}</span>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+</div>

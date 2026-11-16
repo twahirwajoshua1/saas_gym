@@ -1,0 +1,45 @@
+{% extends "layouts/gym.html" %}
+{% load i18n money phones %}
+{% block title %}{{ payment.display_number }} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link no-print" href="{% url 'members:member_detail' payment.member.public_id %}">← {{ payment.member.full_name }}</a>
+
+  {% if payment.is_reversed %}
+    <p class="notice notice-error" role="alert">
+      <strong>{% translate "REVERSED" %}</strong> ·
+      {{ payment.reversal.created_at|date:"j M Y, H:i" }}{% if payment.reversal.reversed_by %} · {{ payment.reversal.reversed_by.full_name }}{% endif %} ·
+      {{ payment.reversal.reason }}
+    </p>
+  {% endif %}
+
+  <div class="card stack receipt">
+    <div>
+      <strong>{{ gym.name }}</strong>
+      <p class="muted small">{% translate "Receipt" %} {{ payment.display_number }} · {{ payment.received_on|date:"j M Y" }}</p>
+    </div>
+    <div>
+      <p class="muted small">{% translate "Received from" %}</p>
+      <p><strong>{{ payment.member.full_name }}</strong> · {{ payment.member.person.phone|phone }}</p>
+    </div>
+    <p class="receipt-amount amount">{{ payment.amount_rwf|rwf }}</p>
+    <dl>
+      <dt>{% translate "Paid by" %}</dt><dd>{{ payment.get_method_display }}</dd>
+      {% if payment.reference %}<dt>{% translate "Reference" %}</dt><dd>{{ payment.reference }}</dd>{% endif %}
+      <dt>{% translate "For" %}</dt><dd>{% for line in invoice.lines.all %}{{ line.description }}{% endfor %}</dd>
+      <dt>{% translate "Invoice" %}</dt><dd>{{ invoice.display_number }} · <span class="amount">{{ invoice.total_rwf|rwf }}</span></dd>
+    </dl>
+    <hr>
+    <dl>
+      <dt>{% translate "Still to pay on this invoice (today)" %}</dt><dd class="amount"><strong>{{ still_owed|rwf }}</strong></dd>
+      {% if payment.received_by %}<dt>{% translate "Received by" %}</dt><dd>{{ payment.received_by.full_name }}</dd>{% endif %}
+    </dl>
+  </div>
+
+  <div class="form-actions no-print">
+    <button type="button" class="btn btn-primary" onclick="window.print()">{% translate "Print" %}</button>
+    <a class="btn" href="{% url 'members:member_detail' payment.member.public_id %}">{% translate "Back to member" %}</a>
+    {% if role_is_owner and not payment.is_reversed %}
+      <a class="btn" href="{% url 'billing:payment_reverse' payment.public_id %}">{% translate "Reverse this payment" %}</a>
+    {% endif %}
+  </div>
+{% endblock %}

@@ -14,9 +14,46 @@
   </div>
 
   <div class="card stack">
-    <h2>{% translate "Membership" %}</h2>
-    <p class="muted">{% translate "No membership yet. Selling a membership is coming in the next update." %}</p>
+    <div class="card-head">
+      <h2>{% translate "Membership" %}</h2>
+      {% if 'payments_finance' in modules_on %}
+        <a class="btn btn-primary btn-small" href="{% url 'billing:sell' member.public_id %}">{% if memberships %}{% translate "Renew or sell another" %}{% else %}{% translate "Sell membership" %}{% endif %}</a>
+      {% endif %}
+    </div>
+    {% if current_membership %}
+      <p>
+        <span class="badge badge-on">{% translate "Active" %}</span>
+        <strong>{{ current_membership.package_name }}</strong> ·
+        {% blocktranslate with day=current_membership.end_date|date:"j M Y" %}valid until {{ day }}{% endblocktranslate %} ·
+        {% blocktranslate count days=current_membership.days_left %}{{ days }} day left{% plural %}{{ days }} days left{% endblocktranslate %}
+      </p>
+    {% else %}
+      <p><span class="badge badge-off">{% translate "No active membership" %}</span></p>
+    {% endif %}
+    {% if 'payments_finance' not in modules_on %}
+      <p class="muted small">{% translate "Selling memberships needs the Payments and Finance application." %}</p>
+    {% endif %}
+    {% if memberships %}
+      <ul class="item-list">
+        {% for membership in memberships %}
+          <li>
+            <div class="item-main">
+              <strong>{{ membership.package_name }}</strong>
+              <span class="muted small">{{ membership.start_date|date:"j M Y" }} – {{ membership.end_date|date:"j M Y" }}</span>
+            </div>
+            <span class="badge {% if membership.status == 'active' %}badge-on{% elif membership.status == 'upcoming' %}badge-warn{% else %}badge-off{% endif %}">{{ membership.status_label }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
   </div>
+
+  {% if 'payments_finance' in modules_on %}
+    {# The payments part belongs to the billing module. It is fetched separately and placed here. #}
+    <div hx-get="{% url 'billing:member_account' member.public_id %}" hx-trigger="load" hx-swap="outerHTML">
+      <a href="{% url 'billing:member_account' member.public_id %}">{% translate "Payments and balance" %}</a>
+    </div>
+  {% endif %}
 
   <div class="card stack">
     <h2>{% translate "Details" %}</h2>

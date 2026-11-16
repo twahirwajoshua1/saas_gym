@@ -6,11 +6,10 @@ The business rules (is the name already used? is this phone already a member?)
 live in services.py.
 """
 
-import re
-
 from django import forms
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.amounts import parse_rwf
 from apps.gyms.models import Branch
 from apps.members.models import DurationUnit, Gender
 
@@ -37,10 +36,10 @@ class PackageForm(forms.Form):
 
     def clean_price_rwf(self):
         # People type prices as "30,000", "30 000" or "30000". All mean the same.
-        typed = re.sub(r"[,\s]", "", self.cleaned_data["price_rwf"])
-        if not typed.isdigit():
+        amount = parse_rwf(self.cleaned_data["price_rwf"])
+        if amount is None:
             raise forms.ValidationError(_("Enter the price as a whole number of francs."))
-        return int(typed)
+        return amount
 
 
 class MemberForm(forms.Form):

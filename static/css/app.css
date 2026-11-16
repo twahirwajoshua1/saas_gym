@@ -150,3 +150,34 @@ table.data td a { font-weight: 600; text-decoration: none; }
 .badge { display: inline-block; font-size: 0.78rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
 .badge-on { background: var(--mint-soft); color: var(--accent-dark); }
 .badge-off { background: #e6ebe7; color: var(--muted); }
+
+/* --- 9. Money screens --- */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.stat { display: flex; flex-direction: column; gap: 4px; }
+.stat-label { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+.stat-value { font-size: 1.7rem; font-weight: 700; line-height: 1.2; }
+.amount { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.badge-warn { background: var(--warn-bg); color: var(--warn-ink); }
+.badge-danger { background: var(--danger-bg); color: #7a230a; }
+.card-head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+
+fieldset.choices { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+fieldset.choices legend { font-weight: 600; font-size: 0.95rem; padding: 0; margin-bottom: 6px; }
+.option { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 10px 14px; border: 1px solid #b8c2bb; border-radius: 8px; background: var(--surface); cursor: pointer; }
+.option:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: #f3faf6; }
+.option input { width: 20px; height: 20px; min-height: 0; flex: none; accent-color: var(--accent); }
+
+.receipt { max-width: 520px; }
+.receipt-amount { font-size: 2rem; font-weight: 700; }
+.receipt dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 20px; margin: 0; }
+.receipt dt { color: var(--muted); font-size: 0.9rem; }
+.receipt dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.receipt hr { border: 0; border-top: 1px dashed var(--line); margin: 4px 0; width: 100%; }
+
+@media print {
+  .sidebar, .no-print, .notice-success { display: none !important; }
+  .shell { display: block; }
+  .content { padding: 0; max-width: none; }
+  body { background: #fff; }
+  .card { border: 0; padding: 0; }
+}

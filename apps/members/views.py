@@ -107,8 +107,15 @@ def _get_member(request, public_id) -> Member:
 
 @gym_required(*FRONT_DESK_ROLES)
 def member_detail(request, public_id):
+    member = _get_member(request, public_id)
     return render(
-        request, "members/member_detail.html", {"member": _get_member(request, public_id)}
+        request,
+        "members/member_detail.html",
+        {
+            "member": member,
+            "memberships": services.memberships_for(member),
+            "current_membership": services.current_membership(member),
+        },
     )
 
 

@@ -1,0 +1,8 @@
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% translate "Payments" %} · {{ member.full_name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'members:member_detail' member.public_id %}">← {{ member.full_name }}</a>
+  <div class="page-head"><h1>{{ member.full_name }}</h1></div>
+  {% include "billing/_member_account.html" %}
+{% endblock %}
