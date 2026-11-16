@@ -59,6 +59,8 @@ LOCAL_APPS = [
     "apps.spreadsheets",
     "apps.memberapp",
     "apps.platformadmin",
+    # Only adds the create_sample_gyms command.
+    "apps.sampledata",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS

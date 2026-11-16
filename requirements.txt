@@ -8,6 +8,9 @@ defusedxml>=0.7
 # Draws QR codes for member cards.
 segno>=1.6
 
+# Moves the clock back while creating sample data (create_sample_gyms).
+time-machine>=2.14
+
 # What we need while developing (tests and code checks).
 pytest>=8
 pytest-django>=4.9

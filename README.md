@@ -126,6 +126,19 @@ You need Python 3.12 or newer, Git, and either Docker or PostgreSQL 16.
 | `python manage.py unlock_sign_in --phone 0788123456` | Remove a sign-in lock early |
 | `ruff format .` | Tidy the code layout |
 
+## Sample data for demonstrations
+
+On an empty development database:
+
+```
+python manage.py migrate
+python manage.py create_sample_gyms
+```
+
+This creates five invented Rwandan gyms (with 1 to 5 branches) and 75 days of
+history, and prints every login. It takes several minutes. See
+`docs/decisions/0017-sample-data.md`.
+
 ## Backups
 
 See `docs/operations.md` for nightly backups, restoring, and the restore drill.
