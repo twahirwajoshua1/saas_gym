@@ -1,0 +1,17 @@
+{% load i18n money %}
+{% comment %}Horizontal bars, one per row: a label, the amount, and a bar sized against the largest.{% endcomment %}
+{% if rows %}
+  <ul class="bars">
+    {% for row in rows %}
+      <li>
+        <div class="bar-label">
+          <span>{{ row.label }}{% if show_count %} <span class="muted small">× {{ row.count }}</span>{% endif %}</span>
+          <strong class="amount">{{ row.amount|rwf }}</strong>
+        </div>
+        <div class="bar-track" aria-hidden="true"><div class="bar-fill" style="width: {{ row.share }}%"></div></div>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p class="muted">{{ empty_text }}</p>
+{% endif %}

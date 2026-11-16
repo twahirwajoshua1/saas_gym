@@ -12,31 +12,29 @@
     {% endif %}
   </div>
 
-  {% if role_can_check_in and 'attendance_access' in modules_on %}
-    <div class="card-grid">
+  <div class="card-grid">
+    {% if role_can_check_in and 'attendance_access' in modules_on %}
       <a class="card card-link" href="{% url 'attendance:home' %}">
         <strong>{% translate "Check in a member" %}</strong>
         <span class="muted small">{% translate "Find a member and see whether their membership is valid today." %}</span>
       </a>
-    </div>
-  {% endif %}
-
-  {% if role_is_front_desk %}
-    <div class="card-grid">
+    {% endif %}
+    {% if role_is_front_desk %}
       <a class="card card-link" href="{% url 'members:member_register' %}">
         <strong>{% translate "Register a member" %}</strong>
         <span class="muted small">{% translate "Add a new member with their name and phone number." %}</span>
       </a>
-      <a class="card card-link" href="{% url 'members:member_list' %}">
-        <strong>{% translate "Find a member" %}</strong>
-        <span class="muted small">{% translate "Search by name or phone number." %}</span>
+      <a class="card card-link" href="{% url 'dashboard:renewals' %}">
+        <strong>{% translate "Renewals" %}</strong>
+        <span class="muted small">{% translate "Members whose membership is ending soon." %}</span>
       </a>
-      <a class="card card-link" href="{% url 'members:package_list' %}">
-        <strong>{% translate "Packages" %}</strong>
-        <span class="muted small">{% translate "What the gym sells, with prices." %}</span>
-      </a>
+    {% endif %}
+  </div>
+
+  {% if role_is_manager %}
+    {# The figures belong to the dashboard module. They are fetched separately and placed here. #}
+    <div hx-get="{% url 'dashboard:figures' %}" hx-trigger="load" hx-swap="outerHTML">
+      <p class="muted"><a href="{% url 'dashboard:figures' %}">{% translate "Open the figures" %}</a></p>
     </div>
   {% endif %}
-
-  <p class="muted small">{% translate "Figures for the gym will appear here in a coming update." %}</p>
 {% endblock %}

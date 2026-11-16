@@ -13,7 +13,7 @@ from datetime import date, timedelta
 
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
 from apps.audit import services as audit
@@ -399,3 +399,51 @@ def create_membership(
         details={"member": member.public_id, "package": package.public_id},
     )
     return membership
+
+
+# --- Figures for the owner --------------------------------------------------
+
+
+def members_with_valid_membership(gym: Gym, day: date):
+    """Members who have a membership valid on `day`."""
+    valid = Membership.objects.for_gym(gym).filter(
+        member=OuterRef("pk"), cancelled_at__isnull=True, start_date__lte=day, end_date__gte=day
+    )
+    return Member.objects.for_gym(gym).filter(Exists(valid))
+
+
+def new_member_count(gym: Gym, start: date, end: date) -> int:
+    """Members who joined between two days, both included."""
+    return Member.objects.for_gym(gym).filter(joined_on__range=(start, end)).count()
+
+
+def _not_renewed(memberships):
+    """Keep only memberships with nothing bought to follow them."""
+    later = Membership.objects.filter(
+        member=OuterRef("member"), cancelled_at__isnull=True, start_date__gt=OuterRef("end_date")
+    )
+    return memberships.filter(~Exists(later))
+
+
+def ending_soon(gym: Gym, today: date, within_days: int):
+    """
+    Memberships valid today that end within `within_days` days (today counts as
+    the first day) and have not been renewed. Soonest first.
+    """
+    last_day = today + timedelta(days=within_days - 1)
+    memberships = Membership.objects.for_gym(gym).filter(
+        cancelled_at__isnull=True, start_date__lte=today, end_date__range=(today, last_day)
+    )
+    return _not_renewed(memberships).select_related("member__person").order_by("end_date", "id")
+
+
+def lapsed(gym: Gym, today: date, within_days: int = 30):
+    """
+    Memberships that ended in the last `within_days` days and were not renewed:
+    members the gym has probably lost. Most recent first.
+    """
+    first_day = today - timedelta(days=within_days)
+    memberships = Membership.objects.for_gym(gym).filter(
+        cancelled_at__isnull=True, end_date__range=(first_day, today - timedelta(days=1))
+    )
+    return _not_renewed(memberships).select_related("member__person").order_by("-end_date", "id")

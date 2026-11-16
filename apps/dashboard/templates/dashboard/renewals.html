@@ -1,0 +1,58 @@
+{% extends "layouts/gym.html" %}
+{% load i18n money phones %}
+{% block title %}{% translate "Renewals" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Renewals" %}</h1>
+      <p class="muted">{% translate "Members to contact before (or after) their membership ends." %}</p>
+    </div>
+  </div>
+
+  <nav class="tabs" aria-label="{% translate 'Which members' %}">
+    <a href="?show=soon" {% if view == 'soon' %}class="is-current" aria-current="page"{% endif %}>{% translate "Ending within 7 days" %}</a>
+    <a href="?show=later" {% if view == 'later' %}class="is-current" aria-current="page"{% endif %}>{% translate "Within 30 days" %}</a>
+    <a href="?show=lapsed" {% if view == 'lapsed' %}class="is-current" aria-current="page"{% endif %}>{% translate "Lapsed (last 30 days)" %}</a>
+  </nav>
+
+  <div class="card">
+    {% if memberships %}
+      <p class="muted small" style="margin-bottom: 12px">
+        {% if view == 'lapsed' %}{% translate "Ended and not renewed, most recent first." %}{% else %}{% translate "Not renewed yet, soonest first." %}{% endif %}
+      </p>
+      <ul class="item-list">
+        {% for membership in memberships %}
+          <li>
+            <div class="item-main">
+              <a href="{% url 'members:member_detail' membership.member.public_id %}"><strong>{{ membership.member.full_name }}</strong></a>
+              <span class="muted small">
+                {{ membership.member.person.phone|phone }} · {{ membership.package_name }} ·
+                {% if view == 'lapsed' %}
+                  {% blocktranslate with day=membership.end_date|date:"j M Y" %}ended {{ day }}{% endblocktranslate %}
+                {% elif membership.days_from_today == 0 %}
+                  {% translate "ends today" %}
+                {% else %}
+                  {% blocktranslate with day=membership.end_date|date:"j M Y" count days=membership.days_from_today %}ends {{ day }} (in {{ days }} day){% plural %}ends {{ day }} (in {{ days }} days){% endblocktranslate %}
+                {% endif %}
+              </span>
+            </div>
+            <div class="item-actions">
+              {% if membership.owes_rwf > 0 %}<span class="badge badge-warn">{% translate "Owes" %} {{ membership.owes_rwf|rwf }}</span>{% endif %}
+              {% if 'payments_finance' in modules_on %}
+                <a class="btn btn-small btn-primary" href="{% url 'billing:sell' membership.member.public_id %}">{% translate "Renew" %}</a>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty">
+        <p>
+          {% if view == 'lapsed' %}{% translate "Nobody's membership lapsed in the last 30 days." %}
+          {% elif view == 'later' %}{% translate "No memberships end in the next 30 days without a renewal." %}
+          {% else %}{% translate "No memberships end in the next 7 days without a renewal." %}{% endif %}
+        </p>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

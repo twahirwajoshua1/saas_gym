@@ -1,0 +1,7 @@
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% translate "Figures" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <div class="page-head"><h1>{% translate "Figures" %}</h1></div>
+  {% include "dashboard/_figures.html" %}
+{% endblock %}

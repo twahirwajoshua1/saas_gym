@@ -23,6 +23,7 @@
           {% if 'payments_finance' in modules_on %}
             <a href="{% url 'billing:payments_home' %}" {% if nav_section == 'payment' %}class="is-current" aria-current="page"{% endif %}>{% translate "Payments" %}</a>
           {% endif %}
+          <a href="{% url 'dashboard:renewals' %}" {% if nav_section == 'renewals' %}class="is-current" aria-current="page"{% endif %}>{% translate "Renewals" %}</a>
           <a href="{% url 'members:package_list' %}" {% if nav_section == 'package' %}class="is-current" aria-current="page"{% endif %}>{% translate "Packages" %}</a>
         {% endif %}
         {% if role_is_manager %}

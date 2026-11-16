@@ -6,10 +6,11 @@ not, why not? The screen shows the answer; `check_in` enforces it.
 """
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
+from django.db.models import Exists, OuterRef
 from django.utils import timezone
 
 from apps.attendance.models import CheckIn, CheckInMethod
@@ -194,3 +195,28 @@ def check_ins_on(gym: Gym, day: date):
 def visits_for(member: Member):
     """A member's visits, most recent first."""
     return CheckIn.objects.for_gym(member.gym).filter(member=member).select_related("branch")
+
+
+# --- Figures for the owner --------------------------------------------------
+
+
+def check_in_count(gym: Gym, start: date, end: date) -> int:
+    """Visits between two days, both included."""
+    return CheckIn.objects.for_gym(gym).filter(checked_in_on__range=(start, end)).count()
+
+
+def not_visiting(gym: Gym, today: date, days: int = 14):
+    """
+    Members with a membership valid today who have not come in for `days` days.
+    These are the members most likely not to renew.
+
+    Members who joined less than `days` days ago are left out: they have not
+    had the chance yet.
+    """
+    since = today - timedelta(days=days)
+    recent = CheckIn.objects.filter(member=OuterRef("pk"), checked_in_on__gt=since)
+    return (
+        member_services.members_with_valid_membership(gym, today)
+        .filter(joined_on__lte=since)
+        .filter(~Exists(recent))
+    )

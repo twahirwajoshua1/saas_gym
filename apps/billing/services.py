@@ -12,7 +12,7 @@ from datetime import date
 
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Count, Sum
 
 from apps.audit import services as audit
 from apps.billing.models import (
@@ -360,3 +360,59 @@ def reverse_payment(*, by: StaffAssignment, payment: Payment, reason: str) -> Re
         details={"amount_rwf": payment.amount_rwf, "reason": reason[:300]},
     )
     return reversal
+
+
+# --- Figures for the owner --------------------------------------------------
+
+
+def _live_payments(gym: Gym, start: date, end: date):
+    return Payment.objects.for_gym(gym).filter(
+        received_on__range=(start, end), reversal__isnull=True
+    )
+
+
+def collected_between(gym: Gym, start: date, end: date) -> int:
+    """Money received between two days (both included), leaving out reversed payments."""
+    return _live_payments(gym, start, end).aggregate(sum=Sum("amount_rwf"))["sum"] or 0
+
+
+def collected_by_method(gym: Gym, start: date, end: date) -> list[dict]:
+    """Money received between two days, per payment method, largest first."""
+    labels = dict(PaymentMethod.choices)
+    rows = (
+        _live_payments(gym, start, end)
+        .values("method")
+        .annotate(amount=Sum("amount_rwf"), count=Count("id"))
+        .order_by("-amount")
+    )
+    return [{"label": labels.get(r["method"], r["method"]), **r} for r in rows]
+
+
+def sales_by_package(gym: Gym, start: date, end: date) -> list[dict]:
+    """
+    Memberships sold between two days, per package: how many and their value.
+
+    This is what was sold (invoiced), whether or not it has been paid yet.
+    """
+    rows = (
+        InvoiceLine.objects.for_gym(gym)
+        .filter(invoice__issued_on__range=(start, end), membership__isnull=False)
+        .values("membership__package_name")
+        .annotate(amount=Sum("amount_rwf"), count=Count("id"))
+        .order_by("-amount")
+    )
+    return [
+        {"label": r["membership__package_name"], "amount": r["amount"], "count": r["count"]}
+        for r in rows
+    ]
+
+
+def balances_for(gym: Gym, member_ids) -> dict[int, int]:
+    """What each of these members owes, in one query. Members owing nothing are left out."""
+    rows = (
+        LedgerEntry.objects.for_gym(gym)
+        .filter(member_id__in=list(member_ids))
+        .values("member_id")
+        .annotate(balance=Sum("amount_rwf"))
+    )
+    return {r["member_id"]: r["balance"] for r in rows if r["balance"] > 0}

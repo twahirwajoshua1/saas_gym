@@ -27,6 +27,7 @@ type = "layers"
 # Modules joined by "|" are side by side and may not import each other.
 # A new application module is added to this list when it is created.
 layers = [
+    "apps.dashboard",
     "apps.attendance",
     "apps.billing",
     "apps.members",

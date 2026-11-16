@@ -193,3 +193,16 @@ fieldset.choices legend { font-weight: 600; font-size: 0.95rem; padding: 0; marg
 .btn-big { min-height: 54px; font-size: 1.05rem; padding: 0 24px; }
 .grow { flex: 1 1 200px; }
 .select-inline { min-height: 44px; padding: 8px 10px; border: 1px solid #b8c2bb; border-radius: 8px; font: inherit; background: var(--surface); }
+
+/* --- 11. Dashboard --- */
+h3 { font-size: 1rem; margin: 0; }
+.stat-warn { border-color: #f0c98a; background: var(--warn-bg); }
+.stat.card-link:hover { border-color: var(--accent); }
+.two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.bar-label { display: flex; justify-content: space-between; gap: 12px; font-size: 0.95rem; }
+.bar-track { height: 10px; border-radius: 5px; background: #e6ebe7; margin-top: 6px; }
+.bar-fill { height: 10px; border-radius: 5px; background: var(--accent); min-width: 4px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tabs a { min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: 999px; border: 1px solid #c9d2cc; background: var(--surface); text-decoration: none; color: var(--ink); font-weight: 600; font-size: 0.92rem; }
+.tabs a.is-current { background: var(--ink); color: #fff; border-color: var(--ink); }

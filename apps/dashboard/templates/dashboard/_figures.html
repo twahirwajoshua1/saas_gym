@@ -1,0 +1,115 @@
+{% load i18n money phones %}
+{% comment %}
+  The owner's figures. Shown inside the Overview page and on its own page.
+  Each figure says in small text exactly what it counts.
+{% endcomment %}
+<div class="stack-lg" id="figures">
+  <section class="stack" aria-labelledby="fig-members">
+    <h2 id="fig-members">{% translate "Members" %}</h2>
+    <div class="stat-grid">
+      <div class="card stat">
+        <span class="stat-label">{% translate "Active members" %}</span>
+        <span class="stat-value">{{ figures.active_members }}</span>
+        <span class="muted small">{% translate "With a membership valid today." %}</span>
+      </div>
+      <div class="card stat">
+        <span class="stat-label">{% translate "New this month" %}</span>
+        <span class="stat-value">{{ figures.new_members_this_month }}</span>
+        <span class="muted small">{% blocktranslate with day=figures.month_start|date:"j M" %}Registered since {{ day }}.{% endblocktranslate %}</span>
+      </div>
+      <a class="card stat card-link {% if figures.ending_soon %}stat-warn{% endif %}" href="{% url 'dashboard:renewals' %}">
+        <span class="stat-label">{% translate "Ending within 7 days" %}</span>
+        <span class="stat-value">{{ figures.ending_soon }}</span>
+        <span class="muted small">{% translate "Not renewed yet. See who →" %}</span>
+      </a>
+      <a class="card stat card-link" href="{% url 'dashboard:renewals' %}?show=lapsed">
+        <span class="stat-label">{% translate "Lapsed in the last 30 days" %}</span>
+        <span class="stat-value">{{ figures.lapsed }}</span>
+        <span class="muted small">{% translate "Ended and did not renew. See who →" %}</span>
+      </a>
+    </div>
+  </section>
+
+  {% if figures.money %}
+    <section class="stack" aria-labelledby="fig-money">
+      <h2 id="fig-money">{% translate "Money" %}</h2>
+      <div class="stat-grid">
+        <div class="card stat">
+          <span class="stat-label">{% translate "Collected today" %}</span>
+          <span class="stat-value amount">{{ figures.money.collected_today|rwf }}</span>
+        </div>
+        <div class="card stat">
+          <span class="stat-label">{% translate "Collected this month" %}</span>
+          <span class="stat-value amount">{{ figures.money.collected_this_month|rwf }}</span>
+          <span class="muted small">{% blocktranslate with amount=figures.money.collected_last_month|rwf %}Last month: {{ amount }}.{% endblocktranslate %}</span>
+        </div>
+        <a class="card stat card-link" href="{% url 'billing:payments_home' %}">
+          <span class="stat-label">{% translate "Owed by members" %}</span>
+          <span class="stat-value amount">{{ figures.money.owed_by_members|rwf }}</span>
+          <span class="muted small">{% translate "Unpaid balances. See who →" %}</span>
+        </a>
+      </div>
+      <div class="two-col">
+        <div class="card stack">
+          <div>
+            <h3>{% translate "Collected this month, by payment method" %}</h3>
+            <p class="muted small">{% translate "Money received, leaving out reversed payments." %}</p>
+          </div>
+          {% include "dashboard/_bars.html" with rows=figures.money.by_method empty_text=_("Nothing collected yet this month.") %}
+        </div>
+        <div class="card stack">
+          <div>
+            <h3>{% translate "Sold this month, by package" %}</h3>
+            <p class="muted small">{% translate "Value of memberships sold, paid or not." %}</p>
+          </div>
+          {% include "dashboard/_bars.html" with rows=figures.money.by_package show_count=True empty_text=_("No memberships sold yet this month.") %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if figures.visits %}
+    <section class="stack" aria-labelledby="fig-visits">
+      <h2 id="fig-visits">{% translate "Visits" %}</h2>
+      <div class="stat-grid">
+        <div class="card stat">
+          <span class="stat-label">{% translate "Check-ins today" %}</span>
+          <span class="stat-value">{{ figures.visits.today }}</span>
+        </div>
+        <div class="card stat">
+          <span class="stat-label">{% translate "Check-ins this month" %}</span>
+          <span class="stat-value">{{ figures.visits.this_month }}</span>
+        </div>
+        <div class="card stat {% if figures.visits.not_visiting %}stat-warn{% endif %}">
+          <span class="stat-label">{% translate "Not seen for 14 days" %}</span>
+          <span class="stat-value">{{ figures.visits.not_visiting }}</span>
+          <span class="muted small">{% translate "Active members with no visit in 14 days. They are the most likely not to renew." %}</span>
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+  <section class="card stack" aria-labelledby="fig-soon">
+    <div class="card-head">
+      <h2 id="fig-soon">{% translate "Ending within 7 days" %}</h2>
+      <a class="btn btn-small" href="{% url 'dashboard:renewals' %}">{% translate "See all renewals" %}</a>
+    </div>
+    {% if figures.ending_soon_list %}
+      <ul class="item-list">
+        {% for membership in figures.ending_soon_list %}
+          <li>
+            <div class="item-main">
+              <a href="{% url 'members:member_detail' membership.member.public_id %}"><strong>{{ membership.member.full_name }}</strong></a>
+              <span class="muted small">{{ membership.package_name }} · {{ membership.member.person.phone|phone }}</span>
+            </div>
+            <span class="badge badge-warn">{% blocktranslate with day=membership.end_date|date:"j M" %}Ends {{ day }}{% endblocktranslate %}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">{% translate "No memberships end in the next 7 days without a renewal." %}</p>
+    {% endif %}
+  </section>
+
+  <p class="muted small">{% blocktranslate with time=figures.today|date:"j M Y" %}Figures for {{ time }}. They update each time the page is opened.{% endblocktranslate %}</p>
+</div>
