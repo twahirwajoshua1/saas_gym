@@ -1,0 +1,95 @@
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% translate "Check the import" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'spreadsheets:home' %}">← {% translate "Import and export" %}</a>
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Check the import" %}</h1>
+      <p class="muted">{{ file_name }} · {% translate "Nothing has been saved yet." %}</p>
+    </div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="card stat">
+      <span class="stat-label">{% translate "Ready to import" %}</span>
+      <span class="stat-value">{{ check.ready|length }}</span>
+    </div>
+    <div class="card stat">
+      <span class="stat-label">{% translate "Already members (skipped)" %}</span>
+      <span class="stat-value">{{ check.existing|length }}</span>
+    </div>
+    <div class="card stat {% if check.problems %}stat-warn{% endif %}">
+      <span class="stat-label">{% translate "With problems (skipped)" %}</span>
+      <span class="stat-value">{{ check.problems|length }}</span>
+    </div>
+  </div>
+
+  {% if check.problems %}
+    <div class="card stack">
+      <div>
+        <h2>{% translate "Rows with problems" %}</h2>
+        <p class="muted small">{% translate "These rows will not be imported. To include them, fix them in the spreadsheet and upload it again: rows already imported will then show as already members." %}</p>
+      </div>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th scope="col">{% translate "Row" %}</th><th scope="col">{% translate "Name" %}</th><th scope="col">{% translate "Problem" %}</th></tr></thead>
+          <tbody>
+            {% for row in check.problems %}
+              <tr>
+                <td>{{ row.line }}</td>
+                <td>{{ row.name|default:"—" }}</td>
+                <td>{% for message in row.messages %}<div>{{ message }}</div>{% endfor %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if check.existing %}
+    <details class="card">
+      <summary><strong>{% blocktranslate count n=check.existing|length %}{{ n }} row is already a member{% plural %}{{ n }} rows are already members{% endblocktranslate %}</strong></summary>
+      <ul class="item-list" style="margin-top: 12px">
+        {% for row in check.existing %}
+          <li><span>{% translate "Row" %} {{ row.line }}: {{ row.name }}</span><span class="muted small">{% blocktranslate with name=row.existing_name %}already registered as {{ name }}{% endblocktranslate %}</span></li>
+        {% endfor %}
+      </ul>
+    </details>
+  {% endif %}
+
+  {% if check.ready %}
+    <details class="card">
+      <summary><strong>{% blocktranslate count n=check.ready|length %}See the {{ n }} member to import{% plural %}See the {{ n }} members to import{% endblocktranslate %}</strong></summary>
+      <div class="table-wrap" style="margin-top: 12px">
+        <table class="data">
+          <thead><tr><th scope="col">{% translate "Row" %}</th><th scope="col">{% translate "Name" %}</th><th scope="col">{% translate "Phone" %}</th><th scope="col">{% translate "Membership" %}</th></tr></thead>
+          <tbody>
+            {% for row in check.ready %}
+              <tr>
+                <td>{{ row.line }}</td>
+                <td>{{ row.name }}</td>
+                <td>{{ row.values.phone }}</td>
+                <td>{% if row.values.package %}{{ row.values.package }} · {% translate "until" %} {{ row.values.valid_until }}{% else %}—{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+
+    <form method="post" action="{% url 'spreadsheets:confirm' %}" class="form-actions">
+      {% csrf_token %}
+      <input type="hidden" name="token" value="{{ token }}">
+      <button type="submit" class="btn btn-primary btn-big">{% blocktranslate count n=check.ready|length %}Import {{ n }} member{% plural %}Import {{ n }} members{% endblocktranslate %}</button>
+      <button type="submit" class="btn" formaction="{% url 'spreadsheets:cancel' %}">{% translate "Cancel" %}</button>
+    </form>
+  {% else %}
+    <div class="card empty">
+      <p><strong>{% translate "Nothing to import" %}</strong></p>
+      <p class="muted">{% translate "Fix the rows listed above and upload the file again." %}</p>
+      <a class="btn" href="{% url 'spreadsheets:home' %}">{% translate "Upload again" %}</a>
+    </div>
+  {% endif %}
+{% endblock %}

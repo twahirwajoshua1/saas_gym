@@ -200,6 +200,16 @@ def visits_for(member: Member):
 # --- Figures for the owner --------------------------------------------------
 
 
+def check_ins_between(gym: Gym, start: date, end: date):
+    """Visits between two days, both included, in the order they happened."""
+    return (
+        CheckIn.objects.for_gym(gym)
+        .filter(checked_in_on__range=(start, end))
+        .select_related("branch", "admitted_by")
+        .order_by("checked_in_at")
+    )
+
+
 def check_in_count(gym: Gym, start: date, end: date) -> int:
     """Visits between two days, both included."""
     return CheckIn.objects.for_gym(gym).filter(checked_in_on__range=(start, end)).count()

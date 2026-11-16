@@ -206,3 +206,10 @@ h3 { font-size: 1rem; margin: 0; }
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .tabs a { min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: 999px; border: 1px solid #c9d2cc; background: var(--surface); text-decoration: none; color: var(--ink); font-weight: 600; font-size: 0.92rem; }
 .tabs a.is-current { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+/* --- 12. Import and export --- */
+.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; }
+.steps li { padding-left: 4px; }
+.steps .btn { margin-left: 8px; vertical-align: middle; }
+.item-list-form { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+details.card > summary { cursor: pointer; min-height: 32px; }

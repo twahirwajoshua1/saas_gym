@@ -1,0 +1,62 @@
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% translate "Import and export" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Import and export" %}</h1>
+      <p class="muted">{% translate "Bring members in from a spreadsheet, or take data out to Excel." %}</p>
+    </div>
+  </div>
+
+  <section class="card stack" aria-labelledby="import-head">
+    <h2 id="import-head">{% translate "Import members" %}</h2>
+    <ol class="steps">
+      <li>
+        {% translate "Download the template and fill in one member per row. Name and phone are required." %}
+        <a class="btn btn-small" href="{% url 'spreadsheets:template' %}">{% translate "Download template" %}</a>
+      </li>
+      <li>{% translate "For members whose membership is still running, fill in Package (exactly as on the Packages page) and Valid until. Leave both empty for everyone else." %}</li>
+      <li>{% translate "Upload the file. You will see what will be imported before anything is saved." %}</li>
+    </ol>
+    <form method="post" action="{% url 'spreadsheets:upload' %}" enctype="multipart/form-data" class="form">
+      {% csrf_token %}
+      {% include "components/field.html" with field=upload_form.file %}
+      <div class="form-actions"><button type="submit" class="btn btn-primary">{% translate "Check the file" %}</button></div>
+    </form>
+  </section>
+
+  <section class="card stack" aria-labelledby="export-head">
+    <div>
+      <h2 id="export-head">{% translate "Export to Excel" %}</h2>
+      <p class="muted small">{% translate "Exports contain members' personal details. Each export is recorded in the Activity log. Keep the files safe." %}</p>
+    </div>
+
+    <form method="post" action="{% url 'spreadsheets:export_members' %}" class="item-list-form">
+      {% csrf_token %}
+      <div class="item-main">
+        <strong>{% translate "Members" %}</strong>
+        <span class="muted small">{% translate "Everyone, with their current membership." %}</span>
+      </div>
+      <button type="submit" class="btn">{% translate "Download" %}</button>
+    </form>
+
+    {% if payments_on or attendance_on %}
+      <div class="stack">
+        {% for error in range_form.non_field_errors %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endfor %}
+        <p class="small muted">{% translate "Payments and visits are exported for the dates you choose:" %}</p>
+        <form method="post" class="form" id="range-form">
+          {% csrf_token %}
+          <div class="form-row">
+            {% include "components/field.html" with field=range_form.start %}
+            {% include "components/field.html" with field=range_form.end %}
+          </div>
+          <div class="form-actions">
+            {% if payments_on %}<button type="submit" class="btn" formaction="{% url 'spreadsheets:export_payments' %}">{% translate "Download payments" %}</button>{% endif %}
+            {% if attendance_on %}<button type="submit" class="btn" formaction="{% url 'spreadsheets:export_visits' %}">{% translate "Download visits" %}</button>{% endif %}
+          </div>
+        </form>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

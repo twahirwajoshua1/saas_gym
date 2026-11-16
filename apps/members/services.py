@@ -18,7 +18,7 @@ from django.utils import timezone
 
 from apps.audit import services as audit
 from apps.gyms.models import Branch, Gym, StaffAssignment
-from apps.gyms.permissions import FRONT_DESK_ROLES, OWNER_ONLY, require_role
+from apps.gyms.permissions import FRONT_DESK_ROLES, MANAGER_ROLES, OWNER_ONLY, require_role
 from apps.members.durations import end_date_for
 from apps.members.models import DurationUnit, Gender, Member, Membership, Package
 from apps.people import services as people_services
@@ -229,6 +229,25 @@ def _clean_member(gym: Gym, details: MemberDetails) -> dict:
     }
 
 
+def check_registration(gym: Gym, *, phone: str, details: MemberDetails) -> str:
+    """
+    Check a member's details without saving anything (used by the spreadsheet
+    import to show problems before anything is saved).
+
+    Returns the phone number in standard form. Raises InvalidDetails, or
+    AlreadyMember if the phone already belongs to a member of this gym.
+    """
+    _clean_member(gym, details)
+    try:
+        standard_phone = normalize_phone(phone)
+    except InvalidPhoneNumber:
+        raise InvalidDetails("phone", "invalid") from None
+    existing = Member.objects.for_gym(gym).filter(person__phone=standard_phone).first()
+    if existing is not None:
+        raise AlreadyMember(existing)
+    return standard_phone
+
+
 @transaction.atomic
 def register_member(*, by: StaffAssignment, phone: str, details: MemberDetails) -> Member:
     """
@@ -412,6 +431,13 @@ def members_with_valid_membership(gym: Gym, day: date):
     return Member.objects.for_gym(gym).filter(Exists(valid))
 
 
+def memberships_valid_on(gym: Gym, day: date):
+    """Every membership valid on a day, across the gym's members."""
+    return Membership.objects.for_gym(gym).filter(
+        cancelled_at__isnull=True, start_date__lte=day, end_date__gte=day
+    )
+
+
 def new_member_count(gym: Gym, start: date, end: date) -> int:
     """Members who joined between two days, both included."""
     return Member.objects.for_gym(gym).filter(joined_on__range=(start, end)).count()
@@ -447,3 +473,82 @@ def lapsed(gym: Gym, today: date, within_days: int = 30):
         cancelled_at__isnull=True, end_date__range=(first_day, today - timedelta(days=1))
     )
     return _not_renewed(memberships).select_related("member__person").order_by("-end_date", "id")
+
+
+# How far ahead an imported membership may end. Longer than any real package,
+# short enough to catch a typing mistake such as 2062 for 2026.
+MAX_IMPORTED_YEARS_AHEAD = 5
+
+
+def find_package_by_name(gym: Gym, name: str) -> Package | None:
+    """The gym's package with this name (capitals and spaces do not matter)."""
+    return Package.objects.for_gym(gym).filter(name__iexact=_clean_text(name)).first()
+
+
+def check_existing_membership(gym: Gym, *, package_name: str, valid_until) -> Package:
+    """
+    Check a membership the member already had before the gym used this system.
+
+    Returns the package. Raises InvalidDetails.
+    """
+    package = find_package_by_name(gym, package_name)
+    if package is None:
+        raise InvalidDetails("package", "not_found")
+    today = timezone.localdate()
+    if not isinstance(valid_until, date):
+        raise InvalidDetails("valid_until", "invalid")
+    if valid_until < today:
+        raise InvalidDetails("valid_until", "in_past")
+    if valid_until > today.replace(year=today.year + MAX_IMPORTED_YEARS_AHEAD):
+        raise InvalidDetails("valid_until", "too_far")
+    return package
+
+
+@transaction.atomic
+def record_existing_membership(
+    *, by: StaffAssignment, member: Member, package: Package, valid_until: date
+) -> Membership:
+    """
+    Record a membership the member already had, brought in from the gym's
+    previous records. Owner and branch manager.
+
+    It is valid from today until `valid_until`. It has no invoice: whatever was
+    paid for it was paid before the gym used this system. The real start date
+    is not known, so today is used.
+    """
+    require_role(by, MANAGER_ROLES)
+    _same_gym(by, member)
+    _same_gym(by, package)
+    check_existing_membership(by.gym, package_name=package.name, valid_until=valid_until)
+    today = timezone.localdate()
+    overlapping = memberships_for(member).filter(
+        cancelled_at__isnull=True, start_date__lte=valid_until, end_date__gte=today
+    )
+    if overlapping.exists():
+        raise InvalidDetails("valid_until", "overlaps")
+
+    membership = Membership.objects.create(
+        gym=by.gym,
+        member=member,
+        package=package,
+        package_name=package.name,
+        price_rwf=package.price_rwf,
+        duration_count=package.duration_count,
+        duration_unit=package.duration_unit,
+        start_date=today,
+        end_date=valid_until,
+        sold_by=by.person,
+        imported=True,
+    )
+    audit.record(
+        action="membership.imported",
+        summary=(
+            f"{member.full_name}'s existing {package.name} membership, valid until "
+            f"{valid_until:%d %b %Y}, was brought in"
+        ),
+        gym=by.gym,
+        actor=by.person,
+        target=membership,
+        details={"member": member.public_id, "package": package.public_id},
+    )
+    return membership

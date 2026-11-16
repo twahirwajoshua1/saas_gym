@@ -138,6 +138,11 @@ class Membership(GymOwnedModel):
     cancelled_at = models.DateTimeField(null=True, blank=True)
     cancel_reason = models.CharField(max_length=300, blank=True)
 
+    # True for a membership brought in from the gym's previous records (for
+    # example a spreadsheet) rather than sold in this system. It has no invoice
+    # and does not count as a sale.
+    imported = models.BooleanField(default=False)
+
     class Meta:
         ordering = ["-start_date", "-id"]
         constraints = [

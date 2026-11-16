@@ -5,6 +5,7 @@
   <div class="page-head">
     <h1>{% translate "Members" %}</h1>
     <div class="actions">
+      {% if role_is_manager %}<a class="btn" href="{% url 'spreadsheets:home' %}">{% translate "Import" %}</a>{% endif %}
       <a class="btn btn-primary" href="{% url 'members:member_register' %}">{% translate "Register member" %}</a>
     </div>
   </div>

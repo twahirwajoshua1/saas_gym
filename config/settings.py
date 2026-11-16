@@ -55,6 +55,7 @@ LOCAL_APPS = [
     "apps.billing",
     "apps.attendance",
     "apps.dashboard",
+    "apps.spreadsheets",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS
@@ -123,6 +124,12 @@ LOGIN_REDIRECT_URL = "gyms:enter"
 # person's session, so signing out (or someone else signing in on the same
 # computer) throws away any notice that was still waiting to be shown.
 MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"
+
+
+# Uploads above this size are written to a temporary file instead of memory.
+# The import itself refuses files above 5 MB.
+FILE_UPLOAD_MAX_MEMORY_SIZE = 6 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 6 * 1024 * 1024
 
 
 # --- Passwords --------------------------------------------------------------
