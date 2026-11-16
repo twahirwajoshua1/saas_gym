@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Choose a gym · Gym Business OS{% endblock %}
+{% block content %}
+  {% if assignments %}
+    <h1>Choose a gym</h1>
+    <p>You work at more than one gym. Which one do you want to open?</p>
+    {% for assignment in assignments %}
+      <form method="post" action="{% url 'gyms:choose' %}">
+        {% csrf_token %}
+        <input type="hidden" name="gym" value="{{ assignment.gym.public_id }}">
+        <p><button type="submit">{{ assignment.gym.name }} ({{ assignment.get_role_display }})</button></p>
+      </form>
+    {% endfor %}
+  {% else %}
+    <h1>Welcome, {{ user.person.full_name }}</h1>
+    <p>You are signed in as {{ user.person.phone }}, but you are not staff at any gym yet.</p>
+    {% if user.is_staff %}
+      <p><a href="{% url 'admin:index' %}">Open the platform admin</a></p>
+    {% endif %}
+  {% endif %}
+  <form method="post" action="{% url 'accounts:logout' %}">
+    {% csrf_token %}
+    <button type="submit">Sign out</button>
+  </form>
+{% endblock %}

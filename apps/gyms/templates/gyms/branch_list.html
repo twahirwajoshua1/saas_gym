@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Branches · {{ request.gym.name }}{% endblock %}
+{% block content %}
+  <p><a href="{% url 'gyms:home' %}">{{ request.gym.name }}</a></p>
+  <h1>Branches</h1>
+  <ul>
+    {% for branch in branches %}
+      <li><a href="{% url 'gyms:branch_detail' branch.public_id %}">{{ branch.name }}</a></li>
+    {% endfor %}
+  </ul>
+{% endblock %}

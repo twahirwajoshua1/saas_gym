@@ -3,8 +3,9 @@
 A multi-tenant SaaS platform for gyms in Rwanda: members, memberships, payments,
 check-in and reporting first, with further modules added over time.
 
-**Status:** Step 2 (Foundation), increment 2. People can be registered and can
-sign in with a phone number and password. There are no gyms, roles or members yet.
+**Status:** Step 2 (Foundation), increment 3. People sign in with a phone number,
+gyms have branches and staff roles, and staff of one gym cannot reach another
+gym's data. There are no members or payments yet.
 
 ## How the project is organised
 
@@ -16,6 +17,7 @@ sign in with a phone number and password. There are no gyms, roles or members ye
 | `apps/core/` | The shared foundation used by every other module |
 | `apps/people/` | One record per human being, identified by phone number |
 | `apps/accounts/` | Login accounts: sign in with phone number and password |
+| `apps/gyms/` | Gyms (the tenants), branches, staff roles and the tenant isolation helper |
 | `templates/` | Page layouts shared by all modules |
 | `tests/` | Automated tests |
 | `docs/decisions/` | A record of important architecture decisions and why we made them |
@@ -90,6 +92,12 @@ You need Python 3.12 or newer, Git, and either Docker or PostgreSQL 16.
 
    ```
    python manage.py create_platform_admin --name "Your Name" --phone 0788123456
+   ```
+
+7. Register a gym owned by a registered person, then sign in again to enter it:
+
+   ```
+   python manage.py create_gym --name "Kigali Fit Club" --owner-phone 0788123456
    ```
 
 ## Everyday commands

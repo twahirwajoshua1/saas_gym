@@ -48,6 +48,7 @@ LOCAL_APPS = [
     "apps.core",
     "apps.people",
     "apps.accounts",
+    "apps.gyms",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS
@@ -99,7 +100,7 @@ AUTH_USER_MODEL = "accounts.User"
 
 # Where to send someone who must sign in first, and where they go afterwards.
 LOGIN_URL = "accounts:login"
-LOGIN_REDIRECT_URL = "accounts:home"
+LOGIN_REDIRECT_URL = "gyms:enter"
 
 
 # --- Passwords --------------------------------------------------------------

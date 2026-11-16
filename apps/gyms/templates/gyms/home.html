@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ request.gym.name }} · Gym Business OS{% endblock %}
+{% block content %}
+  <h1>{{ request.gym.name }}</h1>
+  <p>Signed in as {{ user.person.full_name }}, {{ request.assignment.get_role_display }}.</p>
+  {% if can_manage %}
+    <p><a href="{% url 'gyms:branch_list' %}">Branches</a></p>
+  {% endif %}
+  <p>Members, payments and check-in will appear here in Step 3.</p>
+  {% if other_gyms %}
+    <p><a href="{% url 'gyms:enter' %}">Switch gym</a></p>
+  {% endif %}
+  <form method="post" action="{% url 'accounts:logout' %}">
+    {% csrf_token %}
+    <button type="submit">Sign out</button>
+  </form>
+{% endblock %}

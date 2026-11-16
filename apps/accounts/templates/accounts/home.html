@@ -3,7 +3,6 @@
 {% block content %}
   <h1>Welcome, {{ person.full_name }}</h1>
   <p>You are signed in as {{ person.phone }}.</p>
-  <p>There is nothing else here yet. Gyms and roles come in the next increment.</p>
   <form method="post" action="{% url 'accounts:logout' %}">
     {% csrf_token %}
     <button type="submit">Sign out</button>
