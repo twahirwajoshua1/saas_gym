@@ -3,9 +3,9 @@
 A multi-tenant SaaS platform for gyms in Rwanda: members, memberships, payments,
 check-in and reporting first, with further modules added over time.
 
-**Status:** Step 2 (Foundation), increment 3. People sign in with a phone number,
-gyms have branches and staff roles, and staff of one gym cannot reach another
-gym's data. There are no members or payments yet.
+**Status:** Step 2 (Foundation), increment 4. People sign in with a phone number,
+gyms have branches and staff roles, and gym data is protected by two locks: our
+code and the database itself. There are no members or payments yet.
 
 ## How the project is organised
 
@@ -14,7 +14,7 @@ gym's data. There are no members or payments yet.
 | `manage.py` | The command you run to start the app, run database changes and more |
 | `config/` | Project-wide settings and the main list of web addresses |
 | `apps/` | Our own modules. Each of the nine applications gets its own folder here |
-| `apps/core/` | The shared foundation used by every other module |
+| `apps/core/` | The shared foundation, including the database lock that isolates gyms |
 | `apps/people/` | One record per human being, identified by phone number |
 | `apps/accounts/` | Login accounts: sign in with phone number and password |
 | `apps/gyms/` | Gyms (the tenants), branches, staff roles and the tenant isolation helper |

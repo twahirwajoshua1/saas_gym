@@ -17,6 +17,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect
 
+from apps.core import tenant_db
 from apps.gyms import services
 
 SESSION_KEY = "current_gym"
@@ -65,6 +66,9 @@ def gym_required(*allowed_roles):
                 raise PermissionDenied("Your role does not allow this.")
             request.assignment = assignment
             request.gym = assignment.gym
+            # Lock 2: tell the database which gym this request acts for. From
+            # here on it hides every other gym's rows, whatever our code asks for.
+            tenant_db.set_current_gym(assignment.gym_id)
             return view(request, *args, **kwargs)
 
         return wrapped

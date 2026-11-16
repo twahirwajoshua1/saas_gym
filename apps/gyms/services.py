@@ -69,7 +69,9 @@ def active_assignments_for(person: Person):
     """Every gym this person can currently work in, with their role there."""
     return (
         StaffAssignment.objects.filter(person=person, is_active=True, gym__is_active=True)
-        .select_related("gym", "branch")
+        # Not the branch: it is only visible once a gym has been chosen, and a
+        # join would silently turn "limited to a branch" into "no branch".
+        .select_related("gym")
         .order_by("gym__name")
     )
 
