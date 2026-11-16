@@ -38,6 +38,10 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Set when someone else chose the password (a new staff login or a reset).
+    # The person must choose their own before doing anything else.
+    must_change_password = models.BooleanField(default=False)
+
     objects = UserManager()
 
     USERNAME_FIELD = "phone"

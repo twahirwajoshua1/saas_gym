@@ -1,0 +1,14 @@
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% translate "Staff added" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <h1>{% blocktranslate with name=added.assignment.person.full_name role=added.assignment.get_role_display %}{{ name }} is now {{ role }}{% endblocktranslate %}</h1>
+  </div>
+  {% if added.temporary_password %}
+    {% include "team/_temporary_password.html" with person=added.assignment.person password=added.temporary_password %}
+  {% else %}
+    <div class="card"><p>{% translate "They already have a login, so they sign in with their own password." %}</p></div>
+  {% endif %}
+  <div class="form-actions"><a class="btn btn-primary" href="{% url 'team:staff_list' %}">{% translate "Back to staff" %}</a></div>
+{% endblock %}

@@ -1,13 +1,15 @@
 """Login screens. They collect input, call a service and show the result."""
 
 from django.conf import settings
-from django.contrib.auth import login, logout
+from django.contrib import messages
+from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
 from apps.accounts import services
-from apps.accounts.forms import LoginForm
+from apps.accounts.forms import LoginForm, PasswordChangeForm
 
 
 def login_view(request):
@@ -50,3 +52,29 @@ def logout_view(request):
 def home(request):
     """A simple page showing who is signed in."""
     return render(request, "accounts/home.html", {"person": request.user.person})
+
+
+@login_required
+def password_change(request):
+    """Choose a new password. Required after a temporary password was given."""
+    form = PasswordChangeForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        try:
+            services.change_own_password(
+                user=request.user,
+                current_password=form.cleaned_data["current_password"],
+                new_password=form.cleaned_data["new_password"],
+            )
+        except services.WrongPassword:
+            form.add_error("current_password", "This is not your current password.")
+        except ValidationError as error:
+            form.add_error("new_password", error)
+        else:
+            update_session_auth_hash(request, request.user)  # stay signed in
+            messages.success(request, "Your password was changed.")
+            return redirect(settings.LOGIN_REDIRECT_URL)
+    return render(
+        request,
+        "accounts/password_change.html",
+        {"form": form, "required": request.user.must_change_password},
+    )

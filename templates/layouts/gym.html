@@ -32,11 +32,12 @@
           <a href="{% url 'modules:list' %}" {% if nav_section == 'applications' %}class="is-current" aria-current="page"{% endif %}>{% translate "Applications" %}</a>
         {% endif %}
         {% if role_is_owner %}
+          <a href="{% url 'team:staff_list' %}" {% if nav_section == 'staff' %}class="is-current" aria-current="page"{% endif %}>{% translate "Staff" %}</a>
           <a href="{% url 'gyms:activity' %}" {% if nav_section == 'activity' %}class="is-current" aria-current="page"{% endif %}>{% translate "Activity" %}</a>
         {% endif %}
       </nav>
       <div class="sidebar-foot">
-        <span>{{ user.person.full_name }}</span>
+        <span>{{ user.person.full_name }} · <a href="{% url 'accounts:password_change' %}">{% translate "Password" %}</a></span>
         <form method="post" action="{% url 'accounts:logout' %}">
           {% csrf_token %}
           <button type="submit" class="link-button">{% translate "Sign out" %}</button>

@@ -1,0 +1,22 @@
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% if branch %}{% translate "Rename branch" %}{% else %}{% translate "Add branch" %}{% endif %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'gyms:branch_list' %}">← {% translate "Branches" %}</a>
+  <div class="page-head"><h1>{% if branch %}{% translate "Rename branch" %}{% else %}{% translate "Add branch" %}{% endif %}</h1></div>
+  <div class="card">
+    <form method="post" class="form" novalidate>
+      {% csrf_token %}
+      <div class="field{% if error %} has-error{% endif %}">
+        <label for="branch-name">{% translate "Branch name" %}</label>
+        <input id="branch-name" name="name" value="{{ name }}" maxlength="150" required>
+        <p class="help">{% translate "For example: Remera, or Kimihurura." %}</p>
+        {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{% if branch %}{% translate "Save" %}{% else %}{% translate "Add branch" %}{% endif %}</button>
+        <a class="btn" href="{% url 'gyms:branch_list' %}">{% translate "Cancel" %}</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

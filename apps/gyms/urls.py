@@ -10,5 +10,7 @@ urlpatterns = [
     path("", views.home, name="home"),
     path("activity/", views.activity, name="activity"),
     path("branches/", views.branch_list, name="branch_list"),
+    path("branches/add/", views.branch_add, name="branch_add"),
     path("branches/<uuid:public_id>/", views.branch_detail, name="branch_detail"),
+    path("branches/<uuid:public_id>/edit/", views.branch_edit, name="branch_edit"),
 ]

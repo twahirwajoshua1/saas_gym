@@ -11,6 +11,8 @@ def _nav_section(request) -> str:
     if match.app_name == "modules":
         return "applications"
     name = match.url_name or ""
+    if match.app_name == "team":
+        return "staff"
     if match.app_name == "spreadsheets":
         return "spreadsheets"
     if match.app_name == "dashboard":

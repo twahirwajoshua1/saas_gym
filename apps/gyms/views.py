@@ -1,5 +1,6 @@
 """Gym screens. They call services and the tenancy helper; no rules live here."""
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
@@ -61,3 +62,35 @@ def activity(request):
     """The permanent record of what has happened at this gym, newest first."""
     entries = audit_services.entries_for(request.gym)
     return render(request, "gyms/activity.html", {"entries": entries})
+
+
+def _branch_form_page(request, branch=None):
+    error = ""
+    name = branch.name if branch else ""
+    if request.method == "POST":
+        name = request.POST.get("name", "")
+        try:
+            if branch is None:
+                saved = services.create_branch(by=request.assignment, name=name)
+                messages.success(request, f"Branch {saved.name} was added.")
+            else:
+                saved = services.rename_branch(by=request.assignment, branch=branch, name=name)
+                messages.success(request, "Changes saved.")
+        except services.InvalidGymDetails as problem:
+            error = str(problem)
+        else:
+            return redirect("gyms:branch_list")
+    return render(
+        request, "gyms/branch_form.html", {"branch": branch, "name": name, "error": error}
+    )
+
+
+@tenancy.gym_required(Role.OWNER)
+def branch_add(request):
+    return _branch_form_page(request)
+
+
+@tenancy.gym_required(Role.OWNER)
+def branch_edit(request, public_id):
+    branch = get_object_or_404(Branch.objects.for_gym(request.gym), public_id=public_id)
+    return _branch_form_page(request, branch)

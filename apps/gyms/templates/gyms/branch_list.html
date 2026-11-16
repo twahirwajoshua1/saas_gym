@@ -2,11 +2,17 @@
 {% load i18n %}
 {% block title %}{% translate "Branches" %} · {{ gym.name }}{% endblock %}
 {% block content %}
-  <div class="page-head"><h1>{% translate "Branches" %}</h1></div>
+  <div class="page-head">
+    <h1>{% translate "Branches" %}</h1>
+    {% if role_is_owner %}<div class="actions"><a class="btn btn-primary" href="{% url 'gyms:branch_add' %}">{% translate "Add branch" %}</a></div>{% endif %}
+  </div>
   <div class="card">
     <ul class="item-list">
       {% for branch in branches %}
-        <li><a href="{% url 'gyms:branch_detail' branch.public_id %}"><strong>{{ branch.name }}</strong></a></li>
+        <li>
+          <a href="{% url 'gyms:branch_detail' branch.public_id %}"><strong>{{ branch.name }}</strong></a>
+          {% if role_is_owner %}<a class="btn btn-small" href="{% url 'gyms:branch_edit' branch.public_id %}">{% translate "Rename" %}</a>{% endif %}
+        </li>
       {% endfor %}
     </ul>
   </div>

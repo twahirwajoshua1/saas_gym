@@ -7,6 +7,7 @@ from django.db import transaction
 
 from apps.audit import services as audit
 from apps.gyms.models import Branch, Gym, Role, StaffAssignment
+from apps.gyms.permissions import OWNER_ONLY, require_role
 from apps.people.models import Person
 
 MAIN_BRANCH_NAME = "Main branch"
@@ -167,3 +168,103 @@ def find_active_assignment(*, person: Person, gym_public_id) -> StaffAssignment 
     except (ValueError, TypeError, ValidationError):
         # The identifier was missing or not a properly formed one.
         return None
+
+
+# --- Changes made by an owner on screen ----------------------------------------
+# These take `by` (the owner's own staff assignment) and check the role.
+
+
+@transaction.atomic
+def create_branch(*, by: StaffAssignment, name: str) -> Branch:
+    """Add a branch. Owner only."""
+    require_role(by, OWNER_ONLY)
+    return add_branch(gym=by.gym, name=name, actor=by.person)
+
+
+@transaction.atomic
+def rename_branch(*, by: StaffAssignment, branch: Branch, name: str) -> Branch:
+    """Rename a branch. Owner only."""
+    require_role(by, OWNER_ONLY)
+    if branch.gym_id != by.gym_id:
+        raise InvalidGymDetails("That branch belongs to a different gym.")
+    name = _clean_name(name, "branch")
+    if name == branch.name:
+        return branch
+    clash = Branch.objects.for_gym(by.gym).filter(name__iexact=name).exclude(pk=branch.pk)
+    if clash.exists():
+        raise InvalidGymDetails(f"{by.gym.name} already has a branch called {name}.")
+    old_name, branch.name = branch.name, name
+    branch.save(update_fields=["name"])
+    audit.record(
+        action="branch.renamed",
+        summary=f"Branch '{old_name}' was renamed '{name}'",
+        gym=by.gym,
+        actor=by.person,
+        target=branch,
+    )
+    return branch
+
+
+def other_active_owners(assignment: StaffAssignment) -> int:
+    """How many other people are active owners of this assignment's gym."""
+    owners = StaffAssignment.objects.for_gym(assignment.gym).filter(role=Role.OWNER, is_active=True)
+    return owners.exclude(pk=assignment.pk).count()
+
+
+@transaction.atomic
+def change_staff(
+    *,
+    assignment: StaffAssignment,
+    role: str,
+    branch: Branch | None,
+    actor: Person | None = None,
+    reactivate: bool = False,
+) -> StaffAssignment:
+    """
+    Change a staff member's role or branch, or give a removed staff member
+    access again (`reactivate=True`). Owners are never limited to one branch.
+    """
+    if role not in Role.values:
+        raise InvalidGymDetails(f"'{role}' is not a role.")
+    if role == Role.OWNER:
+        branch = None
+    if branch is not None and branch.gym_id != assignment.gym_id:
+        raise InvalidGymDetails("That branch belongs to a different gym.")
+
+    before = {"role": assignment.role, "branch": assignment.branch_id}
+    was_active = assignment.is_active
+    assignment.role, assignment.branch = role, branch
+    if reactivate:
+        assignment.is_active = True
+    if (
+        before == {"role": role, "branch": assignment.branch_id}
+        and was_active == assignment.is_active
+    ):
+        return assignment
+    assignment.save(update_fields=["role", "branch", "is_active"])
+
+    if reactivate and not was_active:
+        summary = (
+            f"{assignment.person.full_name} was given access again as "
+            f"{assignment.get_role_display()}"
+        )
+        action = "staff.reactivated"
+    else:
+        summary = (
+            f"{assignment.person.full_name} is now {assignment.get_role_display()}"
+            f"{f' at {branch.name}' if branch else ''}"
+        )
+        action = "staff.changed"
+    audit.record(
+        action=action,
+        summary=summary,
+        gym=assignment.gym,
+        actor=actor,
+        target=assignment,
+        details={
+            "role": role,
+            "branch": branch.public_id if branch else None,
+            "role_before": before["role"],
+        },
+    )
+    return assignment

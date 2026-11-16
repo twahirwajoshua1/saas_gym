@@ -1,0 +1,45 @@
+{% extends "layouts/gym.html" %}
+{% load i18n phones %}
+{% block title %}{% translate "Staff" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Staff" %}</h1>
+      <p class="muted">{% translate "Who can sign in to this gym, and what they can do." %}</p>
+    </div>
+    <div class="actions"><a class="btn btn-primary" href="{% url 'team:staff_add' %}">{% translate "Add staff" %}</a></div>
+  </div>
+  <div class="card">
+    <ul class="item-list">
+      {% for row in rows %}
+        {% with a=row.assignment %}
+          <li>
+            <div class="item-main">
+              <strong>{{ a.person.full_name }}{% if a.pk == assignment.pk %} ({% translate "you" %}){% endif %}</strong>
+              <span class="muted small">
+                {{ a.person.phone|phone }} · {{ a.get_role_display }}{% if a.branch %} · {{ a.branch.name }}{% endif %}
+                {% if row.has_login %} · {% if row.last_login %}{% blocktranslate with day=row.last_login|date:"j M Y" %}last signed in {{ day }}{% endblocktranslate %}{% else %}{% translate "has not signed in yet" %}{% endif %}{% endif %}
+              </span>
+            </div>
+            <div class="item-actions">
+              {% if not a.is_active %}
+                <span class="badge badge-off">{% translate "No access" %}</span>
+              {% elif a.pk != assignment.pk %}
+                <a class="btn btn-small" href="{% url 'team:staff_edit' a.person.public_id %}">{% translate "Change role" %}</a>
+                {% if row.can_reset %}
+                  <form method="post" action="{% url 'team:staff_reset_password' a.person.public_id %}" class="inline-form">
+                    {% csrf_token %}<button type="submit" class="btn btn-small">{% translate "Reset password" %}</button>
+                  </form>
+                {% endif %}
+                <form method="post" action="{% url 'team:staff_remove' a.person.public_id %}" class="inline-form">
+                  {% csrf_token %}<button type="submit" class="btn btn-small">{% translate "Remove" %}</button>
+                </form>
+              {% endif %}
+            </div>
+          </li>
+        {% endwith %}
+      {% endfor %}
+    </ul>
+  </div>
+  <p class="muted small">{% translate "Removing someone takes away their access at once. Their past work stays in the records." %}</p>
+{% endblock %}

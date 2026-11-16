@@ -52,6 +52,7 @@ LOCAL_APPS = [
     "apps.gyms",
     "apps.modules",
     "apps.members",
+    "apps.team",
     "apps.billing",
     "apps.attendance",
     "apps.dashboard",
@@ -68,6 +69,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     # Runs each request as the restricted database role (tenant isolation, lock 2).
     "apps.core.middleware.DatabaseRoleMiddleware",
+    # Sends people whose password was set by someone else to choose their own.
+    "apps.accounts.middleware.PasswordChangeRequiredMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]

@@ -213,3 +213,6 @@ h3 { font-size: 1rem; margin: 0; }
 .steps .btn { margin-left: 8px; vertical-align: middle; }
 .item-list-form { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
 details.card > summary { cursor: pointer; min-height: 32px; }
+
+/* --- 13. Staff --- */
+.password-shown { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 1.3rem; font-weight: 700; letter-spacing: 0.04em; }
