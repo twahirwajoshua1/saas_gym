@@ -1,0 +1,65 @@
+# Runs the code checks and the full test suite on GitHub
+# for every push to main and every pull request.
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # A throwaway PostgreSQL that exists only while the tests run.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: gymos
+          POSTGRES_PASSWORD: gymos_ci_password
+          POSTGRES_DB: gymos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gymos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # Test-only values. Nothing here is used by a real installation.
+    env:
+      SECRET_KEY: used-only-for-automatic-tests
+      DEBUG: "False"
+      DATABASE_URL: postgres://gymos:gymos_ci_password@localhost:5432/gymos
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install packages
+        run: pip install -r requirements.txt
+
+      - name: Code style and common mistakes
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Module import rules
+        run: lint-imports
+
+      - name: Django configuration
+        run: python manage.py check
+
+      - name: No missing migrations
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Tests
+        run: pytest
