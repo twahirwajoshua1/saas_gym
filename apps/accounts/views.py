@@ -17,17 +17,25 @@ def login_view(request):
 
     form = LoginForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
-        user = services.authenticate_by_phone(
-            request,
-            phone=form.cleaned_data["phone"],
-            password=form.cleaned_data["password"],
-        )
-        if user is not None:
-            login(request, user)
-            return redirect(settings.LOGIN_REDIRECT_URL)
-        # One message for every failure, so nobody can use this page to find
-        # out which phone numbers have accounts.
-        form.add_error(None, "The phone number or password is not correct.")
+        try:
+            user = services.authenticate_by_phone(
+                request,
+                phone=form.cleaned_data["phone"],
+                password=form.cleaned_data["password"],
+            )
+        except services.TooManyAttempts as locked:
+            form.add_error(
+                None,
+                "Too many wrong attempts. Sign-in for this number is locked for about "
+                f"{locked.minutes_left} more minute(s).",
+            )
+        else:
+            if user is not None:
+                login(request, user)
+                return redirect(settings.LOGIN_REDIRECT_URL)
+            # One message for every failure, so nobody can use this page to
+            # find out which phone numbers have accounts.
+            form.add_error(None, "The phone number or password is not correct.")
 
     return render(request, "accounts/login.html", {"form": form})
 

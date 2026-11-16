@@ -102,6 +102,10 @@ DATABASES = {
 # Our own user model: people sign in with a phone number.
 AUTH_USER_MODEL = "accounts.User"
 
+# Checks the phone number and password, and locks a number after too many
+# wrong attempts. Used by our sign-in page and by the platform admin.
+AUTHENTICATION_BACKENDS = ["apps.accounts.backends.ThrottledPhoneBackend"]
+
 # Where to send someone who must sign in first, and where they go afterwards.
 LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "gyms:enter"

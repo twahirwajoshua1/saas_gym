@@ -45,3 +45,24 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.phone
+
+
+class LoginThrottle(models.Model):
+    """
+    Counts wrong sign-in attempts for one phone number (see throttle.py).
+
+    A row exists for any number that had a wrong attempt, whether or not an
+    account exists for it, so this table never reveals who has an account.
+    """
+
+    phone = models.CharField(max_length=16, unique=True)
+    failures = models.PositiveSmallIntegerField(default=0)
+
+    # Wrong attempts are counted within a window that starts here.
+    window_started_at = models.DateTimeField()
+
+    # While this is in the future, sign-in for the number is refused.
+    locked_until = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return self.phone

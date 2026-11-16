@@ -14,3 +14,39 @@ select = ["E", "F", "I", "B", "UP", "DJ"]
 [tool.ruff.lint.per-file-ignores]
 # Migrations are written by Django; we do not reformat their long lines.
 "*/migrations/*.py" = ["E501"]
+
+# --- Import rules -----------------------------------------------------------
+# Checked with the command `lint-imports`. They keep the modules separable.
+[tool.importlinter]
+root_package = "apps"
+
+[[tool.importlinter.contracts]]
+name = "Modules depend on each other in one direction only"
+type = "layers"
+# A module may import from modules listed below it, never from ones above it.
+# Modules joined by "|" are side by side and may not import each other.
+# A new application module is added to this list when it is created.
+layers = [
+    "apps.modules",
+    "apps.gyms | apps.accounts",
+    "apps.audit",
+    "apps.people",
+    "apps.core",
+]
+
+[[tool.importlinter.contracts]]
+name = "Business logic never depends on screens"
+type = "forbidden"
+source_modules = [
+    "apps.*.services",
+    "apps.*.models",
+    "apps.people.phones",
+    "apps.modules.catalog",
+    "apps.core.tenant_db",
+]
+forbidden_modules = [
+    "apps.*.views",
+    "apps.*.urls",
+    "apps.*.forms",
+    "apps.*.admin",
+]

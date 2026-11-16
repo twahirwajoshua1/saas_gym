@@ -3,11 +3,11 @@
 A multi-tenant SaaS platform for gyms in Rwanda: members, memberships, payments,
 check-in and reporting first, with further modules added over time.
 
-**Status:** Step 2 (Foundation), increment 5. People sign in with a phone number,
+**Status:** Step 2 (Foundation) complete. People sign in with a phone number,
 gyms have branches and staff roles, gym data is protected by two locks (our code
 and the database itself), every important action goes into a permanent audit
 log, and the nine applications can be switched on per gym. There are no members
-or payments yet.
+or payments yet. Step 3 (members, packages, payments, check-in) is next.
 
 ## How the project is organised
 
@@ -58,6 +58,8 @@ You need Python 3.12 or newer, Git, and either Docker or PostgreSQL 16.
    source .venv/bin/activate        # on Windows: .venv\Scripts\activate
    pip install -r requirements.txt
    ```
+
+   Run this line again after a `git pull` that changes `requirements.txt`.
 
 3. Start the database. The easiest way is Docker, which runs PostgreSQL
    without installing it:
@@ -115,6 +117,8 @@ You need Python 3.12 or newer, Git, and either Docker or PostgreSQL 16.
 | `python manage.py set_module --gym "Name" --module payments_finance` | Switch one on (add `--off` to switch off) |
 | `pytest` | Run all automated tests |
 | `ruff check .` | Look for common mistakes in the code |
+| `lint-imports` | Check that modules only depend on each other in the allowed direction |
+| `python manage.py unlock_sign_in --phone 0788123456` | Remove a sign-in lock early |
 | `ruff format .` | Tidy the code layout |
 
 ## Where to read more

@@ -1,9 +1,13 @@
 """Business rules for login accounts."""
 
+import math
+
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
+from django.utils import timezone
 
+from apps.accounts import throttle
 from apps.accounts.models import User
 from apps.audit import services as audit
 from apps.people import services as people_services
@@ -13,6 +17,19 @@ from apps.people.phones import InvalidPhoneNumber, normalize_phone
 
 class AccountAlreadyExists(Exception):
     """This person already has a login account."""
+
+
+class TooManyAttempts(Exception):
+    """Sign-in for this phone number is locked after too many wrong passwords."""
+
+    def __init__(self, locked_until):
+        self.locked_until = locked_until
+        super().__init__("Too many wrong attempts.")
+
+    @property
+    def minutes_left(self) -> int:
+        seconds = (self.locked_until - timezone.now()).total_seconds()
+        return max(1, math.ceil(seconds / 60))
 
 
 @transaction.atomic
@@ -39,12 +56,42 @@ def create_user_account(*, person: Person, password: str, actor: Person | None =
 
 
 def authenticate_by_phone(request, *, phone: str, password: str) -> User | None:
-    """Return the user if the phone number and password are correct, otherwise None."""
+    """
+    Return the user if the phone number and password are correct, otherwise None.
+
+    Raises TooManyAttempts if the number is locked (see throttle.py). The
+    counting itself happens in backends.py, so that every way of signing in
+    is covered.
+    """
     try:
         standard_phone = normalize_phone(phone)
     except InvalidPhoneNumber:
         return None
-    return authenticate(request, username=standard_phone, password=password)
+
+    user = authenticate(request, username=standard_phone, password=password)
+    if user is None:
+        locked_until = throttle.locked_until(standard_phone)
+        if locked_until:
+            raise TooManyAttempts(locked_until)
+    return user
+
+
+@transaction.atomic
+def unlock_sign_in(*, phone: str) -> bool:
+    """
+    Remove a sign-in lock early (a platform action). Returns False if there was none.
+
+    Raises InvalidPhoneNumber.
+    """
+    standard_phone = normalize_phone(phone)
+    if not throttle.clear(standard_phone):
+        return False
+    audit.record(
+        action="account.unlocked",
+        summary=f"The sign-in lock on the number ending {standard_phone[-3:]} was removed",
+        details={"phone": standard_phone},
+    )
+    return True
 
 
 @transaction.atomic
