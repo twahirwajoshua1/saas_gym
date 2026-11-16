@@ -38,11 +38,7 @@ def home(request):
     return render(
         request,
         "gyms/home.html",
-        {
-            "can_manage": request.assignment.role in (Role.OWNER, Role.BRANCH_MANAGER),
-            "is_owner": request.assignment.role == Role.OWNER,
-            "other_gyms": services.active_assignments_for(request.user.person).count() > 1,
-        },
+        {"other_gyms": services.active_assignments_for(request.user.person).count() > 1},
     )
 
 

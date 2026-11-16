@@ -1,0 +1,4 @@
+{% comment %}One-time notices such as "Changes saved."{% endcomment %}
+{% for message in messages %}
+  <p class="notice {% if message.tags == 'error' %}notice-error{% else %}notice-success{% endif %}" role="status">{{ message }}</p>
+{% endfor %}

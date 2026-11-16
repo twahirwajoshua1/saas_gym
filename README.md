@@ -3,11 +3,9 @@
 A multi-tenant SaaS platform for gyms in Rwanda: members, memberships, payments,
 check-in and reporting first, with further modules added over time.
 
-**Status:** Step 2 (Foundation) complete. People sign in with a phone number,
-gyms have branches and staff roles, gym data is protected by two locks (our code
-and the database itself), every important action goes into a permanent audit
-log, and the nine applications can be switched on per gym. There are no members
-or payments yet. Step 3 (members, packages, payments, check-in) is next.
+**Status:** Step 3 (first commercial product), increment 1. A gym can define the
+packages it sells and register, find and edit members, on screens that work on
+a phone. Selling memberships, payments and check-in are next.
 
 ## How the project is organised
 
@@ -21,8 +19,10 @@ or payments yet. Step 3 (members, packages, payments, check-in) is next.
 | `apps/accounts/` | Login accounts: sign in with phone number and password |
 | `apps/audit/` | The permanent audit log |
 | `apps/modules/` | Which of the nine applications each gym has switched on |
+| `apps/members/` | Gym Operations: members and the packages a gym sells |
 | `apps/gyms/` | Gyms (the tenants), branches, staff roles and the tenant isolation helper |
-| `templates/` | Page layouts shared by all modules |
+| `templates/` | Page layouts and form pieces shared by all modules |
+| `static/` | The stylesheet (`css/app.css`) and third-party JavaScript (`vendor/`) |
 | `tests/` | Automated tests |
 | `docs/decisions/` | A record of important architecture decisions and why we made them |
 | `.env` | Private settings for your machine (passwords, secret key). Never saved to Git |

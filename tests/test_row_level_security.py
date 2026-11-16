@@ -204,3 +204,40 @@ def test_a_branch_limited_role_keeps_its_branch(client, owner_a, gym_a):
     request = client.get(reverse("gyms:home")).wsgi_request
     assert current_assignment(request) is not None
     assert request.assignment.branch_id == branch.id
+
+
+def test_members_and_packages_are_hidden_by_the_database_too(make_gym):
+    """An unfiltered query, as the web role, returns only the current gym's rows."""
+    from apps.members import services as member_services
+    from apps.members.models import Member, Package
+    from apps.members.services import MemberDetails
+
+    alpha = make_gym("Alpha Fitness", "0788100001")
+    bravo = make_gym("Bravo Fitness", "0788100002")
+    for staff, phone in ((alpha, "0788300001"), (bravo, "0788300002")):
+        member_services.register_member(
+            by=staff.assignment,
+            phone=phone,
+            details=MemberDetails(full_name=f"Of {staff.gym.name}"),
+        )
+        member_services.create_package(
+            by=staff.assignment,
+            name="Monthly",
+            price_rwf=30000,
+            duration_count=1,
+            duration_unit="month",
+        )
+
+    tenant_db.enter_app_role(person_id=None)
+    try:
+        assert Member.objects.count() == 0 and Package.objects.count() == 0  # no gym chosen
+        tenant_db.set_current_gym(alpha.gym.id)
+        members = list(Member.objects.values_list("full_name", flat=True))  # unfiltered
+        packages = list(Package.objects.values_list("gym_id", flat=True))
+        with pytest.raises(ProgrammingError), transaction.atomic():
+            Member.objects.filter(gym=alpha.gym).update(gym=bravo.gym)  # cannot move a row out
+    finally:
+        tenant_db.leave_app_role()
+
+    assert members == ["Of Alpha Fitness"]
+    assert packages == [alpha.gym.id]

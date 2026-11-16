@@ -1,16 +1,27 @@
-{% extends "base.html" %}
-{% block title %}Activity · {{ request.gym.name }}{% endblock %}
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% translate "Activity" %} · {{ gym.name }}{% endblock %}
 {% block content %}
-  <p><a href="{% url 'gyms:home' %}">{{ request.gym.name }}</a></p>
-  <h1>Activity</h1>
-  <p>A permanent record of what has happened at this gym. Entries cannot be changed or removed.</p>
-  {% for entry in entries %}
-    <p>
-      <strong>{{ entry.created_at|date:"j M Y, H:i" }}</strong><br>
-      {{ entry.summary }}<br>
-      <small>by {% if entry.actor %}{{ entry.actor.full_name }}{% else %}the system{% endif %}</small>
-    </p>
-  {% empty %}
-    <p>Nothing has been recorded yet.</p>
-  {% endfor %}
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Activity" %}</h1>
+      <p class="muted">{% translate "A permanent record of what has happened at this gym. Entries cannot be changed or removed." %}</p>
+    </div>
+  </div>
+  <div class="card">
+    {% if entries %}
+      <ul class="item-list">
+        {% for entry in entries %}
+          <li>
+            <div class="item-main">
+              <span>{{ entry.summary }}</span>
+              <span class="muted small">{{ entry.created_at|date:"j M Y, H:i" }} · {% if entry.actor %}{{ entry.actor.full_name }}{% else %}{% translate "the system" %}{% endif %}</span>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">{% translate "Nothing has been recorded yet." %}</p>
+    {% endif %}
+  </div>
 {% endblock %}

@@ -1,19 +1,33 @@
-{% extends "base.html" %}
-{% block title %}{{ request.gym.name }} · Gym Business OS{% endblock %}
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{{ gym.name }} · Gym Business OS{% endblock %}
 {% block content %}
-  <h1>{{ request.gym.name }}</h1>
-  <p>Signed in as {{ user.person.full_name }}, {{ request.assignment.get_role_display }}.</p>
-  {% if can_manage %}
-    <p><a href="{% url 'gyms:branch_list' %}">Branches</a> ·
-       <a href="{% url 'modules:list' %}">Applications</a>
-       {% if is_owner %} · <a href="{% url 'gyms:activity' %}">Activity</a>{% endif %}</p>
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Overview" %}</h1>
+      <p class="muted">{% blocktranslate with name=user.person.full_name %}Welcome, {{ name }}.{% endblocktranslate %}</p>
+    </div>
+    {% if other_gyms %}
+      <a class="btn" href="{% url 'gyms:enter' %}">{% translate "Switch gym" %}</a>
+    {% endif %}
+  </div>
+
+  {% if role_is_front_desk %}
+    <div class="card-grid">
+      <a class="card card-link" href="{% url 'members:member_register' %}">
+        <strong>{% translate "Register a member" %}</strong>
+        <span class="muted small">{% translate "Add a new member with their name and phone number." %}</span>
+      </a>
+      <a class="card card-link" href="{% url 'members:member_list' %}">
+        <strong>{% translate "Find a member" %}</strong>
+        <span class="muted small">{% translate "Search by name or phone number." %}</span>
+      </a>
+      <a class="card card-link" href="{% url 'members:package_list' %}">
+        <strong>{% translate "Packages" %}</strong>
+        <span class="muted small">{% translate "What the gym sells, with prices." %}</span>
+      </a>
+    </div>
   {% endif %}
-  <p>Members, payments and check-in will appear here in Step 3.</p>
-  {% if other_gyms %}
-    <p><a href="{% url 'gyms:enter' %}">Switch gym</a></p>
-  {% endif %}
-  <form method="post" action="{% url 'accounts:logout' %}">
-    {% csrf_token %}
-    <button type="submit">Sign out</button>
-  </form>
+
+  <p class="muted small">{% translate "Selling memberships, payments and check-in are coming next. Figures for the gym will appear here once there is data to show." %}</p>
 {% endblock %}

@@ -1,7 +1,8 @@
-{% extends "base.html" %}
-{% block title %}{{ branch.name }} · {{ request.gym.name }}{% endblock %}
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{{ branch.name }} · {{ gym.name }}{% endblock %}
 {% block content %}
-  <p><a href="{% url 'gyms:branch_list' %}">Branches</a></p>
-  <h1>{{ branch.name }}</h1>
-  <p>A branch of {{ request.gym.name }}.</p>
+  <a class="back-link" href="{% url 'gyms:branch_list' %}">← {% translate "Branches" %}</a>
+  <div class="page-head"><h1>{{ branch.name }}</h1></div>
+  <div class="card"><p>{% blocktranslate with gym_name=gym.name %}A branch of {{ gym_name }}.{% endblocktranslate %}</p></div>
 {% endblock %}

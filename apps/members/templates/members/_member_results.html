@@ -1,0 +1,53 @@
+{% load i18n phones %}
+{% comment %}The list of members. Shown inside member_list.html, and sent on its own when searching.{% endcomment %}
+<div class="card">
+  {% if page.object_list %}
+    <p class="muted small" style="margin-bottom: 12px">
+      {% blocktranslate count total=page.paginator.count %}{{ total }} member{% plural %}{{ total }} members{% endblocktranslate %}
+    </p>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th scope="col">{% translate "Name" %}</th>
+            <th scope="col">{% translate "Phone" %}</th>
+            <th scope="col" class="hide-narrow">{% translate "Branch" %}</th>
+            <th scope="col" class="hide-narrow">{% translate "Joined" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for member in page.object_list %}
+            <tr>
+              <td><a href="{% url 'members:member_detail' member.public_id %}">{{ member.full_name }}</a></td>
+              <td class="nowrap">{{ member.person.phone|phone }}</td>
+              <td class="hide-narrow">{{ member.branch.name }}</td>
+              <td class="hide-narrow nowrap">{{ member.joined_on|date:"j M Y" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if page.has_other_pages %}
+      <div class="pager">
+        {% if page.has_previous %}
+          <a class="btn btn-small" href="?q={{ query|urlencode }}&page={{ page.previous_page_number }}">← {% translate "Previous" %}</a>
+        {% else %}<span></span>{% endif %}
+        <span class="muted small">{% blocktranslate with number=page.number total=page.paginator.num_pages %}Page {{ number }} of {{ total }}{% endblocktranslate %}</span>
+        {% if page.has_next %}
+          <a class="btn btn-small" href="?q={{ query|urlencode }}&page={{ page.next_page_number }}">{% translate "Next" %} →</a>
+        {% else %}<span></span>{% endif %}
+      </div>
+    {% endif %}
+  {% elif query %}
+    <div class="empty">
+      <p>{% blocktranslate %}No member matches "{{ query }}".{% endblocktranslate %}</p>
+      <a class="btn" href="{% url 'members:member_register' %}">{% translate "Register a new member" %}</a>
+    </div>
+  {% else %}
+    <div class="empty">
+      <p><strong>{% translate "No members yet" %}</strong></p>
+      <p class="muted">{% translate "Register your first member to get started." %}</p>
+      <a class="btn btn-primary" href="{% url 'members:member_register' %}">{% translate "Register member" %}</a>
+    </div>
+  {% endif %}
+</div>

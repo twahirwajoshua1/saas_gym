@@ -1,11 +1,13 @@
-{% extends "base.html" %}
-{% block title %}Branches · {{ request.gym.name }}{% endblock %}
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% translate "Branches" %} · {{ gym.name }}{% endblock %}
 {% block content %}
-  <p><a href="{% url 'gyms:home' %}">{{ request.gym.name }}</a></p>
-  <h1>Branches</h1>
-  <ul>
-    {% for branch in branches %}
-      <li><a href="{% url 'gyms:branch_detail' branch.public_id %}">{{ branch.name }}</a></li>
-    {% endfor %}
-  </ul>
+  <div class="page-head"><h1>{% translate "Branches" %}</h1></div>
+  <div class="card">
+    <ul class="item-list">
+      {% for branch in branches %}
+        <li><a href="{% url 'gyms:branch_detail' branch.public_id %}"><strong>{{ branch.name }}</strong></a></li>
+      {% endfor %}
+    </ul>
+  </div>
 {% endblock %}

@@ -1,11 +1,13 @@
-<!doctype html>
+{% load static i18n %}<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Gym Business OS{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <script src="{% static 'vendor/htmx.min.js' %}" defer></script>
 </head>
-<body style="font-family: system-ui, sans-serif; max-width: 480px; margin: 48px auto; padding: 0 16px;">
-  {% block content %}{% endblock %}
+<body>
+  {% block body %}{% endblock %}
 </body>
 </html>

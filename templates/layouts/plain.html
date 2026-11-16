@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% comment %}A centred card, for pages outside a gym: sign in, choose a gym.{% endcomment %}
+{% block body %}
+  <main class="plain">
+    <div class="plain-card">
+      <p class="plain-brand">Gym Business OS</p>
+      <div class="card stack">
+        {% include "components/messages.html" %}
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+  </main>
+{% endblock %}

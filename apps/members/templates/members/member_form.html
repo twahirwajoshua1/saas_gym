@@ -1,0 +1,58 @@
+{% extends "layouts/gym.html" %}
+{% load i18n phones %}
+{% block title %}{% if member %}{% translate "Edit member" %}{% else %}{% translate "Register member" %}{% endif %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  {% if member %}
+    <a class="back-link" href="{% url 'members:member_detail' member.public_id %}">← {{ member.full_name }}</a>
+    <div class="page-head"><h1>{% translate "Edit member" %}</h1></div>
+  {% else %}
+    <a class="back-link" href="{% url 'members:member_list' %}">← {% translate "Members" %}</a>
+    <div class="page-head"><h1>{% translate "Register member" %}</h1></div>
+  {% endif %}
+
+  {% if existing_member %}
+    <p class="notice notice-warn" role="alert">
+      {% blocktranslate with name=existing_member.full_name %}This phone number already belongs to {{ name }}.{% endblocktranslate %}
+      <a href="{% url 'members:member_detail' existing_member.public_id %}">{% translate "Open their page" %}</a>
+    </p>
+  {% endif %}
+
+  <div class="card">
+    <form method="post" class="form" novalidate>
+      {% csrf_token %}
+      {% for error in form.non_field_errors %}
+        <p class="notice notice-error" role="alert">{{ error }}</p>
+      {% endfor %}
+
+      {% include "components/field.html" with field=form.full_name %}
+      {% if form.phone %}
+        {% include "components/field.html" with field=form.phone %}
+      {% else %}
+        <div class="field">
+          <span class="small muted">{% translate "Phone number" %}</span>
+          <span>{{ member.person.phone|phone }}</span>
+          <p class="help">{% translate "The phone number identifies the member and cannot be changed here yet." %}</p>
+        </div>
+      {% endif %}
+      {% if form.branch %}
+        {% include "components/field.html" with field=form.branch %}
+      {% endif %}
+
+      <p class="form-section">{% translate "More details" %}</p>
+      <div class="form-row">
+        {% include "components/field.html" with field=form.gender %}
+        {% include "components/field.html" with field=form.date_of_birth %}
+      </div>
+      <div class="form-row">
+        {% include "components/field.html" with field=form.emergency_contact_name %}
+        {% include "components/field.html" with field=form.emergency_contact_phone %}
+      </div>
+      {% include "components/field.html" with field=form.notes %}
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{% if member %}{% translate "Save changes" %}{% else %}{% translate "Register member" %}{% endif %}</button>
+        <a class="btn" href="{% if member %}{% url 'members:member_detail' member.public_id %}{% else %}{% url 'members:member_list' %}{% endif %}">{% translate "Cancel" %}</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

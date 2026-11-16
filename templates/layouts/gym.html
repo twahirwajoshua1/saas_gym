@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% comment %}
+  The layout for every page inside a gym: the menu on the left (on top on a
+  phone) and the page on the right. Menu items depend on the person's role.
+{% endcomment %}
+{% block body %}
+  <div class="shell">
+    <header class="sidebar">
+      <div class="sidebar-head">
+        <div>
+          <span class="brand-name">{{ gym.name }}</span>
+          <span class="brand-sub">{{ assignment.get_role_display }}</span>
+        </div>
+      </div>
+      <nav class="nav" aria-label="{% translate 'Main menu' %}">
+        <a href="{% url 'gyms:home' %}" {% if nav_section == 'overview' %}class="is-current" aria-current="page"{% endif %}>{% translate "Overview" %}</a>
+        {% if role_is_front_desk %}
+          <a href="{% url 'members:member_list' %}" {% if nav_section == 'member' %}class="is-current" aria-current="page"{% endif %}>{% translate "Members" %}</a>
+          <a href="{% url 'members:package_list' %}" {% if nav_section == 'package' %}class="is-current" aria-current="page"{% endif %}>{% translate "Packages" %}</a>
+        {% endif %}
+        {% if role_is_manager %}
+          <a href="{% url 'gyms:branch_list' %}" {% if nav_section == 'branch' %}class="is-current" aria-current="page"{% endif %}>{% translate "Branches" %}</a>
+          <a href="{% url 'modules:list' %}" {% if nav_section == 'applications' %}class="is-current" aria-current="page"{% endif %}>{% translate "Applications" %}</a>
+        {% endif %}
+        {% if role_is_owner %}
+          <a href="{% url 'gyms:activity' %}" {% if nav_section == 'activity' %}class="is-current" aria-current="page"{% endif %}>{% translate "Activity" %}</a>
+        {% endif %}
+      </nav>
+      <div class="sidebar-foot">
+        <span>{{ user.person.full_name }}</span>
+        <form method="post" action="{% url 'accounts:logout' %}">
+          {% csrf_token %}
+          <button type="submit" class="link-button">{% translate "Sign out" %}</button>
+        </form>
+      </div>
+    </header>
+    <main class="content stack-lg">
+      {% include "components/messages.html" %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+{% endblock %}

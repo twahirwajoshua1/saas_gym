@@ -236,12 +236,14 @@ def test_the_owner_sees_which_applications_the_gym_has(client, owner_a, gym_a):
 
     page = client.get(reverse("modules:list")).content.decode()
 
-    assert "Payments and Finance</strong>:\n        on" in page
-    assert "Retention and Loyalty</strong>:\n        off" in page
+    def item(code):
+        return page.split(f'data-module="{code}"')[1].split("</li>")[0]
 
-    retention = page.split("Retention and Loyalty")[1].split("<strong>")[0]
-    assert "Needs: Attendance and Access." in retention
-    assert "Payments and Finance" not in retention  # already on, so no longer "needed"
+    assert "badge-on" in item(catalog.PAYMENTS_FINANCE)
+    assert "badge-off" in item(catalog.RETENTION_LOYALTY)
+    assert "Attendance and Access." in item(catalog.RETENTION_LOYALTY)
+    # Payments is already on, so it is no longer listed as "needed".
+    assert "Payments and Finance" not in item(catalog.RETENTION_LOYALTY)
 
 
 def test_a_receptionist_cannot_open_the_applications_page(client, gym_a):

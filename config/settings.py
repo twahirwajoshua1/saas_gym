@@ -51,6 +51,7 @@ LOCAL_APPS = [
     "apps.audit",
     "apps.gyms",
     "apps.modules",
+    "apps.members",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS
@@ -79,6 +80,8 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                # The current gym and the person's role, for navigation.
+                "apps.gyms.context.current_gym",
             ],
         },
     },
@@ -134,5 +137,8 @@ USE_TZ = True
 # --- Static files (CSS, JavaScript, images) ---------------------------------
 
 STATIC_URL = "static/"
+
+# Our own CSS and JavaScript files live in the project's static/ folder.
+STATICFILES_DIRS = [BASE_DIR / "static"]
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

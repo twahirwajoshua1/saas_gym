@@ -1,10 +1,12 @@
-{% extends "base.html" %}
-{% block title %}Home · Gym Business OS{% endblock %}
+{% extends "layouts/plain.html" %}
+{% load i18n %}
+{% block title %}{% translate "Your account" %} · Gym Business OS{% endblock %}
 {% block content %}
   <h1>Welcome, {{ person.full_name }}</h1>
   <p>You are signed in as {{ person.phone }}.</p>
+  <p><a href="{% url 'gyms:enter' %}">{% translate "Go to your gym" %}</a></p>
   <form method="post" action="{% url 'accounts:logout' %}">
     {% csrf_token %}
-    <button type="submit">Sign out</button>
+    <button type="submit" class="btn">{% translate "Sign out" %}</button>
   </form>
 {% endblock %}

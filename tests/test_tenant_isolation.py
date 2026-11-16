@@ -172,3 +172,82 @@ def test_gym_screens_require_sign_in(client, gym_a):
 def test_every_assignment_row_belongs_to_exactly_one_gym(gym_a, gym_b):
     assert StaffAssignment.objects.for_gym(gym_a).count() == 1
     assert StaffAssignment.objects.for_gym(gym_b).count() == 1
+
+
+# --- Members and packages ---------------------------------------------------
+# These use the shared helpers in conftest.py.
+
+
+@pytest.fixture
+def two_gyms_with_data(make_gym):
+    from apps.members import services as member_services
+    from apps.members.services import MemberDetails
+
+    alpha = make_gym("Alpha Fitness", "0788100001")
+    bravo = make_gym("Bravo Fitness", "0788100002")
+    details = MemberDetails(full_name="Bravo Secret Member", notes="private note")
+    member = member_services.register_member(
+        by=bravo.assignment, phone="0788222333", details=details
+    )
+    package = member_services.create_package(
+        by=bravo.assignment,
+        name="Bravo VIP",
+        price_rwf=90000,
+        duration_count=1,
+        duration_unit="month",
+    )
+    return alpha, bravo, member, package
+
+
+def test_member_and_package_lists_show_nothing_from_another_gym(two_gyms_with_data, sign_in):
+    alpha, _bravo, _member, _package = two_gyms_with_data
+    client = sign_in(alpha)
+
+    assert "Bravo Secret Member" not in client.get(reverse("members:member_list")).content.decode()
+    assert "Bravo VIP" not in client.get(reverse("members:package_list")).content.decode()
+
+
+def test_searching_cannot_find_another_gyms_member(two_gyms_with_data, sign_in):
+    alpha, _bravo, _member, _package = two_gyms_with_data
+    client = sign_in(alpha)
+
+    for query in ["Bravo", "0788222333", "222333"]:
+        page = client.get(reverse("members:member_list"), {"q": query}).content.decode()
+        assert "Bravo Secret Member" not in page
+
+
+def test_another_gyms_member_and_package_addresses_are_not_found(two_gyms_with_data, sign_in):
+    alpha, _bravo, member, package = two_gyms_with_data
+    client = sign_in(alpha)
+
+    assert client.get(reverse("members:member_detail", args=[member.public_id])).status_code == 404
+    assert client.get(reverse("members:member_edit", args=[member.public_id])).status_code == 404
+    assert client.get(reverse("members:package_edit", args=[package.public_id])).status_code == 404
+
+    changed = client.post(
+        reverse("members:member_edit", args=[member.public_id]), {"full_name": "Hacked"}
+    )
+    archived = client.post(
+        reverse("members:package_set_active", args=[package.public_id]), {"active": "no"}
+    )
+    assert changed.status_code == 404 and archived.status_code == 404
+    member.refresh_from_db()
+    package.refresh_from_db()
+    assert member.full_name == "Bravo Secret Member" and package.is_active
+
+
+def test_registering_a_number_that_is_a_member_elsewhere_reveals_nothing(
+    two_gyms_with_data, sign_in
+):
+    alpha, _bravo, _member, _package = two_gyms_with_data
+    client = sign_in(alpha)
+
+    response = client.post(
+        reverse("members:member_register"),
+        {"full_name": "Name Typed At Alpha", "phone": "0788222333"},
+        follow=True,
+    )
+
+    page = response.content.decode()
+    assert "Name Typed At Alpha was registered." in page
+    assert "Bravo" not in page and "private note" not in page and "already belongs" not in page

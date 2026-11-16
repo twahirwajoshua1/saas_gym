@@ -1,0 +1,152 @@
+/*
+  Gym Business OS: the one stylesheet for every screen.
+
+  Sections: 1 colours and basics, 2 page layouts, 3 navigation,
+  4 buttons, 5 cards and lists, 6 tables, 7 forms, 8 notices and badges.
+  Sizes are chosen so everything can be tapped on a phone (at least 44px).
+*/
+
+/* --- 1. Colours and basics --- */
+:root {
+  --ink: #10201a;
+  --muted: #4e5b55;
+  --line: #dde3de;
+  --page: #f4f6f3;
+  --surface: #ffffff;
+  --accent: #0b6b4a;
+  --accent-dark: #084d36;
+  --mint: #7be0b0;
+  --mint-soft: #d6f3e4;
+  --warn-bg: #fff4e5;
+  --warn-ink: #6b4a0b;
+  --danger: #a3310f;
+  --danger-bg: #fbe1d8;
+  --radius: 10px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--page);
+}
+
+h1 { font-size: 1.6rem; line-height: 1.25; margin: 0; }
+h2 { font-size: 1.1rem; margin: 0; }
+p { margin: 0; }
+a { color: var(--accent); }
+a:hover { color: var(--accent-dark); }
+:focus-visible { outline: 3px solid var(--mint); outline-offset: 2px; }
+.muted { color: var(--muted); }
+.small { font-size: 0.875rem; }
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.stack-lg { display: flex; flex-direction: column; gap: 24px; }
+
+/* --- 2. Page layouts --- */
+.shell { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; }
+.content { padding: 32px; max-width: 1100px; width: 100%; }
+
+.plain { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+.plain-card { width: 100%; max-width: 420px; }
+.plain-brand { font-weight: 700; font-size: 1.1rem; margin-bottom: 16px; text-align: center; }
+
+.page-head { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; justify-content: space-between; }
+.page-head .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.back-link { font-size: 0.9rem; font-weight: 600; text-decoration: none; }
+
+/* --- 3. Navigation --- */
+.sidebar { background: var(--ink); color: #fff; padding: 24px 16px; display: flex; flex-direction: column; gap: 24px; }
+.brand-name { display: block; font-weight: 700; font-size: 1.05rem; overflow-wrap: anywhere; }
+.brand-sub { display: block; font-size: 0.8rem; color: #b9c6bf; }
+.nav { display: flex; flex-direction: column; gap: 4px; }
+.nav a { color: #fff; text-decoration: none; font-weight: 500; padding: 11px 12px; border-radius: 8px; min-height: 44px; display: flex; align-items: center; }
+.nav a:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.nav a.is-current { background: var(--mint); color: var(--ink); font-weight: 700; }
+.sidebar-foot { margin-top: auto; font-size: 0.85rem; color: #b9c6bf; display: flex; flex-direction: column; gap: 8px; }
+.sidebar-foot a { color: #fff; }
+.link-button { background: none; border: 0; padding: 0; font: inherit; color: #fff; text-decoration: underline; cursor: pointer; min-height: 32px; }
+
+@media (max-width: 860px) {
+  .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
+  .sidebar { padding: 12px 16px; gap: 10px; }
+  .sidebar-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .nav { flex-direction: row; overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px; }
+  .nav a { white-space: nowrap; }
+  .sidebar-foot { flex-direction: row; flex-wrap: wrap; justify-content: space-between; margin-top: 0; }
+  .content { padding: 20px 16px 32px; }
+}
+
+/* --- 4. Buttons --- */
+.btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; border-radius: 8px; border: 1px solid #c9d2cc; background: var(--surface); color: var(--ink); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
+.btn:hover { background: #eef1ee; color: var(--ink); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-dark); color: #fff; }
+.btn-small { min-height: 44px; padding: 0 12px; font-size: 0.9rem; }
+.btn-block { width: 100%; }
+
+/* --- 5. Cards and lists --- */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.card-link { display: flex; flex-direction: column; gap: 4px; text-decoration: none; color: var(--ink); }
+.card-link:hover { border-color: var(--accent); color: var(--ink); }
+.card-link strong { font-size: 1.05rem; }
+.empty { text-align: center; padding: 40px 20px; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+
+.detail-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px 24px; margin: 0; }
+.detail-list dt { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+.detail-list dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+
+.item-list { list-style: none; margin: 0; padding: 0; }
+.item-list > li { padding: 14px 0; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.item-list > li:first-child { padding-top: 0; }
+.item-list > li:last-child { border-bottom: 0; padding-bottom: 0; }
+.item-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 240px; }
+.item-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* --- 6. Tables --- */
+.table-wrap { overflow-x: auto; }
+table.data { width: 100%; border-collapse: collapse; text-align: left; min-width: 520px; }
+table.data th { font-size: 0.8rem; font-weight: 600; color: var(--muted); padding: 0 12px 10px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.data td { padding: 14px 12px 14px 0; border-bottom: 1px solid #eef1ee; }
+table.data tr:last-child td { border-bottom: 0; }
+table.data td a { font-weight: 600; text-decoration: none; }
+.nowrap { white-space: nowrap; }
+@media (max-width: 600px) {
+  /* On a phone the list shows name and phone only; the rest is on the member's page. */
+  .hide-narrow { display: none; }
+  table.data { min-width: 0; }
+}
+.pager { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-top: 16px; }
+
+/* --- 7. Forms --- */
+.form { display: flex; flex-direction: column; gap: 18px; max-width: 560px; }
+.form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 18px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-weight: 600; font-size: 0.95rem; }
+.field .optional { font-weight: 400; color: var(--muted); font-size: 0.85rem; }
+.field input, .field select, .field textarea, .search input {
+  font: inherit; color: var(--ink); background: var(--surface); width: 100%;
+  min-height: 46px; padding: 10px 12px; border: 1px solid #b8c2bb; border-radius: 8px;
+}
+.field textarea { min-height: 88px; }
+.field input:focus, .field select:focus, .field textarea:focus, .search input:focus { outline: 3px solid var(--mint); outline-offset: 0; border-color: var(--accent); }
+.field .help { font-size: 0.85rem; color: var(--muted); }
+.field .error, .form-error { font-size: 0.9rem; font-weight: 600; color: var(--danger); }
+.field.has-error input, .field.has-error select, .field.has-error textarea { border-color: var(--danger); }
+.form-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.form-section { font-size: 0.8rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; padding-top: 6px; }
+.search { max-width: 420px; }
+.inline-form { display: inline; }
+
+/* --- 8. Notices and badges --- */
+.notice { padding: 12px 16px; border-radius: var(--radius); font-weight: 500; }
+.notice-success { background: var(--mint-soft); color: var(--accent-dark); }
+.notice-error { background: var(--danger-bg); color: #7a230a; }
+.notice-warn { background: var(--warn-bg); color: var(--warn-ink); }
+.badge { display: inline-block; font-size: 0.78rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.badge-on { background: var(--mint-soft); color: var(--accent-dark); }
+.badge-off { background: #e6ebe7; color: var(--muted); }
