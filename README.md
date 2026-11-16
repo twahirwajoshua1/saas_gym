@@ -33,7 +33,7 @@ Inside each module:
 
 ## Setting up on your own computer
 
-You need Python 3.12 or newer, PostgreSQL 16 and Git installed.
+You need Python 3.12 or newer, Git, and either Docker or PostgreSQL 16.
 
 1. Get the code and enter the folder:
 
@@ -50,15 +50,25 @@ You need Python 3.12 or newer, PostgreSQL 16 and Git installed.
    pip install -r requirements.txt
    ```
 
-3. Create the database (run inside `psql` as the PostgreSQL administrator),
-   choosing your own password:
+3. Start the database. The easiest way is Docker, which runs PostgreSQL
+   without installing it:
 
    ```
-   CREATE USER gymos WITH PASSWORD 'your-database-password' CREATEDB;
+   docker compose up -d
+   ```
+
+   This creates a database called `gymos` with the development user and
+   password already set in `.env.example`.
+
+   If you have PostgreSQL installed instead, run this inside `psql` as the
+   administrator:
+
+   ```
+   CREATE USER gymos WITH PASSWORD 'gymos_dev_password' CREATEDB;
    CREATE DATABASE gymos OWNER gymos;
    ```
 
-4. Copy `.env.example` to `.env` and fill in the secret key and database password.
+4. Copy `.env.example` to `.env` and replace the secret key with any long random text.
 
 5. Check everything works:
 

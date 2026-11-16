@@ -1,0 +1,20 @@
+# Starts PostgreSQL for development on your own computer.
+# Start it:  docker compose up -d
+# Stop it:   docker compose down        (your data is kept)
+#
+# The password below is for local development only.
+# Production will use a different, private password.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: gymos
+      POSTGRES_PASSWORD: gymos_dev_password
+      POSTGRES_DB: gymos
+    ports:
+      - "5432:5432"
+    volumes:
+      - gymos_db_data:/var/lib/postgresql/data
+
+volumes:
+  gymos_db_data:
