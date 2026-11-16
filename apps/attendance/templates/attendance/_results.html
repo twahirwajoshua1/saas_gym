@@ -1,0 +1,65 @@
+{% load i18n money phones %}
+{% comment %}One card per matching member, each saying whether they may come in today.{% endcomment %}
+{% for result in results %}
+  <div class="card stack decision {% if result.allowed %}decision-yes{% else %}decision-no{% endif %}">
+    <div class="card-head">
+      <div>
+        <strong class="decision-name">{{ result.member.full_name }}</strong>
+        <p class="muted small">{{ result.member.person.phone|phone_masked }}</p>
+      </div>
+      {% if result.allowed %}
+        <span class="badge badge-on">{% translate "Valid" %}</span>
+      {% else %}
+        <span class="badge badge-danger">{% translate "Not valid" %}</span>
+      {% endif %}
+    </div>
+
+    {% if result.allowed %}
+      <p>
+        <strong>{{ result.membership.package_name }}</strong> ·
+        {% blocktranslate with day=result.membership.end_date|date:"j M Y" %}valid until {{ day }}{% endblocktranslate %}
+      </p>
+      {% if result.expiring_soon %}
+        <p class="notice notice-warn">
+          {% blocktranslate count days=result.days_left %}Membership ends today. Offer a renewal.{% plural %}Membership ends in {{ days }} days. Offer a renewal.{% endblocktranslate %}
+        </p>
+      {% endif %}
+    {% elif result.reason == "expired" %}
+      <p>{% blocktranslate with package=result.membership.package_name day=result.membership.end_date|date:"j M Y" %}{{ package }} ended on {{ day }}. Entry is refused until renewed.{% endblocktranslate %}</p>
+    {% elif result.reason == "not_started" %}
+      <p>{% blocktranslate with package=result.membership.package_name day=result.membership.start_date|date:"j M Y" %}{{ package }} starts on {{ day }}. It is not valid yet.{% endblocktranslate %}</p>
+    {% else %}
+      <p>{% translate "This member has never had a membership." %}</p>
+    {% endif %}
+
+    {% if result.owes_rwf > 0 %}
+      <p class="notice notice-warn">{% blocktranslate with amount=result.owes_rwf|rwf %}Still owes {{ amount }}.{% endblocktranslate %}</p>
+    {% endif %}
+
+    <div class="form-actions">
+      {% if result.allowed and result.already_today %}
+        <p class="notice notice-success">{% blocktranslate with time=result.already_today.checked_in_at|time:"H:i" %}Already checked in today at {{ time }}.{% endblocktranslate %}</p>
+      {% elif result.allowed %}
+        <form method="post" action="{% url 'attendance:check_in' result.member.public_id %}" class="grow">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary btn-big btn-block">{% translate "Check in" %}</button>
+        </form>
+      {% endif %}
+      {% if role_is_front_desk %}
+        {% if 'payments_finance' in modules_on %}
+          {% if not result.allowed or result.expiring_soon %}
+            <a class="btn {% if not result.allowed %}btn-primary btn-big{% endif %}" href="{% url 'billing:sell' result.member.public_id %}">{% if result.membership %}{% translate "Renew" %}{% else %}{% translate "Sell membership" %}{% endif %}</a>
+          {% endif %}
+        {% endif %}
+        <a class="btn" href="{% url 'members:member_detail' result.member.public_id %}">{% translate "Open member" %}</a>
+      {% endif %}
+    </div>
+  </div>
+{% empty %}
+  {% if searched %}
+    <div class="card empty">
+      <p>{% blocktranslate %}No member matches "{{ query }}".{% endblocktranslate %}</p>
+      {% if role_is_front_desk %}<a class="btn" href="{% url 'members:member_register' %}">{% translate "Register a new member" %}</a>{% endif %}
+    </div>
+  {% endif %}
+{% endfor %}

@@ -12,6 +12,15 @@
     {% endif %}
   </div>
 
+  {% if role_can_check_in and 'attendance_access' in modules_on %}
+    <div class="card-grid">
+      <a class="card card-link" href="{% url 'attendance:home' %}">
+        <strong>{% translate "Check in a member" %}</strong>
+        <span class="muted small">{% translate "Find a member and see whether their membership is valid today." %}</span>
+      </a>
+    </div>
+  {% endif %}
+
   {% if role_is_front_desk %}
     <div class="card-grid">
       <a class="card card-link" href="{% url 'members:member_register' %}">
@@ -29,5 +38,5 @@
     </div>
   {% endif %}
 
-  <p class="muted small">{% translate "Selling memberships, payments and check-in are coming next. Figures for the gym will appear here once there is data to show." %}</p>
+  <p class="muted small">{% translate "Figures for the gym will appear here in a coming update." %}</p>
 {% endblock %}

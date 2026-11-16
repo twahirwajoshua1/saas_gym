@@ -55,6 +55,13 @@
     </div>
   {% endif %}
 
+  {% if 'attendance_access' in modules_on %}
+    {# The visits part belongs to the attendance module. It is fetched separately and placed here. #}
+    <div hx-get="{% url 'attendance:member_visits' member.public_id %}" hx-trigger="load" hx-swap="outerHTML">
+      <a href="{% url 'attendance:member_visits' member.public_id %}">{% translate "Visits" %}</a>
+    </div>
+  {% endif %}
+
   <div class="card stack">
     <h2>{% translate "Details" %}</h2>
     <dl class="detail-list">

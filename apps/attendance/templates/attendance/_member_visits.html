@@ -1,0 +1,23 @@
+{% load i18n %}
+{% comment %}A member's visits. Shown on its own page and inside the member's page.{% endcomment %}
+<div class="card stack" id="member-visits">
+  <div class="card-head">
+    <h2>{% translate "Visits" %}</h2>
+    <span class="muted small">
+      {% blocktranslate count n=visits_this_month %}{{ n }} visit this month{% plural %}{{ n }} visits this month{% endblocktranslate %} ·
+      {% blocktranslate count n=total_visits %}{{ n }} in total{% plural %}{{ n }} in total{% endblocktranslate %}
+    </span>
+  </div>
+  {% if visits %}
+    <ul class="item-list">
+      {% for visit in visits %}
+        <li>
+          <span>{{ visit.checked_in_on|date:"l j M Y" }}</span>
+          <span class="muted small">{{ visit.checked_in_at|time:"H:i" }} · {{ visit.branch.name }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">{% translate "No visits recorded yet." %}</p>
+  {% endif %}
+</div>

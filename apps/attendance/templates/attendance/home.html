@@ -1,0 +1,72 @@
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% translate "Check-in" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Check-in" %}</h1>
+      <p class="muted">
+        {{ today|date:"l j F Y" }}{% if desk_branch and branches|length > 1 %} · {{ desk_branch.name }}{% endif %} ·
+        {% blocktranslate count n=check_in_count %}{{ n }} check-in today{% plural %}{{ n }} check-ins today{% endblocktranslate %}
+      </p>
+    </div>
+  </div>
+
+  {% if not desk_branch %}
+    <div class="card">
+      <form method="post" action="{% url 'attendance:set_branch' %}" class="form">
+        {% csrf_token %}
+        <div class="field">
+          <label for="desk-branch">{% translate "Which branch is this desk at?" %}</label>
+          <select id="desk-branch" name="branch" required>
+            {% for branch in branches %}<option value="{{ branch.public_id }}">{{ branch.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-actions"><button type="submit" class="btn btn-primary">{% translate "Continue" %}</button></div>
+      </form>
+    </div>
+  {% else %}
+    {# Typing asks the server for matching members and swaps them in below (HTMX). #}
+    <form method="get" action="{% url 'attendance:home' %}" class="search search-big" role="search">
+      <label for="checkin-search">{% translate "Phone number or name" %}</label>
+      <input id="checkin-search" type="search" name="q" value="{{ query }}" autocomplete="off" autofocus
+             hx-get="{% url 'attendance:home' %}"
+             hx-trigger="input changed delay:250ms, search"
+             hx-target="#checkin-results">
+    </form>
+
+    <div id="checkin-results" class="stack">
+      {% include "attendance/_results.html" %}
+    </div>
+
+    <div class="card stack">
+      <h2>{% translate "Today" %}</h2>
+      {% if check_ins %}
+        <ul class="item-list">
+          {% for record in check_ins %}
+            <li>
+              <div class="item-main">
+                <strong>{{ record.member.full_name }}</strong>
+                <span class="muted small">{% if branches|length > 1 %}{{ record.branch.name }} · {% endif %}{% if record.admitted_by %}{% blocktranslate with name=record.admitted_by.full_name %}admitted by {{ name }}{% endblocktranslate %}{% endif %}</span>
+              </div>
+              <span class="amount">{{ record.checked_in_at|time:"H:i" }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">{% translate "Nobody has checked in yet today." %}</p>
+      {% endif %}
+    </div>
+
+    {% if can_change_branch %}
+      <form method="post" action="{% url 'attendance:set_branch' %}" class="form-actions small">
+        {% csrf_token %}
+        <label for="change-branch" class="muted">{% translate "Desk at:" %}</label>
+        <select id="change-branch" name="branch" class="select-inline">
+          {% for branch in branches %}<option value="{{ branch.public_id }}" {% if branch == desk_branch %}selected{% endif %}>{{ branch.name }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn btn-small">{% translate "Change" %}</button>
+      </form>
+    {% endif %}
+  {% endif %}
+{% endblock %}

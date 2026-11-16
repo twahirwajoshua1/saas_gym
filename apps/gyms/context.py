@@ -1,6 +1,6 @@
 """Makes the current gym and the person's role available to every page template."""
 
-from apps.gyms.permissions import FRONT_DESK_ROLES, MANAGER_ROLES, OWNER_ONLY
+from apps.gyms.permissions import CHECK_IN_ROLES, FRONT_DESK_ROLES, MANAGER_ROLES, OWNER_ONLY
 
 
 def _nav_section(request) -> str:
@@ -11,6 +11,8 @@ def _nav_section(request) -> str:
     if match.app_name == "modules":
         return "applications"
     name = match.url_name or ""
+    if match.app_name == "attendance":
+        return "member" if name == "member_visits" else "checkin"
     if match.app_name == "billing":
         # Selling and a member's account are reached from the member's page.
         return "member" if name in ("sell", "member_account") else "payment"
@@ -31,4 +33,5 @@ def current_gym(request):
         "role_is_owner": assignment.role in OWNER_ONLY,
         "role_is_manager": assignment.role in MANAGER_ROLES,
         "role_is_front_desk": assignment.role in FRONT_DESK_ROLES,
+        "role_can_check_in": assignment.role in CHECK_IN_ROLES,
     }

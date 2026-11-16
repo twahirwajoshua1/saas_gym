@@ -181,3 +181,15 @@ fieldset.choices legend { font-weight: 600; font-size: 0.95rem; padding: 0; marg
   body { background: #fff; }
   .card { border: 0; padding: 0; }
 }
+
+/* --- 10. Check-in --- */
+.search-big { max-width: 560px; }
+.search-big label { font-weight: 600; }
+.search-big input { min-height: 56px; font-size: 1.15rem; border-width: 2px; border-color: var(--accent); }
+.decision { border-width: 2px; }
+.decision-yes { border-color: var(--accent); }
+.decision-no { border-color: var(--danger); }
+.decision-name { font-size: 1.2rem; }
+.btn-big { min-height: 54px; font-size: 1.05rem; padding: 0 24px; }
+.grow { flex: 1 1 200px; }
+.select-inline { min-height: 44px; padding: 8px 10px; border: 1px solid #b8c2bb; border-radius: 8px; font: inherit; background: var(--surface); }

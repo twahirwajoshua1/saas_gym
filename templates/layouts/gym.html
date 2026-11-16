@@ -15,6 +15,9 @@
       </div>
       <nav class="nav" aria-label="{% translate 'Main menu' %}">
         <a href="{% url 'gyms:home' %}" {% if nav_section == 'overview' %}class="is-current" aria-current="page"{% endif %}>{% translate "Overview" %}</a>
+        {% if role_can_check_in and 'attendance_access' in modules_on %}
+          <a href="{% url 'attendance:home' %}" {% if nav_section == 'checkin' %}class="is-current" aria-current="page"{% endif %}>{% translate "Check-in" %}</a>
+        {% endif %}
         {% if role_is_front_desk %}
           <a href="{% url 'members:member_list' %}" {% if nav_section == 'member' %}class="is-current" aria-current="page"{% endif %}>{% translate "Members" %}</a>
           {% if 'payments_finance' in modules_on %}

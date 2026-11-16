@@ -20,3 +20,17 @@ def phone(number):
         local = "0" + number[4:]
         return f"{local[:4]} {local[4:7]} {local[7:]}"
     return number
+
+
+@register.filter
+def phone_masked(number):
+    """
+    "+250788123456" -> "0788 ••• 456", for screens other people can see.
+
+    Enough for staff to confirm they have the right person, without showing
+    the whole number to anyone standing at the desk.
+    """
+    shown = phone(number)
+    if len(shown) < 7:
+        return shown
+    return f"{shown[:4]} ••• {shown[-3:]}"
