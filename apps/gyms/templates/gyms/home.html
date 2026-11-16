@@ -4,7 +4,9 @@
   <h1>{{ request.gym.name }}</h1>
   <p>Signed in as {{ user.person.full_name }}, {{ request.assignment.get_role_display }}.</p>
   {% if can_manage %}
-    <p><a href="{% url 'gyms:branch_list' %}">Branches</a></p>
+    <p><a href="{% url 'gyms:branch_list' %}">Branches</a> ·
+       <a href="{% url 'modules:list' %}">Applications</a>
+       {% if is_owner %} · <a href="{% url 'gyms:activity' %}">Activity</a>{% endif %}</p>
   {% endif %}
   <p>Members, payments and check-in will appear here in Step 3.</p>
   {% if other_gyms %}

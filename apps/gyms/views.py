@@ -5,6 +5,7 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from apps.audit import services as audit_services
 from apps.gyms import services, tenancy
 from apps.gyms.models import Branch, Role
 
@@ -39,6 +40,7 @@ def home(request):
         "gyms/home.html",
         {
             "can_manage": request.assignment.role in (Role.OWNER, Role.BRANCH_MANAGER),
+            "is_owner": request.assignment.role == Role.OWNER,
             "other_gyms": services.active_assignments_for(request.user.person).count() > 1,
         },
     )
@@ -56,3 +58,10 @@ def branch_detail(request, public_id):
     # is simply "not found", even if someone guesses its address.
     branch = get_object_or_404(Branch.objects.for_gym(request.gym), public_id=public_id)
     return render(request, "gyms/branch_detail.html", {"branch": branch})
+
+
+@tenancy.gym_required(Role.OWNER)
+def activity(request):
+    """The permanent record of what has happened at this gym, newest first."""
+    entries = audit_services.entries_for(request.gym)
+    return render(request, "gyms/activity.html", {"entries": entries})

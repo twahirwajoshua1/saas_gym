@@ -48,4 +48,4 @@ Status: Accepted
   needed for gym discovery).
 - Code that can run raw SQL could undo the role switch. Lock 2 protects
   against mistakes in our filters, not against malicious code.
-- The audit log does not yet record uses of the platform admin bypass.
+- Use of the platform admin bypass is not recorded in our audit log (see 0006).

@@ -112,7 +112,10 @@ def test_the_normal_database_user_is_not_restricted(gym_a, gym_b):
 
 def test_every_gym_owned_table_has_row_level_security_and_a_policy():
     tables = [m._meta.db_table for m in apps.get_models() if issubclass(m, GymOwnedModel)]
-    assert tables, "expected at least one gym-owned table"
+    tables.append(
+        "audit_auditentry"
+    )  # gym-scoped, but its gym may be empty so it is not a GymOwnedModel
+    assert len(tables) >= 3
 
     for table in tables:
         with connection.cursor() as cursor:

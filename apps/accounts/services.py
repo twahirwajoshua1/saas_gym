@@ -5,6 +5,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
 
 from apps.accounts.models import User
+from apps.audit import services as audit
 from apps.people import services as people_services
 from apps.people.models import Person
 from apps.people.phones import InvalidPhoneNumber, normalize_phone
@@ -14,7 +15,8 @@ class AccountAlreadyExists(Exception):
     """This person already has a login account."""
 
 
-def create_user_account(*, person: Person, password: str) -> User:
+@transaction.atomic
+def create_user_account(*, person: Person, password: str, actor: Person | None = None) -> User:
     """
     Give a person a login account, using their phone number to sign in.
 
@@ -25,7 +27,15 @@ def create_user_account(*, person: Person, password: str) -> User:
         raise AccountAlreadyExists(f"{person} already has a login account.")
 
     validate_password(password)
-    return User.objects.create_user(phone=person.phone, password=password, person=person)
+    user = User.objects.create_user(phone=person.phone, password=password, person=person)
+    audit.record(
+        action="account.created",
+        summary=f"A login account was created for {person.full_name}",
+        actor=actor,
+        target=user,
+        details={"person": person.public_id},
+    )
+    return user
 
 
 def authenticate_by_phone(request, *, phone: str, password: str) -> User | None:
@@ -52,10 +62,17 @@ def create_platform_admin(*, full_name: str, phone: str, password: str) -> User:
         raise AccountAlreadyExists(f"{person} already has a login account.")
 
     validate_password(password)
-    return User.objects.create_user(
+    user = User.objects.create_user(
         phone=person.phone,
         password=password,
         person=person,
         is_staff=True,
         is_superuser=True,
     )
+    audit.record(
+        action="platform_admin.created",
+        summary=f"{person.full_name} was made a platform administrator",
+        target=user,
+        details={"person": person.public_id},
+    )
+    return user

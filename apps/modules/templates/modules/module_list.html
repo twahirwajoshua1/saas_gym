@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Applications · {{ request.gym.name }}{% endblock %}
+{% block content %}
+  <p><a href="{% url 'gyms:home' %}">{{ request.gym.name }}</a></p>
+  <h1>Applications</h1>
+  <p>These are the applications {{ request.gym.name }} has switched on. To add or remove one, contact the platform team.</p>
+  <ul>
+    {% for status in statuses %}
+      <li>
+        <strong>{{ status.module.name }}</strong>:
+        {% if status.enabled %}on{% else %}off{% endif %}
+        {% if status.module.always_on %}(always included){% endif %}
+        <br><small>{{ status.module.description }}
+        {% if status.missing and not status.enabled %} Needs: {% for need in status.missing %}{{ need.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}
+        </small>
+      </li>
+    {% endfor %}
+  </ul>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Activity · {{ request.gym.name }}{% endblock %}
+{% block content %}
+  <p><a href="{% url 'gyms:home' %}">{{ request.gym.name }}</a></p>
+  <h1>Activity</h1>
+  <p>A permanent record of what has happened at this gym. Entries cannot be changed or removed.</p>
+  {% for entry in entries %}
+    <p>
+      <strong>{{ entry.created_at|date:"j M Y, H:i" }}</strong><br>
+      {{ entry.summary }}<br>
+      <small>by {% if entry.actor %}{{ entry.actor.full_name }}{% else %}the system{% endif %}</small>
+    </p>
+  {% empty %}
+    <p>Nothing has been recorded yet.</p>
+  {% endfor %}
+{% endblock %}

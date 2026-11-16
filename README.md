@@ -3,9 +3,11 @@
 A multi-tenant SaaS platform for gyms in Rwanda: members, memberships, payments,
 check-in and reporting first, with further modules added over time.
 
-**Status:** Step 2 (Foundation), increment 4. People sign in with a phone number,
-gyms have branches and staff roles, and gym data is protected by two locks: our
-code and the database itself. There are no members or payments yet.
+**Status:** Step 2 (Foundation), increment 5. People sign in with a phone number,
+gyms have branches and staff roles, gym data is protected by two locks (our code
+and the database itself), every important action goes into a permanent audit
+log, and the nine applications can be switched on per gym. There are no members
+or payments yet.
 
 ## How the project is organised
 
@@ -17,6 +19,8 @@ code and the database itself. There are no members or payments yet.
 | `apps/core/` | The shared foundation, including the database lock that isolates gyms |
 | `apps/people/` | One record per human being, identified by phone number |
 | `apps/accounts/` | Login accounts: sign in with phone number and password |
+| `apps/audit/` | The permanent audit log |
+| `apps/modules/` | Which of the nine applications each gym has switched on |
 | `apps/gyms/` | Gyms (the tenants), branches, staff roles and the tenant isolation helper |
 | `templates/` | Page layouts shared by all modules |
 | `tests/` | Automated tests |
@@ -107,6 +111,8 @@ You need Python 3.12 or newer, Git, and either Docker or PostgreSQL 16.
 | `python manage.py runserver` | Start the app on your computer |
 | `python manage.py migrate` | Apply new database changes after a `git pull` |
 | `docker compose up -d` | Start the database |
+| `python manage.py set_module --gym "Name"` | Show which applications a gym has |
+| `python manage.py set_module --gym "Name" --module payments_finance` | Switch one on (add `--off` to switch off) |
 | `pytest` | Run all automated tests |
 | `ruff check .` | Look for common mistakes in the code |
 | `ruff format .` | Tidy the code layout |
