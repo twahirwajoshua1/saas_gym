@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gym Business OS: system status</title>
+</head>
+<body style="font-family: system-ui, sans-serif; max-width: 480px; margin: 48px auto; padding: 0 16px;">
+  <h1>Gym Business OS</h1>
+  <p>Application: <strong>running</strong></p>
+  {% if database_ok %}
+    <p>Database: <strong>connected</strong></p>
+  {% else %}
+    <p>Database: <strong>not reachable</strong></p>
+  {% endif %}
+</body>
+</html>

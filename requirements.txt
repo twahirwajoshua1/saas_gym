@@ -1,0 +1,9 @@
+# What the application needs to run.
+Django>=5.2,<5.3
+psycopg[binary]>=3.2
+django-environ>=0.11
+
+# What we need while developing (tests and code checks).
+pytest>=8
+pytest-django>=4.9
+ruff>=0.6
