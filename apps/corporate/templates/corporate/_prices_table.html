@@ -1,10 +1,10 @@
 {% load i18n money %}
 <div class="table-wrap">
   <table class="data">
-    <thead><tr><th>{% translate "Service" %}</th>{% for branch in branches %}<th>{{ branch.name }}</th>{% endfor %}</tr></thead>
+    <thead><tr><th>{% translate "Service" %}</th><th>{% translate "Members pay" %}</th>{% for branch in branches %}<th>{{ branch.name }}</th>{% endfor %}</tr></thead>
     <tbody>
       {% for service, cells in rows %}
-        <tr><td>{{ service.name }}</td>{% for branch, name, value in cells %}<td>{% if value %}{{ value|rwf }}{% else %}<span class="muted">{% translate "not covered" %}</span>{% endif %}</td>{% endfor %}</tr>
+        <tr><td>{{ service.name }}</td><td class="muted">{{ service.price_rwf|rwf }}</td>{% for branch, name, value in cells %}<td>{% if value %}{{ value|rwf }}{% if value < service.price_rwf %} <span class="badge badge-on">−{{ value|reduction:service.price_rwf }}%</span>{% endif %}{% else %}<span class="muted">{% translate "not covered" %}</span>{% endif %}</td>{% endfor %}</tr>
       {% endfor %}
     </tbody>
   </table>

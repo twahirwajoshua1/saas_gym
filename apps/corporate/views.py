@@ -155,6 +155,23 @@ def _price_grid(gym, contract=None, posted=None):
     return branches, rows
 
 
+def _fill_with_reduction(rows, percent: int):
+    """Put member price minus `percent` in every box (rounded to 100 francs)."""
+    filled = []
+    for service, cells in rows:
+        price = max(100, int(round(service.price_rwf * (100 - percent) / 100, -2)))
+        filled.append((service, [(branch, name, str(price)) for branch, name, _ in cells]))
+    return filled
+
+
+def _reduction(posted) -> int | None:
+    try:
+        percent = int((posted.get("reduction") or "").strip().rstrip("%"))
+    except ValueError:
+        return None
+    return percent if 0 <= percent < 100 else None
+
+
 def _read_terms(request, rows):
     prices = {}
     for service, cells in rows:
@@ -203,6 +220,12 @@ def contract_new(request):
     if posted is not None:
         values = {key: posted.get(key, "") for key in values}
         found = services.company_for_code(values["company_code"])
+        if posted.get("action") == "fill":
+            percent = _reduction(posted)
+            if percent is None:
+                error = _("Enter the reduction as a whole number from 0 to 99.")
+            else:
+                rows = _fill_with_reduction(rows, percent)
         if found is None:
             error = error_text(InvalidDetails("company_code", "not_found"))
         elif posted.get("action") == "propose":
@@ -270,7 +293,14 @@ def contract_edit(request, public_id):
         "payment_days": str(contract.payment_days),
     }
     error = ""
-    if posted is not None:
+    if posted is not None and posted.get("action") == "fill":
+        values |= {k: posted.get(k, "") for k in ("start_date", "end_date", "payment_days")}
+        percent = _reduction(posted)
+        if percent is None:
+            error = _("Enter the reduction as a whole number from 0 to 99.")
+        else:
+            rows = _fill_with_reduction(rows, percent)
+    elif posted is not None:
         values |= {k: posted.get(k, "") for k in ("start_date", "end_date", "payment_days")}
         try:
             services.change_proposal(

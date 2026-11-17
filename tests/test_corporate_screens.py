@@ -220,3 +220,26 @@ def test_platform_staff_register_a_company(db):
     )
     page = response.content.decode()
     assert "CO-" in page and "MTN Test is registered" in page
+
+
+def test_contract_prices_can_be_filled_with_a_reduction_on_member_prices(
+    gym, company, gym_client, officer_client
+):
+    page = gym_client.post(
+        reverse("corporate:contract_new"),
+        {
+            "company_code": company.company.code,
+            "start_date": "2026-01-01",
+            "end_date": "2026-12-31",
+            "payment_days": "30",
+            "reduction": "20",
+            "action": "fill",
+        },
+    ).content.decode()
+    assert 'value="2400"' in page and 'value="4000"' in page  # Gym 3,000 and Sauna 5,000, -20%
+
+    contract, _ = propose_and_approve(gym_client, officer_client, gym, company)
+    detail = officer_client.get(
+        reverse("corporate:portal_contract_detail", args=[contract.public_id])
+    ).content.decode()
+    assert "Members pay" in detail and "−17%" in detail  # Gym: 2,500 instead of 3,000

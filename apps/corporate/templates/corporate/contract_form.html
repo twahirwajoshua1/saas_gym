@@ -34,7 +34,12 @@
 
         <fieldset class="stack">
           <legend>{% translate "Price per service (RWF)" %}</legend>
-          <p class="muted small">{% translate "Leave a box empty if the contract does not cover that service at that branch. Prices can differ per branch." %}</p>
+          <p class="muted small">{% translate "Company prices are separate from what members pay, usually with a reduction agreed in the contract. Leave a box empty if the contract does not cover that service at that branch. Prices can differ per branch." %}</p>
+          <div class="form-row">
+            <div class="field"><label for="reduction">{% translate "Reduction on member prices (%)" %}</label><input id="reduction" name="reduction" inputmode="numeric" size="4" value="{{ request.POST.reduction }}" placeholder="20"></div>
+            <div class="field"><label>&nbsp;</label><button type="submit" name="action" value="fill" class="btn">{% translate "Fill all prices" %}</button></div>
+          </div>
+          <p class="muted small">{% translate "Fills every box with the member price minus the reduction (rounded to 100 francs). You can still change any box, or empty it." %}</p>
           {% if rows %}
             <div class="table-wrap">
               <table class="data">
