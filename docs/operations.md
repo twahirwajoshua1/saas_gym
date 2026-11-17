@@ -58,3 +58,23 @@ scripts were written (2026-11-17):
 - editing a payment was refused (permanent records held);
 - the card lookup function was present;
 - `python manage.py migrate --check` reported nothing missing.
+
+## Testing the camera scanner on a phone
+
+Phone browsers only open the camera on `https://` pages. To reach your
+computer's development server from a phone over HTTPS, use a temporary tunnel:
+
+1. Install `cloudflared` (https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/).
+2. Add to `.env`:
+   ```
+   ALLOWED_HOSTS=localhost,127.0.0.1,.trycloudflare.com
+   CSRF_TRUSTED_ORIGINS=https://*.trycloudflare.com
+   BEHIND_HTTPS_PROXY=True
+   ```
+3. Start the app (`python manage.py runserver`), then in a second terminal:
+   `cloudflared tunnel --url http://localhost:8000`
+4. Open the `https://….trycloudflare.com` address it prints on the phone.
+5. Stop the tunnel (Ctrl+C) when finished. While it runs, anyone with the
+   address can reach your development server.
+
+On a laptop, the camera works at `http://localhost:8000` with no tunnel.

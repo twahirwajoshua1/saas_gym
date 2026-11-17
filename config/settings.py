@@ -29,6 +29,17 @@ DEBUG = env.bool("DEBUG", default=False)
 # The web addresses this application is allowed to answer on.
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 
+# Full addresses (with https://) that forms may be sent from, when the app is
+# reached through another address, such as a server's domain or a test tunnel.
+# Example: CSRF_TRUSTED_ORIGINS=https://gym.example.rw
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+
+# Set BEHIND_HTTPS_PROXY=True when a web server or tunnel in front of the app
+# handles HTTPS. Then links the app builds (such as member card links) start
+# with https://.
+if env.bool("BEHIND_HTTPS_PROXY", default=False):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 
 # --- Applications -----------------------------------------------------------
 
