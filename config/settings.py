@@ -66,6 +66,7 @@ LOCAL_APPS = [
     "apps.team",
     "apps.billing",
     "apps.attendance",
+    "apps.corporate",
     "apps.dashboard",
     "apps.spreadsheets",
     "apps.memberapp",
@@ -135,7 +136,7 @@ AUTHENTICATION_BACKENDS = ["apps.accounts.backends.ThrottledPhoneBackend"]
 
 # Where to send someone who must sign in first, and where they go afterwards.
 LOGIN_URL = "accounts:login"
-LOGIN_REDIRECT_URL = "gyms:enter"
+LOGIN_REDIRECT_URL = "corporate:start"
 
 
 # One-time notices such as "Payment recorded." are kept in the signed-in

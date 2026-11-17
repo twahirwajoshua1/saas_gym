@@ -1,0 +1,20 @@
+{% extends "layouts/company.html" %}
+{% load i18n %}
+{% block title %}{% translate "Add employee" %}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'corporate:employee_list' %}">← {% translate "Employees" %}</a>
+  <div class="page-head"><h1>{% translate "Add employee" %}</h1></div>
+  <div class="card">
+    <form method="post" class="form" novalidate>
+      {% csrf_token %}
+      {% if error %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endif %}
+      <div class="field"><label for="full_name">{% translate "Full name" %}</label><input id="full_name" name="full_name" value="{{ values.full_name }}" required></div>
+      <div class="form-row">
+        <div class="field"><label for="phone">{% translate "Phone number" %}</label><input id="phone" name="phone" value="{{ values.phone }}" inputmode="tel" placeholder="078..." required></div>
+        <div class="field"><label for="employee_number">{% translate "Employee number" %}</label><input id="employee_number" name="employee_number" value="{{ values.employee_number }}" required></div>
+      </div>
+      <div class="field"><label for="department">{% translate "Department" %}</label><input id="department" name="department" value="{{ values.department }}"></div>
+      <div class="form-actions"><button type="submit" class="btn btn-primary">{% translate "Add employee" %}</button><a class="btn" href="{% url 'corporate:employee_list' %}">{% translate "Cancel" %}</a></div>
+    </form>
+  </div>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "layouts/company.html" %}
+{% load i18n %}
+{% block title %}{% translate "Warnings" %}{% endblock %}
+{% block content %}
+  <div class="page-head"><div>
+    <h1>{% translate "Warnings" %}</h1>
+    <p class="muted">{% translate "Visits you questioned, or that look wrong (for example the same employee at two places within an hour). They stay off the bill until settled: you accept them, or the gym takes them off." %}</p>
+  </div></div>
+  <div class="card stack">
+    {% for flag in warnings %}
+      <div class="stack">
+        <p><span class="badge badge-danger">{{ flag.get_kind_display }}</span> <strong>{{ flag.visit.employee.full_name }}</strong> ({{ flag.visit.employee.employee_number }}) · {{ flag.gym.name }}, {{ flag.visit.branch.name }} · {{ flag.visit.checked_in_on|date:"j M Y" }} {{ flag.visit.checked_in_at|time:"H:i" }}</p>
+        {% if flag.message %}<p class="muted">“{{ flag.message }}”</p>{% endif %}
+        <form method="post" action="{% url 'corporate:portal_warning_accept' flag.public_id %}" class="form-row">
+          {% csrf_token %}<input name="note" placeholder="{% translate 'Note (optional)' %}">
+          <button type="submit" class="btn btn-small">{% translate "Accept the visit" %}</button>
+        </form>
+      </div>
+    {% empty %}
+      <p class="muted">{% translate "No open warnings." %}</p>
+    {% endfor %}
+  </div>
+  {% if settled %}
+    <div class="card stack"><h2>{% translate "Settled recently" %}</h2>
+      <ul class="item-list">{% for f in settled %}<li><div class="item-main"><strong>{{ f.visit.employee.full_name }} · {{ f.gym.name }}</strong><span class="muted small">{{ f.get_outcome_display }}{% if f.settled_note %}: {{ f.settled_note }}{% endif %}</span></div></li>{% endfor %}</ul></div>
+  {% endif %}
+{% endblock %}

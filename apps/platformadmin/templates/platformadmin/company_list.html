@@ -1,0 +1,13 @@
+{% extends "layouts/platform.html" %}
+{% block title %}Companies · Platform{% endblock %}
+{% block content %}
+  <div class="page-head"><div><h1>Companies</h1><p class="muted">Employers whose staff use gyms through corporate wellness contracts.</p></div>
+    <div class="actions"><a class="btn btn-primary" href="{% url 'platformadmin:company_create' %}">Register a company</a></div></div>
+  <div class="card">
+    {% if companies %}
+      <table class="data"><thead><tr><th>Company</th><th>Code</th><th>TIN</th><th>Registered</th></tr></thead><tbody>
+        {% for c in companies %}<tr><td>{{ c.name }}</td><td>{{ c.code }}</td><td>{{ c.tin }}</td><td>{{ c.created_at|date:"j M Y" }}</td></tr>{% endfor %}
+      </tbody></table>
+    {% else %}<p class="muted">No companies yet.</p>{% endif %}
+  </div>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load i18n money %}
+{% block title %}{{ employee.company.name }} · {{ employee.full_name }}{% endblock %}
+{% block body %}
+  {% if status == "this" and employee.is_active %}<meta http-equiv="refresh" content="30">{% endif %}
+  <main class="plain">
+    <div class="plain-card stack">
+      {% if not employee.is_active %}
+        <div class="card stack"><h1>{% translate "This card is no longer valid" %}</h1><p class="muted">{% translate "You are not on your company's gym list any more. Ask your logistics officer." %}</p></div>
+      {% elif status == "other" %}
+        <div class="card stack"><h1>{% translate "This card is set up on another phone" %}</h1><p class="muted">{% translate "A gym card works on one phone only. If you changed phones, ask your company's logistics officer to allow the new one." %}</p></div>
+      {% else %}
+        <div class="member-card member-card-ok">
+          <div class="card-head"><div><strong>{{ employee.company.name }}</strong><p class="small card-dim">{% translate "Company gym card" %}</p></div><span class="badge badge-on">{% translate "Valid" %}</span></div>
+          <div><p class="member-card-name">{{ employee.full_name }}</p><p class="small card-dim">{% translate "No." %} {{ employee.employee_number }}{% if employee.department %} · {{ employee.department }}{% endif %}</p></div>
+          <div class="qr-box" role="img" aria-label="{% translate 'QR code to show at reception' %}">{{ qr|safe }}</div>
+          <p class="small card-dim">{% translate "Show this at reception. The code changes every 30 seconds, so screenshots do not work." %} · {{ code }}</p>
+        </div>
+
+        {% for visit in to_confirm %}
+          <div class="card stack">
+            <p><strong>{% translate "Please confirm your visit" %}</strong></p>
+            <p>{{ visit.gym.name }}, {{ visit.branch.name }} · {{ visit.checked_in_on|date:"j M" }} {{ visit.checked_in_at|time:"H:i" }}</p>
+            <p class="small">{% for a in visit.activities.all %}{% if not a.cancelled_at %}{{ a.service_name }}{% if not forloop.last %}, {% endif %}{% endif %}{% endfor %}</p>
+            <form method="post" action="{% url 'corporate:card_confirm' employee.card_token visit.public_id %}">
+              {% csrf_token %}<button type="submit" class="btn btn-primary btn-block">{% translate "Yes, this was me" %}</button>
+            </form>
+            <p class="muted small">{% translate "If this was not you, do not confirm, and tell your logistics officer." %}</p>
+          </div>
+        {% endfor %}
+
+        {% if recent %}
+          <div class="card stack"><h2>{% translate "Your recent visits" %}</h2>
+            <ul class="item-list">{% for v in recent %}<li><div class="item-main"><strong>{{ v.gym.name }}</strong><span class="muted small">{{ v.checked_in_on|date:"j M" }} {{ v.checked_in_at|time:"H:i" }} · {% for a in v.activities.all %}{% if not a.cancelled_at %}{{ a.service_name }}{% if not forloop.last %}, {% endif %}{% endif %}{% endfor %}</span></div>{% if v.confirmed_at %}<span class="badge badge-on">{% translate "Confirmed" %}</span>{% endif %}</li>{% endfor %}</ul>
+          </div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </main>
+{% endblock %}

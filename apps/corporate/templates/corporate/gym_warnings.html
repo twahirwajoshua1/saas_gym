@@ -1,0 +1,29 @@
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% translate "Warnings" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'corporate:gym_home' %}">← {% translate "Companies" %}</a>
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Warnings" %}</h1>
+      <p class="muted">{% translate "Visits the company questioned, or that look wrong. They stay off the bill until settled: the company can accept them, or you can take them off." %}</p>
+    </div>
+  </div>
+  <div class="card stack">
+    {% for flag in warnings %}
+      <div class="stack">
+        <p><span class="badge badge-danger">{{ flag.get_kind_display }}</span>
+          <strong>{{ flag.visit.employee.full_name }}</strong> · {{ flag.company.name }} ·
+          {{ flag.visit.checked_in_on|date:"j M Y" }} {{ flag.visit.checked_in_at|time:"H:i" }} · {{ flag.visit.branch.name }}</p>
+        {% if flag.message %}<p class="muted">“{{ flag.message }}”</p>{% endif %}
+        <form method="post" action="{% url 'corporate:warning_settle' flag.public_id %}" class="form-row">
+          {% csrf_token %}
+          <input name="note" placeholder="{% translate 'Note for the company' %}" required>
+          <button type="submit" class="btn btn-small">{% translate "Take off the bill" %}</button>
+        </form>
+      </div>
+    {% empty %}
+      <p class="muted">{% translate "No open warnings." %}</p>
+    {% endfor %}
+  </div>
+{% endblock %}

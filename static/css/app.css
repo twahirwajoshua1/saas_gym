@@ -24,6 +24,9 @@
   --radius: 10px;
 }
 
+/* Anything marked hidden stays hidden, whatever its other styles say. */
+[hidden] { display: none !important; }
+
 *, *::before, *::after { box-sizing: border-box; }
 
 body {

@@ -1,0 +1,17 @@
+{% extends "layouts/company.html" %}
+{% load i18n %}
+{% block title %}{% translate "Upload Excel list" %}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'corporate:employee_list' %}">← {% translate "Employees" %}</a>
+  <div class="page-head"><h1>{% translate "Upload the employee list" %}</h1></div>
+  <div class="card stack">
+    <p>{% translate "Use your usual Excel file. The first row must have these column names:" %} <strong>Name</strong>, <strong>Phone</strong>, <strong>Employee number</strong> {% translate "and optionally" %} <strong>Department</strong>.</p>
+    <p class="muted small">{% translate "Nothing is saved yet: you will see what changes (new people, changed details, people no longer in the file) and confirm." %}</p>
+    <form method="post" enctype="multipart/form-data" class="form">
+      {% csrf_token %}
+      {% if error %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endif %}
+      <div class="field"><label for="file">{% translate "Excel (.xlsx) or CSV file" %}</label><input id="file" type="file" name="file" accept=".xlsx,.csv" required></div>
+      <div class="form-actions"><button type="submit" class="btn btn-primary">{% translate "Check the file" %}</button></div>
+    </form>
+  </div>
+{% endblock %}

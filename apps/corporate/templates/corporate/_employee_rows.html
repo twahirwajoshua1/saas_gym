@@ -1,0 +1,19 @@
+{% load i18n %}
+{% if employees %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>{% translate "Name" %}</th><th>{% translate "Employee no." %}</th><th>{% translate "Department" %}</th><th>{% translate "Phone" %}</th><th>{% translate "Card" %}</th></tr></thead>
+      <tbody>
+        {% for e in employees %}
+          <tr>
+            <td><a href="{% url 'corporate:employee_detail' e.public_id %}">{{ e.full_name }}</a></td>
+            <td>{{ e.employee_number }}</td><td>{{ e.department }}</td><td class="nowrap">{{ e.person.phone }}</td>
+            <td>{% if not e.is_active %}<span class="badge badge-off">{% translate "Removed" %}</span>{% elif e.device_hash %}<span class="badge badge-on">{% translate "On phone" %}</span>{% elif e.has_pin %}<span class="badge badge-on">{% translate "PIN" %}</span>{% else %}<span class="badge badge-warn">{% translate "Not opened yet" %}</span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="muted">{% translate "Nobody found." %}</p>
+{% endif %}

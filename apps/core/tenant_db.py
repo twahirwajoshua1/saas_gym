@@ -39,12 +39,22 @@ def enter_app_role(*, person_id) -> None:
         cursor.execute(f"SET ROLE {connection.ops.quote_name(APP_ROLE)}")
         _set_setting(cursor, "app.current_person_id", person_id)
         _set_setting(cursor, "app.current_gym_id", None)
+        _set_setting(cursor, "app.current_company_id", None)
 
 
 def set_current_gym(gym_id) -> None:
     """Tell the database which gym this request is acting for (already verified)."""
     with connection.cursor() as cursor:
         _set_setting(cursor, "app.current_gym_id", gym_id)
+
+
+def set_current_company(company_id) -> None:
+    """
+    Tell the database which company this request acts for (already verified):
+    the company's logistics officer, or an employee opening their own card.
+    """
+    with connection.cursor() as cursor:
+        _set_setting(cursor, "app.current_company_id", company_id)
 
 
 def leave_app_role() -> None:
@@ -54,6 +64,7 @@ def leave_app_role() -> None:
             cursor.execute("RESET ROLE")
             _set_setting(cursor, "app.current_person_id", None)
             _set_setting(cursor, "app.current_gym_id", None)
+            _set_setting(cursor, "app.current_company_id", None)
     except Exception:
         # If the connection is unusable the request is already failing; closing
         # it makes sure the restricted settings cannot leak into another request.

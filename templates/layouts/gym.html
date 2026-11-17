@@ -18,6 +18,9 @@
         {% if role_can_check_in and 'attendance_access' in modules_on %}
           <a href="{% url 'attendance:home' %}" {% if nav_section == 'checkin' %}class="is-current" aria-current="page"{% endif %}>{% translate "Check-in" %}</a>
         {% endif %}
+        {% if role_can_check_in and 'corporate_wellness' in modules_on %}
+          <a href="{% url 'corporate:gym_home' %}" {% if nav_section == 'companies' %}class="is-current" aria-current="page"{% endif %}>{% translate "Companies" %}</a>
+        {% endif %}
         {% if role_is_front_desk %}
           <a href="{% url 'members:member_list' %}" {% if nav_section == 'member' %}class="is-current" aria-current="page"{% endif %}>{% translate "Members" %}</a>
           {% if 'payments_finance' in modules_on %}

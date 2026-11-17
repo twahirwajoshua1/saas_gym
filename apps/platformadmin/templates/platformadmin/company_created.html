@@ -1,0 +1,14 @@
+{% extends "layouts/platform.html" %}
+{% block title %}Company registered · Platform{% endblock %}
+{% block content %}
+  <div class="page-head"><h1>{{ created.company.name }} is registered</h1></div>
+  <div class="card stack">
+    <p>Company code for gyms: <strong>{{ created.company.code }}</strong></p>
+  </div>
+  {% if created.temporary_password %}
+    {% include "team/_temporary_password.html" with person=created.officer.person password=created.temporary_password %}
+  {% else %}
+    <div class="card"><p>The logistics officer already had a login and signs in with their own password.</p></div>
+  {% endif %}
+  <div class="form-actions"><a class="btn btn-primary" href="{% url 'platformadmin:company_list' %}">Back to companies</a></div>
+{% endblock %}

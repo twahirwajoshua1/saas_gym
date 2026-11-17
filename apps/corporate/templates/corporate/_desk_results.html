@@ -1,0 +1,45 @@
+{% load i18n money %}
+{% if searched and not lookups %}
+  <div class="card"><p class="muted">{% translate "No employee found. Only companies with an approved contract with this gym are searched." %}</p></div>
+{% endif %}
+{% for lookup in lookups %}
+  {% with e=lookup.employee %}
+  <div class="card stack">
+    <div class="card-head">
+      <div>
+        <h2>{{ e.full_name }}</h2>
+        <p class="muted small">{{ e.company.name }} · {% translate "No." %} {{ e.employee_number }}{% if e.department %} · {{ e.department }}{% endif %}</p>
+      </div>
+      {% if not e.is_active %}<span class="badge badge-danger">{% translate "Removed by the company" %}</span>
+      {% elif not lookup.contract %}<span class="badge badge-danger">{% translate "No running contract" %}</span>
+      {% elif lookup.phone_code_ok %}<span class="badge badge-on">{% translate "Card checked on their phone" %}</span>
+      {% elif lookup.visit_today %}<span class="badge badge-on">{% translate "Already in today" %}</span>
+      {% else %}<span class="badge badge-warn">{% translate "PIN needed" %}</span>{% endif %}
+    </div>
+
+    {% if lookup.allowed %}
+      <form method="post" action="{% url 'corporate:desk_check_in' e.public_id %}" class="form">
+        {% csrf_token %}
+        <input type="hidden" name="code" value="{% if lookup.phone_code_ok %}{{ code }}{% endif %}">
+        <fieldset class="choices">
+          <legend>{% translate "Services used" %}</legend>
+          {% for c in lookup.covered %}
+            <label class="option"><input type="checkbox" name="service" value="{{ c.service.public_id }}" {% if c.taken %}checked disabled{% endif %}>
+              <span>{{ c.service.name }} · {{ c.price|rwf }}{% if c.taken %} · {% translate "already recorded" %}{% endif %}</span></label>
+          {% empty %}
+            <p class="muted">{% translate "The contract covers no services at this branch." %}</p>
+          {% endfor %}
+        </fieldset>
+        {% if not lookup.phone_code_ok and not lookup.visit_today %}
+          <div class="field">
+            <label for="pin-{{ e.public_id }}">{% translate "Employee's PIN" %}</label>
+            <input id="pin-{{ e.public_id }}" name="pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off">
+            <p class="help muted small">{% if e.has_pin %}{% translate "The employee types it, or opens their card on their phone and you scan it." %}{% else %}{% translate "This employee has no PIN. Ask them to open their card on their phone and scan it." %}{% endif %}</p>
+          </div>
+        {% endif %}
+        <div class="form-actions"><button type="submit" class="btn btn-primary btn-big">{% if lookup.visit_today %}{% translate "Add to today's visit" %}{% else %}{% translate "Check in" %}{% endif %}</button></div>
+      </form>
+    {% endif %}
+  </div>
+  {% endwith %}
+{% endfor %}

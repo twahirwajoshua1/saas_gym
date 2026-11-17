@@ -1,0 +1,22 @@
+{% extends "layouts/company.html" %}
+{% load i18n %}
+{% block title %}{% translate "Employees" %} · {{ request.company.name }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Employees" %}</h1>
+      <p class="muted">{% translate "Only people on this list can check in at your contracted gyms. Every gym sees changes at once." %}</p>
+    </div>
+    <div class="actions">
+      <a class="btn btn-primary" href="{% url 'corporate:employee_add' %}">{% translate "Add employee" %}</a>
+      <a class="btn" href="{% url 'corporate:employee_import' %}">{% translate "Upload Excel list" %}</a>
+    </div>
+  </div>
+  <form method="get" class="search" role="search">
+    <label for="employee-search">{% translate "Search by name, number, department or phone" %}</label>
+    <input id="employee-search" type="search" name="q" value="{{ query }}" autocomplete="off"
+           hx-get="{% url 'corporate:employee_list' %}{% if show_removed %}?removed=1{% endif %}" hx-trigger="input changed delay:250ms, search" hx-target="#employee-rows">
+  </form>
+  <p class="small">{% if show_removed %}<a href="{% url 'corporate:employee_list' %}">{% translate "Show people on the list" %}</a>{% else %}<a href="?removed=1">{% translate "Show removed people" %}</a>{% endif %}</p>
+  <div class="card" id="employee-rows">{% include "corporate/_employee_rows.html" %}</div>
+{% endblock %}

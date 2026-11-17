@@ -1,0 +1,35 @@
+{% extends "layouts/gym.html" %}
+{% load i18n money %}
+{% block title %}{{ contract.company.name }} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'corporate:gym_home' %}">← {% translate "Companies" %}</a>
+  <div class="page-head">
+    <div>
+      <h1>{{ contract.company.name }}</h1>
+      <p class="muted">{{ contract.start_date|date:"j M Y" }} – {{ contract.last_day|date:"j M Y" }} · {% blocktranslate with d=contract.payment_days %}bills paid within {{ d }} days{% endblocktranslate %}</p>
+    </div>
+    {% if can_change %}<div class="actions"><a class="btn" href="{% url 'corporate:contract_edit' contract.public_id %}">{% translate "Change" %}</a></div>{% endif %}
+  </div>
+
+  {% if contract.status == "proposed" %}<p class="notice notice-warn">{% translate "Waiting for the company to approve. Employees cannot check in until then." %}</p>
+  {% elif contract.status == "declined" %}<p class="notice notice-error">{% translate "The company declined this contract. Change it and send it again, or talk to them." %}</p>
+  {% elif contract.ended_on %}<p class="notice notice-warn">{% blocktranslate with d=contract.ended_on|date:"j M Y" %}Ended early: last day {{ d }}.{% endblocktranslate %}</p>
+  {% else %}<p class="notice notice-success">{% translate "Approved by the company." %}</p>{% endif %}
+
+  <div class="card stack">
+    <h2>{% translate "Prices" %}</h2>
+    {% if rows %}{% include "corporate/_prices_table.html" %}{% else %}<p class="muted">{% translate "No prices." %}</p>{% endif %}
+  </div>
+
+  {% if can_end %}
+    <div class="card stack">
+      <h2>{% translate "End the contract early" %}</h2>
+      <form method="post" action="{% url 'corporate:contract_end' contract.public_id %}" class="form-row">
+        {% csrf_token %}
+        <div class="field"><label for="ended_on">{% translate "Last day" %}</label><input id="ended_on" type="date" name="ended_on" value="{{ today|date:'Y-m-d' }}"></div>
+        <div class="field"><label>&nbsp;</label><button type="submit" class="btn">{% translate "End contract" %}</button></div>
+      </form>
+      <p class="muted small">{% translate "Visits up to the last day are still billed." %}</p>
+    </div>
+  {% endif %}
+{% endblock %}

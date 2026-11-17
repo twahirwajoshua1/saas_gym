@@ -28,8 +28,8 @@ from apps.members.models import (
     Member,
     Membership,
     MembershipFreeze,
-    Service,
     Package,
+    Service,
 )
 from apps.people import services as people_services
 from apps.people.phones import InvalidPhoneNumber, normalize_phone

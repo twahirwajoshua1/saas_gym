@@ -5,6 +5,7 @@
     <a href="{% url 'platformadmin:gym_list' %}"><strong>Gym Business OS · Platform</strong></a>
     <nav>
       <a href="{% url 'platformadmin:gym_list' %}">Gyms</a>
+      <a href="{% url 'platformadmin:company_list' %}">Companies</a>
       <a href="{% url 'admin:index' %}">Database admin</a>
       <form method="post" action="{% url 'accounts:logout' %}" class="inline-form">{% csrf_token %}<button type="submit" class="link-button">Sign out</button></form>
     </nav>

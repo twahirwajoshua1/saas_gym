@@ -21,13 +21,16 @@ from apps.accounts import services as accounts
 from apps.attendance import services as attendance
 from apps.billing import services as billing
 from apps.billing.services import PaymentInput
+from apps.corporate import services as corporate
+from apps.corporate.models import CorporateBill
+from apps.corporate.services import ContractTerms, EmployeeDetails
 from apps.gyms import services as gyms
 from apps.gyms.models import Branch, Role, StaffAssignment
 from apps.members import services as members
 from apps.members.models import Gender
-from apps.members.services import MemberDetails
+from apps.members.services import InvalidDetails, MemberDetails
 from apps.modules import services as modules
-from apps.modules.catalog import ATTENDANCE_ACCESS, PAYMENTS_FINANCE
+from apps.modules.catalog import ATTENDANCE_ACCESS, CORPORATE_WELLNESS, PAYMENTS_FINANCE
 from apps.people import services as people
 from apps.sampledata import rwanda
 
@@ -68,6 +71,17 @@ class SimGym:
     arrival_carry: float = 0.0
     unpaid: list = field(default_factory=list)  # (due day, invoice, staff)
     branches: dict = field(default_factory=dict)  # branch id -> branch
+    services: dict = field(default_factory=dict)  # service name -> Service
+
+
+@dataclass
+class SimEmployee:
+    employee: object
+    officer: object
+    sim: SimGym
+    branch_id: int
+    habit: float
+    pin: bool
 
 
 class Generator:
@@ -77,7 +91,17 @@ class Generator:
         self.scale = scale
         self.log = log
         self.used_phones = set()
-        self.counts = {"members": 0, "sales": 0, "payments": 0, "check_ins": 0, "freezes": 0}
+        self.counts = {
+            "members": 0,
+            "sales": 0,
+            "payments": 0,
+            "check_ins": 0,
+            "freezes": 0,
+            "company_visits": 0,
+            "company_bills": 0,
+        }
+        self.employees = []  # SimEmployee
+        self.paydays = {}  # bill id -> day the company pays it
         self.logins = []
 
     # --- Small helpers ---------------------------------------------------------
@@ -170,6 +194,10 @@ class Generator:
         for code in (PAYMENTS_FINANCE, ATTENDANCE_ACCESS):
             modules.enable_module(gym=gym, code=code, actor=admin_person)
 
+        sim_services = {
+            name: members.create_service(by=owner, name=name, price_rwf=price)
+            for name, price in rwanda.SERVICES.get(spec["name"], [])
+        }
         packages = {
             name: members.create_package(
                 by=owner, name=name, price_rwf=price, duration_count=count, duration_unit=unit
@@ -178,6 +206,7 @@ class Generator:
         }
         sim = SimGym(spec, gym, owner, {}, {}, {}, packages)
         sim.branches = {b.id: b for b in branches}
+        sim.services = sim_services
         many = len(branches) > 1
         for branch in branches:
             if many:
@@ -396,6 +425,145 @@ class Generator:
                 return
         self.counts["check_ins"] += 1
 
+    # --- Companies (corporate wellness) -------------------------------------------
+
+    def create_company(self, spec: dict, sims: dict, start: date, admin):
+        first, surname = spec["officer"]
+        created = corporate.create_company(
+            name=spec["name"],
+            tin=spec["tin"],
+            officer_name=f"{first} {surname}",
+            officer_phone=spec["officer_phone"],
+            actor=admin,
+        )
+        self.used_phones.add(spec["officer_phone"])
+        user = created.officer.person.user_account
+        user.set_password(DEMO_PASSWORD)
+        user.must_change_password = False
+        user.save()
+        self.logins.append(
+            (spec["name"], "Logistics officer (company)", user.person.full_name, user.person.phone)
+        )
+        officer = created.officer
+
+        contracts = []
+        for gym_name in spec["gyms"]:
+            sim = sims[gym_name]
+            if not modules.is_enabled(sim.gym, CORPORATE_WELLNESS):
+                modules.enable_module(gym=sim.gym, code=CORPORATE_WELLNESS, actor=admin)
+            prices = {}
+            for service in sim.services.values():
+                for branch in sim.branches.values():
+                    share = spec["discount"] * (0.85 if branch.name in rwanda.OUTSIDE_KIGALI else 1)
+                    prices[(service.id, branch.id)] = int(round(service.price_rwf * share, -2))
+            contract = corporate.propose_contract(
+                by=sim.owner,
+                company_code=created.company.code,
+                terms=ContractTerms(
+                    start_date=start,
+                    end_date=start + timedelta(days=365),
+                    payment_days=self.rng.choice([15, 30, 45]),
+                    prices=prices,
+                ),
+            )
+            corporate.decide_contract(by=officer, contract=contract, approve=True)
+            contracts.append((sim, contract))
+
+        for _ in range(max(3, round(spec["employees"] * self.scale))):
+            full_name, _gender = self.name()
+            employee = corporate.add_employee(
+                by=officer,
+                details=EmployeeDetails(
+                    full_name=full_name,
+                    phone=self.phone(),
+                    employee_number=f"{spec['name'][:2].upper()}-{self.rng.randrange(1000, 9999)}",
+                    department=self.rng.choice(rwanda.DEPARTMENTS),
+                ),
+            )
+            uses_pin = self.rng.random() < 0.15
+            if uses_pin:
+                corporate.set_pin(by=officer, employee=employee, pin="1234")
+            else:
+                employee.device_hash = uuid.uuid4().hex  # opened the card on their phone
+                employee.save(update_fields=["device_hash"])
+            sim, contract = self.rng.choice(contracts)
+            self.employees.append(
+                SimEmployee(
+                    employee=employee,
+                    officer=officer,
+                    sim=sim,
+                    branch_id=self.rng.choice(list(sim.branches)),
+                    habit=self.rng.choice([0.05, 0.12, 0.25, 0.4]),
+                    pin=uses_pin,
+                )
+            )
+
+    def corporate_day(self, day: date):
+        for se in self.employees:
+            if not se.employee.is_active:
+                continue
+            if self.rng.random() > se.habit * DAY_FACTOR[day.weekday()]:
+                continue
+            sim = se.sim
+            wanted = [s.id for name, s in sim.services.items() if name == "Gym"]
+            for name, service in sim.services.items():
+                if name != "Gym" and self.rng.random() < 0.18:
+                    wanted.append(service.id)
+            if not wanted:
+                continue
+            hour, minute = self.visit_time()
+            with self.at(day, hour, minute):
+                try:
+                    result = corporate.check_in_employee(
+                        by=sim.desk[se.branch_id],
+                        employee=se.employee,
+                        service_ids=wanted,
+                        phone_code_ok=not se.pin,
+                        pin="1234" if se.pin else "",
+                    )
+                except InvalidDetails:  # for example a service not covered at that branch
+                    continue
+            self.counts["company_visits"] += 1
+            if not se.pin and self.rng.random() < 0.85:
+                with self.at(day, min(hour + 1, 23), minute):
+                    corporate.confirm_visit(employee=se.employee, visit=result.visit)
+            if self.rng.random() < 0.01:
+                with self.at(day, 21, 0):
+                    corporate.question_visit(
+                        by=se.officer,
+                        visit=result.visit,
+                        message="This employee was on leave that day.",
+                    )
+
+        # The company's leavers come off the list now and then.
+        if self.employees and self.rng.random() < 0.03:
+            se = self.rng.choice(self.employees)
+            if se.employee.is_active:
+                with self.at(day, 10, 0):
+                    corporate.remove_employee(by=se.officer, employee=se.employee)
+
+        # Bills come on the last evening of the month; companies pay later.
+        with self.at(day, 23, 30):
+            for bill in corporate.issue_due_bills(day):
+                self.counts["company_bills"] += 1
+                if self.rng.random() < 0.85:
+                    self.paydays[bill.id] = day + timedelta(days=self.rng.randint(10, 40))
+        for bill_id, payday in list(self.paydays.items()):
+            if payday != day:
+                continue
+            bill = CorporateBill.objects.select_related("gym").get(pk=bill_id)
+            owner = StaffAssignment.objects.for_gym(bill.gym).filter(role=Role.OWNER).first()
+            with self.at(day, 11, 0):
+                corporate.record_bill_payment(
+                    by=owner,
+                    bill=bill,
+                    amount_rwf=corporate.bill_state(bill).owed_rwf,
+                    reference=f"BK{self.rng.randrange(10**8, 10**9)}",
+                    received_on=day,
+                    idempotency_key=uuid.uuid4(),
+                )
+            del self.paydays[bill_id]
+
     # --- Everything -------------------------------------------------------------
 
     def run(self):
@@ -419,11 +587,18 @@ class Generator:
                 sims.append(self.create_gym(spec, start, admin))
             self.log(f"Set up {spec['name']} ({len(spec['branches'])} branches)")
 
+        by_name = {sim.spec["name"]: sim for sim in sims}
+        for spec in rwanda.COMPANIES:
+            with transaction.atomic(), self.at(start, 9):
+                self.create_company(spec, by_name, start, admin)
+            self.log(f"Set up {spec['name']} (company)")
+
         day = start
         while day <= today:
             with transaction.atomic():
                 for sim in sims:
                     self.simulate_day(sim, day)
+                self.corporate_day(day)
             if (day - start).days % 15 == 0:
                 self.log(f"  {day:%d %b %Y}: {self.counts}")
             day += timedelta(days=1)

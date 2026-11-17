@@ -1,0 +1,38 @@
+{% extends "layouts/gym.html" %}
+{% load i18n money %}
+{% block title %}{% translate "Company visits" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'corporate:gym_home' %}">← {% translate "Companies" %}</a>
+  <div class="page-head">
+    <h1>{% translate "Company visits" %}</h1>
+    <form method="get" class="inline-form"><input type="date" name="day" value="{{ day|date:'Y-m-d' }}"><button class="btn btn-small" type="submit">{% translate "Show" %}</button></form>
+  </div>
+  <div class="card stack">
+    <h2>{{ day|date:"l j F Y" }}</h2>
+    {% for visit in visits %}
+      <div class="stack">
+        <p><strong>{{ visit.employee.full_name }}</strong> <span class="muted small">{{ visit.company.name }} · {{ visit.employee.employee_number }} · {{ visit.branch.name }} · {{ visit.checked_in_at|time:"H:i" }}</span>
+          {% if visit.confirmed_at %}<span class="badge badge-on">{% translate "Confirmed" %}</span>{% else %}<span class="badge badge-off">{% translate "Not confirmed" %}</span>{% endif %}
+          {% for flag in visit.flags.all %}{% if flag.is_open %}<span class="badge badge-danger">{{ flag.get_kind_display }}</span>{% endif %}{% endfor %}
+        </p>
+        <ul class="item-list">
+          {% for a in visit.activities.all %}
+            <li>
+              <div class="item-main"><span>{{ a.service_name }} · {{ a.price_rwf|rwf }}</span>
+                {% if a.cancelled_at %}<span class="muted small">{% translate "Cancelled:" %} {{ a.cancel_reason }}</span>{% endif %}</div>
+              {% if not a.cancelled_at %}
+                <form method="post" action="{% url 'corporate:activity_cancel' a.public_id %}" class="inline-form">
+                  {% csrf_token %}
+                  <input name="reason" placeholder="{% translate 'Reason' %}" required size="14">
+                  <button type="submit" class="btn btn-small">{% translate "Cancel" %}</button>
+                </form>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% empty %}
+      <p class="muted">{% translate "No company visits on this day." %}</p>
+    {% endfor %}
+  </div>
+{% endblock %}

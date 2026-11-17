@@ -4,110 +4,7 @@
 
 {% block scripts %}
 {% load static %}
-<script>
-/*
-  Reads a member's QR card with the device camera and types the result into
-  the search box. Nothing is checked in automatically: staff still press
-  "Check in".
-
-  Browsers with built-in barcode detection (Chrome on Android and Mac) use it.
-  Others (Windows, iPhone) load a small QR reader (jsQR) the first time the
-  camera button is pressed. The camera only works on https:// pages or on
-  this computer's own address (localhost / 127.0.0.1).
-*/
-(function () {
-  var start = document.getElementById("scan-start");
-  var area = document.getElementById("scan-area");
-  var video = document.getElementById("scan-video");
-  var stop = document.getElementById("scan-stop");
-  var input = document.getElementById("checkin-search");
-  if (!start || !input || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-  start.hidden = false;
-
-  var JSQR_URL = "{% static 'vendor/jsQR.js' %}";
-  var stream = null;
-  var readFrame = null;  // function returning a Promise of the text found, or ""
-  var canvas = document.createElement("canvas");
-  var context = canvas.getContext("2d", { willReadFrequently: true });
-
-  function viaJsQR() {
-    var width = Math.min(video.videoWidth, 640);
-    var height = Math.round(video.videoHeight * width / video.videoWidth);
-    if (!width || !height) return Promise.resolve("");
-    canvas.width = width;
-    canvas.height = height;
-    context.drawImage(video, 0, 0, width, height);
-    var image = context.getImageData(0, 0, width, height);
-    var code = window.jsQR(image.data, width, height, { inversionAttempts: "dontInvert" });
-    return Promise.resolve(code ? code.data : "");
-  }
-
-  function chooseReader() {
-    if ("BarcodeDetector" in window) {
-      return BarcodeDetector.getSupportedFormats().then(function (formats) {
-        if (formats.indexOf("qr_code") === -1) throw new Error("no QR");
-        var detector = new BarcodeDetector({ formats: ["qr_code"] });
-        return function () {
-          return detector.detect(video).then(function (codes) {
-            return codes.length ? codes[0].rawValue : "";
-          });
-        };
-      }).catch(loadJsQR);
-    }
-    return loadJsQR();
-  }
-
-  function loadJsQR() {
-    if (window.jsQR) return Promise.resolve(viaJsQR);
-    return new Promise(function (resolve, reject) {
-      var script = document.createElement("script");
-      script.src = JSQR_URL;
-      script.onload = function () { resolve(viaJsQR); };
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
-  }
-
-  function finish() {
-    if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
-    stream = null;
-    area.hidden = true;
-  }
-
-  function look() {
-    if (!stream) return;
-    readFrame().then(function (text) {
-      if (text) {
-        input.value = text;
-        finish();
-        input.dispatchEvent(new Event("search"));
-      } else {
-        setTimeout(function () { requestAnimationFrame(look); }, 120);
-      }
-    }).catch(function () { requestAnimationFrame(look); });
-  }
-
-  function fail() {
-    finish();
-    start.textContent = "{{ _('The camera could not be opened') }}";
-    start.disabled = true;
-  }
-
-  start.addEventListener("click", function () {
-    var reader = readFrame ? Promise.resolve(readFrame) : chooseReader();
-    reader.then(function (found) {
-      readFrame = found;
-      return navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    }).then(function (s) {
-      stream = s;
-      video.srcObject = s;
-      area.hidden = false;
-      return video.play();
-    }).then(look).catch(fail);
-  });
-  stop.addEventListener("click", finish);
-})();
-</script>
+<script src="{% static 'js/scanner.js' %}" defer></script>
 {% endblock %}
 {% block content %}
   <div class="page-head">
@@ -138,13 +35,14 @@
     <form method="get" action="{% url 'attendance:home' %}" class="search search-big" role="search">
       <label for="checkin-search">{% translate "Phone number or name" %}</label>
       <input id="checkin-search" type="search" name="q" value="{{ query }}" autocomplete="off" autofocus
+             {% if 'corporate_wellness' in modules_on %}data-company-desk="{% url 'corporate:desk' %}"{% endif %}
              hx-get="{% url 'attendance:home' %}"
              hx-trigger="input changed delay:250ms, search"
              hx-target="#checkin-results">
     </form>
 
     <div class="form-actions">
-      <button type="button" class="btn" id="scan-start" hidden>{% translate "Scan card with camera" %}</button>
+      <button type="button" class="btn" id="scan-start" data-jsqr="{% static 'vendor/jsQR.js' %}" data-error="{% translate 'The camera could not be opened' %}" hidden>{% translate "Scan card with camera" %}</button>
     </div>
     <div class="scan-area stack" id="scan-area" hidden>
       <video id="scan-video" playsinline muted></video>

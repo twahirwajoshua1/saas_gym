@@ -82,7 +82,7 @@ def test_sign_in_and_sign_out_through_the_pages(client, user):
         reverse("accounts:login"), {"phone": "0788 123 456", "password": GOOD_PASSWORD}
     )
     assert response.status_code == 302
-    assert response.url == reverse("gyms:enter")
+    assert response.url == reverse("corporate:start")
 
     home = client.get(reverse("accounts:home"))
     assert "Welcome, Aline Uwase" in home.content.decode()

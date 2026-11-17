@@ -78,3 +78,15 @@ computer's development server from a phone over HTTPS, use a temporary tunnel:
    address can reach your development server.
 
 On a laptop, the camera works at `http://localhost:8000` with no tunnel.
+
+## Nightly job: company bills
+
+Run this every evening, for example at 23:30 Kigali time:
+
+```
+python manage.py issue_corporate_bills
+```
+
+On the last day of a month it issues that month's bill for every company
+contract; on later days it catches up on anything missed. Running it twice
+does no harm.

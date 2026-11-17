@@ -1,0 +1,31 @@
+{% extends "layouts/gym.html" %}
+{% load i18n money %}
+{% block title %}{% translate "Company bills" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'corporate:gym_home' %}">← {% translate "Companies" %}</a>
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Company bills" %}</h1>
+      <p class="muted">{% translate "Bills are issued automatically on the last evening of each month. You can also issue one yourself once the month's last day has come." %}</p>
+    </div>
+  </div>
+  {% if ready %}
+    <div class="card stack">
+      <h2>{% translate "Ready to issue" %}</h2>
+      <ul class="item-list">
+        {% for contract, month in ready %}
+          <li>
+            <div class="item-main"><strong>{{ contract.company.name }}</strong><span class="muted small">{{ month|date:"F Y" }}</span></div>
+            <form method="post" action="{% url 'corporate:bill_issue' contract.public_id %}" class="inline-form">
+              {% csrf_token %}<input type="hidden" name="month" value="{{ month|date:'Y-m-d' }}">
+              <button type="submit" class="btn btn-small btn-primary">{% translate "Issue bill" %}</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+  <div class="card">
+    {% include "corporate/_bills_table.html" with side="gym" %}
+  </div>
+{% endblock %}

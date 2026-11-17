@@ -1,0 +1,18 @@
+{% extends "layouts/plain.html" %}
+{% load i18n %}
+{% block title %}{% translate "Choose where to work" %} · Gym Business OS{% endblock %}
+{% block content %}
+  <h1>{% translate "Choose where to work" %}</h1>
+  <form method="post" class="stack">
+    {% csrf_token %}
+    {% for officer in officer_roles %}
+      <button type="submit" name="company" value="{{ officer.company.public_id }}" class="btn btn-block">{{ officer.company.name }} ({% translate "company" %})</button>
+    {% endfor %}
+    {% for assignment in assignments %}
+      <button type="submit" name="gym" value="{{ assignment.gym.public_id }}" class="btn btn-block">{{ assignment.gym.name }} ({{ assignment.get_role_display }})</button>
+    {% endfor %}
+  </form>
+  <form method="post" action="{% url 'accounts:logout' %}">
+    {% csrf_token %}<button type="submit" class="btn">{% translate "Sign out" %}</button>
+  </form>
+{% endblock %}

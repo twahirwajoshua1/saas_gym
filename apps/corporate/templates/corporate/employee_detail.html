@@ -1,0 +1,75 @@
+{% extends "layouts/company.html" %}
+{% load i18n money %}
+{% block title %}{{ employee.full_name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'corporate:employee_list' %}">← {% translate "Employees" %}</a>
+  <div class="page-head">
+    <div>
+      <h1>{{ employee.full_name }}</h1>
+      <p class="muted">{{ employee.person.phone }}{% if not employee.is_active %} · {% translate "Removed" %} {{ employee.removed_at|date:"j M Y" }}{% endif %}</p>
+    </div>
+  </div>
+
+  <div class="card stack">
+    <h2>{% translate "Details" %}</h2>
+    <form method="post" class="form" novalidate>
+      {% csrf_token %}
+      {% if error %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endif %}
+      <div class="form-row">
+        <div class="field"><label for="employee_number">{% translate "Employee number" %}</label><input id="employee_number" name="employee_number" value="{{ employee.employee_number }}"></div>
+        <div class="field"><label for="department">{% translate "Department" %}</label><input id="department" name="department" value="{{ employee.department }}"></div>
+      </div>
+      <div class="form-actions"><button type="submit" class="btn">{% translate "Save" %}</button></div>
+    </form>
+  </div>
+
+  {% if employee.is_active %}
+    <div class="card stack">
+      <h2>{% translate "Gym card" %}</h2>
+      <p class="small muted">{% translate "Send this private link to the employee. The first phone that opens it becomes the card's phone; on other phones it will not open. Its QR code changes every 30 seconds, so a screenshot cannot be lent to someone else." %}</p>
+      <p class="link-text small">{{ card_url }}</p>
+      <div class="form-actions">
+        <a class="btn btn-small btn-primary" href="{{ whatsapp_url }}" target="_blank" rel="noopener">{% translate "Send by WhatsApp" %}</a>
+        <a class="btn btn-small" href="{{ sms_url }}">{% translate "Send by SMS" %}</a>
+      </div>
+      <p class="small">{% if employee.device_hash %}{% translate "Status: opened on the employee's phone." %}{% else %}{% translate "Status: not opened yet." %}{% endif %}</p>
+      <div class="form-actions">
+        {% if employee.device_hash %}
+          <form method="post" action="{% url 'corporate:employee_action' employee.public_id %}" class="inline-form">{% csrf_token %}<input type="hidden" name="action" value="reset_phone"><button type="submit" class="btn btn-small">{% translate "Changed phone: allow a new phone" %}</button></form>
+        {% endif %}
+        <form method="post" action="{% url 'corporate:employee_action' employee.public_id %}" class="inline-form">{% csrf_token %}<input type="hidden" name="action" value="new_link"><button type="submit" class="btn btn-small">{% translate "Make a new link (old one stops working)" %}</button></form>
+      </div>
+    </div>
+
+    <div class="card stack">
+      <h2>{% translate "PIN for employees without a smartphone" %}</h2>
+      <p class="small muted">{% if employee.has_pin %}{% translate "A PIN is set. The desk asks for it when the card is not shown on the phone." %}{% else %}{% translate "No PIN. Set one for employees who cannot use the card on a phone, and tell them in person." %}{% endif %}</p>
+      <form method="post" action="{% url 'corporate:employee_action' employee.public_id %}" class="form-row">
+        {% csrf_token %}<input type="hidden" name="action" value="pin">
+        <input name="pin" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="{% translate '4 digits' %}" aria-label="{% translate 'New PIN' %}">
+        <button type="submit" class="btn btn-small">{% if employee.has_pin %}{% translate "Change PIN (empty removes it)" %}{% else %}{% translate "Set PIN" %}{% endif %}</button>
+      </form>
+    </div>
+
+    <form method="post" action="{% url 'corporate:employee_action' employee.public_id %}">
+      {% csrf_token %}<input type="hidden" name="action" value="remove">
+      <button type="submit" class="btn">{% translate "Remove from the list (left the company)" %}</button>
+    </form>
+  {% else %}
+    <form method="post" action="{% url 'corporate:employee_action' employee.public_id %}">
+      {% csrf_token %}<input type="hidden" name="action" value="restore">
+      <button type="submit" class="btn btn-primary">{% translate "Put back on the list" %}</button>
+    </form>
+  {% endif %}
+
+  <div class="card stack">
+    <h2>{% translate "Visits in the last 90 days" %}</h2>
+    {% for visit in visits %}
+      <p>{{ visit.checked_in_on|date:"j M Y" }} {{ visit.checked_in_at|time:"H:i" }} · {{ visit.gym.name }}, {{ visit.branch.name }} ·
+        {% for a in visit.activities.all %}{% if not a.cancelled_at %}{{ a.service_name }} {{ a.price_rwf|rwf }}{% if not forloop.last %}, {% endif %}{% endif %}{% endfor %}
+        {% if visit.confirmed_at %}<span class="badge badge-on">{% translate "Confirmed" %}</span>{% else %}<span class="badge badge-off">{% translate "Not confirmed" %}</span>{% endif %}</p>
+    {% empty %}
+      <p class="muted">{% translate "No visits." %}</p>
+    {% endfor %}
+  </div>
+{% endblock %}

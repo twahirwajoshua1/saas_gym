@@ -1,0 +1,7 @@
+{% extends "layouts/company.html" %}
+{% load i18n %}
+{% block title %}{% translate "Bills" %}{% endblock %}
+{% block content %}
+  <div class="page-head"><div><h1>{% translate "Bills" %}</h1><p class="muted">{% translate "One bill per gym per month, issued on the month's last day. Pay by bank transfer and quote the bill number." %}</p></div></div>
+  <div class="card">{% include "corporate/_bills_table.html" with side="company" %}</div>
+{% endblock %}

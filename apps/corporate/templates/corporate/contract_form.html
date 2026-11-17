@@ -1,0 +1,67 @@
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% if contract %}{% translate "Change contract" %}{% else %}{% translate "New contract" %}{% endif %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'corporate:gym_home' %}">← {% translate "Companies" %}</a>
+  <div class="page-head"><h1>{% if contract %}{% translate "Change contract" %}{% else %}{% translate "New contract with a company" %}{% endif %}</h1></div>
+
+  <div class="card">
+    <form method="post" class="form" novalidate>
+      {% csrf_token %}
+      {% if error %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endif %}
+
+      {% if contract %}
+        <p><strong>{{ found.1 }}</strong></p>
+        <input type="hidden" name="company_code" value="{{ values.company_code }}">
+      {% else %}
+        <div class="field">
+          <label for="company_code">{% translate "Company code" %}</label>
+          <div class="form-row">
+            <input id="company_code" name="company_code" value="{{ values.company_code }}" placeholder="CO-XXXXXX" autocomplete="off" required>
+            <button type="submit" name="action" value="check" class="btn">{% translate "Find company" %}</button>
+          </div>
+          <p class="help muted small">{% translate "The company's logistics officer finds it on their Gyms and contracts page." %}</p>
+        </div>
+        {% if found %}<p class="notice notice-success">{% translate "Company:" %} <strong>{{ found.1 }}</strong></p>{% endif %}
+      {% endif %}
+
+      {% if found %}
+        <div class="form-row">
+          <div class="field"><label for="start_date">{% translate "Starts on" %}</label><input id="start_date" type="date" name="start_date" value="{{ values.start_date }}" required></div>
+          <div class="field"><label for="end_date">{% translate "Ends on" %}</label><input id="end_date" type="date" name="end_date" value="{{ values.end_date }}" required></div>
+          <div class="field"><label for="payment_days">{% translate "Days to pay each bill" %}</label><input id="payment_days" type="number" name="payment_days" min="1" max="90" value="{{ values.payment_days }}" required></div>
+        </div>
+
+        <fieldset class="stack">
+          <legend>{% translate "Price per service (RWF)" %}</legend>
+          <p class="muted small">{% translate "Leave a box empty if the contract does not cover that service at that branch. Prices can differ per branch." %}</p>
+          {% if rows %}
+            <div class="table-wrap">
+              <table class="data">
+                <thead><tr><th>{% translate "Service" %}</th>{% for branch in branches %}<th>{{ branch.name }}</th>{% endfor %}</tr></thead>
+                <tbody>
+                  {% for service, cells in rows %}
+                    <tr>
+                      <td>{{ service.name }}<br><span class="muted small">{% translate "members pay" %} {{ service.price_rwf }}</span></td>
+                      {% for branch, name, value in cells %}
+                        <td><input name="{{ name }}" value="{{ value }}" inputmode="numeric" size="8" aria-label="{{ service.name }} · {{ branch.name }}"></td>
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="notice notice-warn">{% translate "Add your services (Gym, Sauna, Massage...) on the Packages & services page first." %} <a href="{% url 'members:package_list' %}#services">{% translate "Go there" %}</a></p>
+          {% endif %}
+        </fieldset>
+
+        <div class="form-actions">
+          <button type="submit" name="action" value="propose" class="btn btn-primary">{% if contract %}{% translate "Save and send again" %}{% else %}{% translate "Send to the company for approval" %}{% endif %}</button>
+          <a class="btn" href="{% url 'corporate:gym_home' %}">{% translate "Cancel" %}</a>
+        </div>
+        <p class="muted small">{% translate "Once the company approves, the prices are fixed for the contract. To change them later, end it and make a new one." %}</p>
+      {% endif %}
+    </form>
+  </div>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "layouts/company.html" %}
+{% load i18n %}
+{% block title %}{% translate "Gyms and contracts" %}{% endblock %}
+{% block content %}
+  <div class="page-head"><div><h1>{% translate "Gyms and contracts" %}</h1></div></div>
+  <div class="card stack">
+    <h2>{% translate "Your company code" %}</h2>
+    <p class="stat-value">{{ company.code }}</p>
+    <p class="muted small">{% translate "Give this code to each gym you have an agreement with. The gym enters its prices and sends you the contract to approve here." %}</p>
+  </div>
+  <div class="card stack">
+    {% for c in contracts %}
+      {% if forloop.first %}<ul class="item-list">{% endif %}
+      <li>
+        <div class="item-main"><a href="{% url 'corporate:portal_contract_detail' c.public_id %}"><strong>{{ c.gym.name }}</strong></a>
+          <span class="muted small">{{ c.start_date|date:"j M Y" }} – {{ c.last_day|date:"j M Y" }} · {% blocktranslate with d=c.payment_days %}pay within {{ d }} days{% endblocktranslate %}</span></div>
+        {% if c.status == "proposed" %}<span class="badge badge-warn">{% translate "Needs your approval" %}</span>{% elif c.status == "approved" %}<span class="badge badge-on">{% translate "Approved" %}</span>{% else %}<span class="badge badge-off">{% translate "Declined" %}</span>{% endif %}
+      </li>
+      {% if forloop.last %}</ul>{% endif %}
+    {% empty %}
+      <p class="muted">{% translate "No gym has sent a contract yet." %}</p>
+    {% endfor %}
+  </div>
+{% endblock %}

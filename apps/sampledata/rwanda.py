@@ -236,3 +236,45 @@ FREEZE_REASONS = [
     "Exams",
     "Doctor's advice to rest",
 ]
+
+# Single sessions each gym sells: (name, price for members). The prices rise
+# with the gym's tier, like the packages. Not every gym has a pool.
+SERVICES = {
+    "Imbaraga Fitness Studio": [("Gym", 2000), ("Aerobics", 2500)],
+    "Ubuzima Health Club": [("Gym", 3000), ("Sauna", 5000), ("Aerobics", 3000)],
+    "Intare Strength House": [("Gym", 3000), ("Sauna", 5000), ("Massage", 15000)],
+    "Umucyo Wellness Centre": [
+        ("Gym", 5000),
+        ("Sauna", 7000),
+        ("Massage", 20000),
+        ("Swimming", 6000),
+        ("Aerobics", 5000),
+    ],
+    "Inkingi Fitness Network": [("Gym", 4000), ("Sauna", 6000), ("Swimming", 5000)],
+}
+
+# Invented employers with corporate wellness contracts. Any resemblance to a
+# real company is unintended. Contract prices are a share of the member price;
+# branches outside Kigali are cheaper.
+COMPANIES = [
+    {
+        "name": "Isimbi Insurance Ltd",
+        "tin": "102345678",
+        "officer": ("Aimée", "Ingabire"),
+        "officer_phone": "0788100010",
+        "employees": 40,
+        "gyms": ["Ubuzima Health Club", "Intare Strength House", "Umucyo Wellness Centre"],
+        "discount": 0.8,
+    },
+    {
+        "name": "Akagera Logistics Ltd",
+        "tin": "107654321",
+        "officer": ("Olivier", "Nshimiyimana"),
+        "officer_phone": "0788100011",
+        "employees": 25,
+        "gyms": ["Inkingi Fitness Network", "Umucyo Wellness Centre"],
+        "discount": 0.85,
+    },
+]
+OUTSIDE_KIGALI = {"Musanze", "Huye", "Rubavu"}
+DEPARTMENTS = ["Finance", "Operations", "Sales", "Human Resources", "IT", "Claims", "Logistics"]

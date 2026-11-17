@@ -1,0 +1,37 @@
+{% extends "layouts/company.html" %}
+{% load i18n money %}
+{% block title %}{{ request.company.name }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Overview" %}</h1>
+      <p class="muted">{{ today|date:"F Y" }} · {% blocktranslate count n=employee_count %}{{ n }} employee on the list{% plural %}{{ n }} employees on the list{% endblocktranslate %}</p>
+    </div>
+    <div class="actions"><a class="btn btn-primary" href="{% url 'corporate:employee_add' %}">{% translate "Add employee" %}</a></div>
+  </div>
+
+  {% if pending %}
+    <div class="notice notice-warn">
+      <strong>{% translate "Contracts waiting for your approval:" %}</strong>
+      {% for c in pending %}<a href="{% url 'corporate:portal_contract_detail' c.public_id %}">{{ c.gym.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}
+    </div>
+  {% endif %}
+  {% if warnings %}
+    <div class="notice notice-warn"><strong>{% blocktranslate count n=warnings|length %}{{ n }} warning to look at{% plural %}{{ n }} warnings to look at{% endblocktranslate %}.</strong> <a href="{% url 'corporate:portal_warnings' %}">{% translate "See warnings" %}</a></div>
+  {% endif %}
+
+  <div class="card stack">
+    <h2>{% translate "This month so far" %}</h2>
+    {% if so_far %}
+      <ul class="item-list">{% for row in so_far %}<li><div class="item-main"><strong>{{ row.gym__name }}</strong></div><span class="amount">{{ row.total|rwf }}</span></li>{% endfor %}</ul>
+      <a class="btn btn-small" href="{% url 'corporate:portal_visits' %}">{% translate "See every visit" %}</a>
+    {% else %}
+      <p class="muted">{% translate "No visits yet this month." %}</p>
+    {% endif %}
+  </div>
+
+  <div class="card stack">
+    <h2>{% translate "Bills to pay" %}</h2>
+    {% if unpaid %}{% include "corporate/_bills_table.html" with bills=unpaid side="company" %}{% else %}<p class="muted">{% translate "Nothing to pay." %}</p>{% endif %}
+  </div>
+{% endblock %}

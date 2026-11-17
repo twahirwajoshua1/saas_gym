@@ -1,0 +1,31 @@
+{% extends "layouts/gym.html" %}
+{% load i18n static %}
+{% block title %}{% translate "Company check-in" %} · {{ gym.name }}{% endblock %}
+{% block scripts %}<script src="{% static 'js/scanner.js' %}" defer></script>{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'corporate:gym_home' %}">← {% translate "Companies" %}</a>
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Company check-in" %}</h1>
+      <p class="muted">{{ today|date:"l j F Y" }}{% if desk_branch %} · {{ desk_branch.name }}{% endif %}</p>
+    </div>
+  </div>
+  {% if not desk_branch %}
+    <p class="notice notice-warn">{% translate "Choose this desk's branch on the Check-in page first." %} <a href="{% url 'attendance:home' %}">{% translate "Check-in" %}</a></p>
+  {% endif %}
+
+  <form method="get" action="{% url 'corporate:desk' %}" class="search search-big" role="search">
+    <label for="checkin-search">{% translate "Scan the employee's card, or type a name, employee number or phone" %}</label>
+    <input id="checkin-search" type="search" name="q" value="{{ query }}" autocomplete="off" autofocus
+           hx-get="{% url 'corporate:desk' %}" hx-trigger="input changed delay:300ms, search" hx-target="#desk-results">
+  </form>
+  <div class="form-actions">
+    <button type="button" class="btn" id="scan-start" data-jsqr="{% static 'vendor/jsQR.js' %}" data-error="{% translate 'The camera could not be opened' %}" hidden>{% translate "Scan card with camera" %}</button>
+  </div>
+  <div class="scan-area stack" id="scan-area" hidden>
+    <video id="scan-video" playsinline muted></video>
+    <div><button type="button" class="btn" id="scan-stop">{% translate "Stop camera" %}</button></div>
+  </div>
+
+  <div id="desk-results" class="stack">{% include "corporate/_desk_results.html" %}</div>
+{% endblock %}

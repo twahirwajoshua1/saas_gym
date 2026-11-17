@@ -9,7 +9,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditEntry
+from apps.corporate import services as corporate
+from apps.corporate.models import Company
 from apps.gyms.models import Branch, Gym
+from apps.members.services import InvalidDetails
 from apps.modules import services as modules
 from apps.platformadmin import services
 
@@ -101,3 +104,32 @@ def gym_active(request, public_id):
     else:
         messages.success(request, "Saved.")
     return redirect("platformadmin:gym_detail", public_id=gym.public_id)
+
+
+# --- Companies (corporate wellness) ----------------------------------------------
+
+COMPANY_MESSAGES = {
+    "name": "Enter the company's name.",
+    "officer_name": "Enter the logistics officer's name.",
+    "officer_phone": "Enter a valid phone number for the logistics officer.",
+}
+
+
+@platform_staff_required
+def company_list(request):
+    return render(request, "platformadmin/company_list.html", {"companies": Company.objects.all()})
+
+
+@platform_staff_required
+def company_create(request):
+    values = {"name": "", "tin": "", "officer_name": "", "officer_phone": ""}
+    error = ""
+    if request.method == "POST":
+        values = {key: request.POST.get(key, "") for key in values}
+        try:
+            created = corporate.create_company(actor=request.user.person, **values)
+        except InvalidDetails as problem:
+            error = COMPANY_MESSAGES.get(problem.field, "Check what you entered.")
+        else:
+            return render(request, "platformadmin/company_created.html", {"created": created})
+    return render(request, "platformadmin/company_form.html", {"values": values, "error": error})

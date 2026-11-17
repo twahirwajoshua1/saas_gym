@@ -1,0 +1,32 @@
+{% extends "layouts/company.html" %}
+{% load i18n %}
+{% block title %}{{ contract.gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'corporate:portal_contracts' %}">← {% translate "Gyms and contracts" %}</a>
+  <div class="page-head"><div>
+    <h1>{{ contract.gym.name }}</h1>
+    <p class="muted">{{ contract.start_date|date:"j M Y" }} – {{ contract.last_day|date:"j M Y" }} · {% blocktranslate with d=contract.payment_days %}each monthly bill is paid within {{ d }} days{% endblocktranslate %}</p>
+  </div></div>
+  <div class="card stack">
+    <h2>{% translate "Prices per visit" %}</h2>
+    {% include "corporate/_prices_table.html" %}
+  </div>
+  {% if contract.status == "proposed" %}
+    <form method="post" action="{% url 'corporate:portal_contract_decide' contract.public_id %}" class="card stack">
+      {% csrf_token %}
+      <p>{% translate "Approve if these dates and prices match your agreement with the gym. After approval they cannot be changed, and your employees can check in." %}</p>
+      <div class="form-actions">
+        <button type="submit" name="decision" value="approve" class="btn btn-primary">{% translate "Approve contract" %}</button>
+        <button type="submit" name="decision" value="decline" class="btn">{% translate "Decline" %}</button>
+      </div>
+    </form>
+  {% elif contract.status == "approved" and not contract.ended_on %}
+    <form method="post" action="{% url 'corporate:portal_contract_end' contract.public_id %}" class="card stack">
+      {% csrf_token %}
+      <h2>{% translate "End the contract early" %}</h2>
+      <div class="form-row"><input type="date" name="ended_on" value="{{ today|date:'Y-m-d' }}" aria-label="{% translate 'Last day' %}"><button type="submit" class="btn">{% translate "End contract" %}</button></div>
+    </form>
+  {% elif contract.ended_on %}
+    <p class="notice notice-warn">{% blocktranslate with d=contract.ended_on|date:"j M Y" %}Ended early: last day {{ d }}.{% endblocktranslate %}</p>
+  {% endif %}
+{% endblock %}

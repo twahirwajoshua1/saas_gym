@@ -1,0 +1,22 @@
+{% load i18n money %}
+{% if bills %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>{% translate "Bill" %}</th><th>{% if side == "gym" %}{% translate "Company" %}{% else %}{% translate "Gym" %}{% endif %}</th><th>{% translate "Month" %}</th><th>{% translate "Total" %}</th><th>{% translate "Due" %}</th><th>{% translate "Status" %}</th></tr></thead>
+      <tbody>
+        {% for s in bills %}
+          <tr>
+            <td><a href="{% if side == 'gym' %}{% url 'corporate:bill_detail' s.bill.public_id %}{% else %}{% url 'corporate:portal_bill_detail' s.bill.public_id %}{% endif %}">{{ s.bill.display_number }}</a></td>
+            <td>{% if side == "gym" %}{{ s.bill.company.name }}{% else %}{{ s.bill.gym.name }}{% endif %}</td>
+            <td>{{ s.bill.period_start|date:"F Y" }}</td>
+            <td class="amount">{{ s.bill.total_rwf|rwf }}</td>
+            <td>{{ s.bill.due_on|date:"j M Y" }}</td>
+            <td>{% include "corporate/_bill_status.html" %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="muted">{% translate "No bills yet." %}</p>
+{% endif %}

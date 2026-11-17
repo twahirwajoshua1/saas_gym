@@ -142,9 +142,17 @@ python manage.py migrate
 python manage.py create_sample_gyms
 ```
 
-This creates five invented Rwandan gyms (with 1 to 5 branches) and 75 days of
-history, and prints every login. It takes several minutes. See
+This creates five invented Rwandan gyms (with 1 to 5 branches), their
+services (gym, sauna, massage...), two invented companies with corporate
+wellness contracts and employees, and 75 days of history including monthly
+company bills, and prints every login. It takes several minutes. See
 `docs/decisions/0017-sample-data.md`.
+
+## Corporate wellness
+
+Companies pay for their employees' visits to contracted gyms. See
+`docs/decisions/0019-corporate-wellness.md` for how it works, and run
+`python manage.py issue_corporate_bills` every evening (docs/operations.md).
 
 ## Backups
 
@@ -156,7 +164,8 @@ See `docs/operations.md` for nightly backups, restoring, and the restore drill.
   WhatsApp messages, password reset by SMS.
 - Leads, trials, campaigns, loyalty (Sales and Growth, Retention and Loyalty).
 - Trainers' client lists, classes and bookings; inventory.
-- The organization (corporate wellness) portal.
+- Corporate wellness extras: employee self-registration link, photos, SMS to
+  employees, EBM numbers on company bills (see decision 0019).
 - Platform subscriptions and billing gyms; logged support access.
 - Kinyarwanda and French translations (screens are prepared for them).
 - Deployment to a server (hosting choice and data location are open questions).

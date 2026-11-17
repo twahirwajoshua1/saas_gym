@@ -8,6 +8,8 @@ def _nav_section(request) -> str:
     match = request.resolver_match
     if match is None:
         return ""
+    if match.app_name == "corporate":
+        return "companies"
     if match.app_name == "modules":
         return "applications"
     name = match.url_name or ""

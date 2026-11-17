@@ -1,0 +1,36 @@
+{% extends "layouts/company.html" %}
+{% load i18n %}
+{% block title %}{% translate "Check the changes" %}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'corporate:employee_import' %}">← {% translate "Upload another file" %}</a>
+  <div class="page-head"><h1>{% translate "Check the changes" %}</h1></div>
+  <div class="stat-grid">
+    <div class="stat"><span class="stat-label">{% translate "New" %}</span><span class="stat-value">{{ plan.new|length }}</span></div>
+    <div class="stat"><span class="stat-label">{% translate "Changed" %}</span><span class="stat-value">{{ plan.changed|length }}</span></div>
+    <div class="stat"><span class="stat-label">{% translate "Unchanged" %}</span><span class="stat-value">{{ plan.unchanged|length }}</span></div>
+    <div class="stat {% if plan.missing %}stat-warn{% endif %}"><span class="stat-label">{% translate "Not in the file" %}</span><span class="stat-value">{{ plan.missing|length }}</span></div>
+    <div class="stat {% if plan.problems %}stat-warn{% endif %}"><span class="stat-label">{% translate "Problems" %}</span><span class="stat-value">{{ plan.problems|length }}</span></div>
+  </div>
+  {% if plan.problems %}
+    <div class="card stack"><h2>{% translate "Rows that will be skipped" %}</h2>
+      <ul class="item-list">{% for row in plan.problems %}<li><div class="item-main"><strong>{% translate "Row" %} {{ row.line }}: {{ row.details.full_name|default:"—" }}</strong>
+        <span class="muted small">{% if row.problem == "phone" %}{% translate "Phone number is not valid" %}{% elif row.problem == "employee_number" %}{% translate "No employee number" %}{% elif row.problem == "repeated" %}{% translate "Same phone or number as an earlier row" %}{% else %}{% translate "No name" %}{% endif %}</span></div></li>{% endfor %}</ul></div>
+  {% endif %}
+  {% if plan.new %}
+    <div class="card stack"><h2>{% translate "New people" %}</h2>
+      <ul class="item-list">{% for row in plan.new %}<li><div class="item-main"><strong>{{ row.details.full_name }}</strong><span class="muted small">{{ row.details.employee_number }} · {{ row.details.department }} · {{ row.details.phone }}</span></div></li>{% endfor %}</ul></div>
+  {% endif %}
+  {% if plan.changed %}
+    <div class="card stack"><h2>{% translate "Changed" %}</h2>
+      <ul class="item-list">{% for row in plan.changed %}<li><div class="item-main"><strong>{{ row.employee.full_name }}</strong><span class="muted small">{{ row.changes|join:", " }}</span></div></li>{% endfor %}</ul></div>
+  {% endif %}
+  <form method="post" class="card stack">
+    {% csrf_token %}
+    {% if plan.missing %}
+      <h2>{% translate "On the list, but not in the file" %}</h2>
+      <ul class="item-list">{% for e in plan.missing %}<li><div class="item-main"><strong>{{ e.full_name }}</strong><span class="muted small">{{ e.employee_number }} · {{ e.department }}</span></div></li>{% endfor %}</ul>
+      <label class="option"><input type="checkbox" name="remove_missing" value="yes"> <span>{% translate "Remove these people from the list (they left the company)" %}</span></label>
+    {% endif %}
+    <div class="form-actions"><button type="submit" class="btn btn-primary">{% translate "Save the changes" %}</button><a class="btn" href="{% url 'corporate:employee_list' %}">{% translate "Cancel" %}</a></div>
+  </form>
+{% endblock %}
