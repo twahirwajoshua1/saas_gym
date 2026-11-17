@@ -10,7 +10,13 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from apps.billing import services
-from apps.billing.forms import PaymentForm, PayNow, ReversalForm, SellMembershipForm
+from apps.billing.forms import (
+    PaymentForm,
+    PayNow,
+    ReversalForm,
+    SellMembershipForm,
+    SellSessionsForm,
+)
 from apps.billing.models import Invoice, Payment
 from apps.gyms.permissions import FRONT_DESK_ROLES, OWNER_ONLY
 from apps.gyms.tenancy import gym_required
@@ -34,6 +40,8 @@ def _error_message(error: services.InvalidDetails) -> str:
         ("method", "invalid"): _("Choose how it was paid."),
         ("reference", "required"): _("Enter the transaction reference for this payment."),
         ("reason", "required"): _("Give a reason."),
+        ("service", "archived"): _("This service is no longer sold."),
+        ("quantity", "out_of_range"): _("Enter between 1 and 50 sessions."),
     }
     return known.get((error.field, error.reason), _("Check this value."))
 
@@ -96,6 +104,45 @@ def sell_membership(request, public_id):
         request,
         "billing/sell_form.html",
         {"form": form, "member": member, "has_packages": form.fields["package"].queryset.exists()},
+    )
+
+
+@gym_required(*FRONT_DESK_ROLES)
+@module_required(PAYMENTS_FINANCE)
+def sell_sessions(request, public_id):
+    member = _get_member(request, public_id)
+    form = SellSessionsForm(request.POST or None, gym=request.gym)
+
+    if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        payment = None
+        if data["pay_now"] != PayNow.LATER:
+            payment = _payment_input(data, full=data["pay_now"] == PayNow.FULL)
+        try:
+            sale = services.sell_sessions(
+                by=request.assignment,
+                member=member,
+                service=data["service"],
+                quantity=data["quantity"],
+                idempotency_key=data["idempotency_key"],
+                payment=payment,
+            )
+        except services.InvalidDetails as error:
+            _show_error(form, error)
+        else:
+            messages.success(
+                request,
+                _("%(service)s sold to %(name)s.")
+                % {"service": data["service"].name, "name": member.full_name},
+            )
+            if sale.payment is not None:
+                return redirect("billing:receipt", public_id=sale.payment.public_id)
+            return redirect("members:member_detail", public_id=member.public_id)
+
+    return render(
+        request,
+        "billing/sell_sessions_form.html",
+        {"form": form, "member": member, "has_services": form.fields["service"].queryset.exists()},
     )
 
 

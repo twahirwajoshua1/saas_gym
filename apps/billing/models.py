@@ -20,7 +20,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.gyms.models import GymOwnedModel, GymOwnedQuerySet
-from apps.members.models import Member, Membership
+from apps.members.models import Member, Membership, Service
 from apps.people.models import Person
 
 
@@ -84,6 +84,10 @@ class InvoiceLine(GymOwnedModel):
     amount_rwf = models.PositiveIntegerField()
     membership = models.ForeignKey(
         Membership, null=True, blank=True, on_delete=models.PROTECT, related_name="invoice_lines"
+    )
+    # Set when the line is for single sessions of a service (sauna, massage...).
+    service = models.ForeignKey(
+        Service, null=True, blank=True, on_delete=models.PROTECT, related_name="invoice_lines"
     )
 
     def __str__(self):

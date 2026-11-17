@@ -7,7 +7,7 @@ from django.utils.translation import gettext_lazy as _
 
 from apps.billing.models import PaymentMethod
 from apps.core.amounts import parse_rwf
-from apps.members.models import Package
+from apps.members.models import Package, Service
 
 
 class PackageChoiceField(forms.ModelChoiceField):
@@ -101,3 +101,35 @@ class ReversalForm(forms.Form):
         widget=forms.Textarea(attrs={"rows": 3}),
         help_text=_("For example: entered twice, wrong member, wrong amount."),
     )
+
+
+class ServiceChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, service):
+        return f"{service.name} · RWF {service.price_rwf:,}"
+
+
+class SellSessionsForm(_PaymentFields):
+    service = ServiceChoiceField(
+        label=_("Service"),
+        queryset=Service.objects.none(),
+        to_field_name="public_id",
+        widget=forms.RadioSelect,
+        empty_label=None,
+    )
+    quantity = forms.IntegerField(label=_("Sessions"), min_value=1, max_value=50, initial=1)
+    pay_now = forms.ChoiceField(
+        label=_("Payment"),
+        widget=forms.RadioSelect,
+        initial=PayNow.FULL,
+        choices=[
+            (PayNow.FULL, _("Paid in full now")),
+            (PayNow.PART, _("Part payment now")),
+            (PayNow.LATER, _("Nothing paid yet")),
+        ],
+    )
+    field_order = ["service", "quantity", "pay_now", "amount_rwf", "method", "reference"]
+
+    def __init__(self, *args, gym, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["service"].queryset = Service.objects.for_gym(gym).filter(is_active=True)
+        self.fields["amount_rwf"].help_text = _("Only for a part payment.")

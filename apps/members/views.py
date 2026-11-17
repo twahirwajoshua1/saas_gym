@@ -18,8 +18,8 @@ from django.views.decorators.http import require_POST
 from apps.gyms.permissions import FRONT_DESK_ROLES, MANAGER_ROLES, OWNER_ONLY
 from apps.gyms.tenancy import gym_required
 from apps.members import services
-from apps.members.forms import ExtendForm, FreezeForm, MemberForm, PackageForm
-from apps.members.models import Member, Membership, MembershipFreeze, Package
+from apps.members.forms import ExtendForm, FreezeForm, MemberForm, PackageForm, ServiceForm
+from apps.members.models import Member, Membership, MembershipFreeze, Package, Service
 
 PAGE_SIZE = 25
 
@@ -170,12 +170,15 @@ def member_edit(request, public_id):
 @gym_required(*FRONT_DESK_ROLES)
 def package_list(request):
     packages = Package.objects.for_gym(request.gym)
+    all_services = services.services_for(request.gym, active_only=False)
     return render(
         request,
         "members/package_list.html",
         {
             "active_packages": [p for p in packages if p.is_active],
             "archived_packages": [p for p in packages if not p.is_active],
+            "active_services": [s for s in all_services if s.is_active],
+            "archived_services": [s for s in all_services if not s.is_active],
         },
     )
 
@@ -229,6 +232,56 @@ def package_set_active(request, public_id):
         messages.success(request, _("%(name)s can be sold again.") % {"name": package.name})
     else:
         messages.success(request, _("%(name)s was archived.") % {"name": package.name})
+    return redirect("members:package_list")
+
+
+# --- Services (single sessions) ------------------------------------------------
+
+
+@gym_required(*OWNER_ONLY)
+def service_create(request):
+    form = ServiceForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        try:
+            service = services.create_service(by=request.assignment, **form.cleaned_data)
+        except services.InvalidDetails as error:
+            _show_error(form, error)
+        else:
+            messages.success(request, _("%(name)s was added.") % {"name": service.name})
+            return redirect("members:package_list")
+    return render(request, "members/service_form.html", {"form": form})
+
+
+def _get_service(request, public_id) -> Service:
+    return get_object_or_404(Service.objects.for_gym(request.gym), public_id=public_id)
+
+
+@gym_required(*OWNER_ONLY)
+def service_edit(request, public_id):
+    service = _get_service(request, public_id)
+    initial = {"name": service.name, "price_rwf": service.price_rwf}
+    form = ServiceForm(request.POST or None, initial=initial)
+    if request.method == "POST" and form.is_valid():
+        try:
+            services.update_service(by=request.assignment, service=service, **form.cleaned_data)
+        except services.InvalidDetails as error:
+            _show_error(form, error)
+        else:
+            messages.success(request, _("Changes saved."))
+            return redirect("members:package_list")
+    return render(request, "members/service_form.html", {"form": form, "service": service})
+
+
+@gym_required(*OWNER_ONLY)
+@require_POST
+def service_set_active(request, public_id):
+    service = _get_service(request, public_id)
+    active = request.POST.get("active") == "yes"
+    services.set_service_active(by=request.assignment, service=service, active=active)
+    if active:
+        messages.success(request, _("%(name)s can be sold again.") % {"name": service.name})
+    else:
+        messages.success(request, _("%(name)s was archived.") % {"name": service.name})
     return redirect("members:package_list")
 
 

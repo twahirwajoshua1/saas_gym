@@ -15,4 +15,7 @@ urlpatterns = [
     path("packages/add/", views.package_create, name="package_create"),
     path("packages/<uuid:public_id>/edit/", views.package_edit, name="package_edit"),
     path("packages/<uuid:public_id>/active/", views.package_set_active, name="package_set_active"),
+    path("services/add/", views.service_create, name="service_create"),
+    path("services/<uuid:public_id>/edit/", views.service_edit, name="service_edit"),
+    path("services/<uuid:public_id>/active/", views.service_set_active, name="service_set_active"),
 ]

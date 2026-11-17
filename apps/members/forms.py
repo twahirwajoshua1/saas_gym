@@ -105,3 +105,19 @@ class FreezeForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["start"].initial = timezone.localdate()
+
+
+class ServiceForm(forms.Form):
+    name = forms.CharField(label=_("Name"), max_length=80, help_text=_("For example: Sauna"))
+    price_rwf = forms.CharField(
+        label=_("Price for one session (RWF)"),
+        max_length=15,
+        help_text=_("What a member pays for one use. Company contracts set their own prices."),
+        widget=forms.TextInput(attrs={"inputmode": "numeric"}),
+    )
+
+    def clean_price_rwf(self):
+        amount = parse_rwf(self.cleaned_data["price_rwf"])
+        if amount is None:
+            raise forms.ValidationError(_("Enter the price as a whole number of francs."))
+        return amount

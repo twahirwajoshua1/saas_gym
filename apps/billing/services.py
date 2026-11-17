@@ -29,7 +29,7 @@ from apps.billing.models import (
 from apps.gyms.models import Gym, StaffAssignment
 from apps.gyms.permissions import FRONT_DESK_ROLES, OWNER_ONLY, require_role
 from apps.members import services as member_services
-from apps.members.models import Member, Membership, Package
+from apps.members.models import Member, Membership, Package, Service
 from apps.members.services import InvalidDetails
 from apps.modules import services as module_services
 from apps.modules.catalog import PAYMENTS_FINANCE
@@ -291,6 +291,88 @@ def sell_membership(
             by=by, invoice=invoice, payment=payment, idempotency_key=idempotency_key
         )
     return Sale(membership=membership, invoice=invoice, payment=saved_payment)
+
+
+@dataclass(frozen=True)
+class SessionSale:
+    invoice: Invoice
+    payment: Payment | None
+
+
+MAX_SESSIONS_PER_SALE = 50
+
+
+@transaction.atomic
+def sell_sessions(
+    *,
+    by: StaffAssignment,
+    member: Member,
+    service: Service,
+    quantity: int,
+    idempotency_key,
+    payment: PaymentInput | None = None,
+) -> SessionSale:
+    """
+    Sell single sessions of a service (for example 2 x Sauna) to a member, with
+    an invoice, and a payment if one is given. No membership is needed.
+    """
+    require_role(by, FRONT_DESK_ROLES)
+    _require_payments(by.gym)
+    _same_gym(by, member)
+    _same_gym(by, service)
+    _lock_billing(by.gym)
+
+    earlier = Invoice.objects.for_gym(by.gym).filter(idempotency_key=idempotency_key).first()
+    if earlier is not None:
+        first_payment = (
+            Payment.objects.for_gym(by.gym).filter(idempotency_key=idempotency_key).first()
+        )
+        return SessionSale(invoice=earlier, payment=first_payment)
+
+    if not service.is_active:
+        raise InvalidDetails("service", "archived")
+    if not isinstance(quantity, int) or not 0 < quantity <= MAX_SESSIONS_PER_SALE:
+        raise InvalidDetails("quantity", "out_of_range")
+
+    total = service.price_rwf * quantity
+    invoice = Invoice.objects.create(
+        gym=by.gym,
+        number=_lock_and_next_number(by.gym, "invoice"),
+        member=member,
+        total_rwf=total,
+        idempotency_key=idempotency_key,
+        created_by=by.person,
+    )
+    description = service.name if quantity == 1 else f"{service.name} x {quantity}"
+    InvoiceLine.objects.create(
+        gym=by.gym,
+        invoice=invoice,
+        description=f"{description}, {invoice.issued_on:%d %b %Y}",
+        amount_rwf=total,
+        service=service,
+    )
+    LedgerEntry.objects.create(
+        gym=by.gym,
+        member=member,
+        kind=LedgerKind.INVOICE_ISSUED,
+        amount_rwf=total,
+        invoice=invoice,
+        created_by=by.person,
+    )
+    audit.record(
+        action="invoice.issued",
+        summary=f"{invoice.display_number} for RWF {total:,} issued to {member.full_name}",
+        gym=by.gym,
+        actor=by.person,
+        target=invoice,
+        details={"service": str(service.public_id), "quantity": quantity, "total_rwf": total},
+    )
+    saved_payment = None
+    if payment is not None:
+        saved_payment = _create_payment(
+            by=by, invoice=invoice, payment=payment, idempotency_key=idempotency_key
+        )
+    return SessionSale(invoice=invoice, payment=saved_payment)
 
 
 @transaction.atomic

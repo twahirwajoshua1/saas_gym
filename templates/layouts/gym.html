@@ -24,7 +24,7 @@
             <a href="{% url 'billing:payments_home' %}" {% if nav_section == 'payment' %}class="is-current" aria-current="page"{% endif %}>{% translate "Payments" %}</a>
           {% endif %}
           <a href="{% url 'dashboard:renewals' %}" {% if nav_section == 'renewals' %}class="is-current" aria-current="page"{% endif %}>{% translate "Renewals" %}</a>
-          <a href="{% url 'members:package_list' %}" {% if nav_section == 'package' %}class="is-current" aria-current="page"{% endif %}>{% translate "Packages" %}</a>
+          <a href="{% url 'members:package_list' %}" {% if nav_section == 'package' %}class="is-current" aria-current="page"{% endif %}>{% translate "Packages & services" %}</a>
         {% endif %}
         {% if role_is_manager %}
           <a href="{% url 'spreadsheets:home' %}" {% if nav_section == 'spreadsheets' %}class="is-current" aria-current="page"{% endif %}>{% translate "Import & export" %}</a>

@@ -51,6 +51,31 @@ class Package(GymOwnedModel):
         return f"{self.duration_count} {self.duration_unit}{plural}"
 
 
+class Service(GymOwnedModel):
+    """
+    A single session the gym sells, for example "Sauna, RWF 5,000".
+
+    Members pay per use (no membership needed). Company contracts give each
+    service their own price. Like packages, services are archived, never deleted.
+    """
+
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    name = models.CharField(max_length=80)
+    price_rwf = models.PositiveIntegerField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["gym", "name"], name="unique_service_name_per_gym"),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
 class Gender(models.TextChoices):
     FEMALE = "female", "Female"
     MALE = "male", "Male"

@@ -1,11 +1,60 @@
 {% extends "layouts/gym.html" %}
 {% load i18n money %}
-{% block title %}{% translate "Packages" %} · {{ gym.name }}{% endblock %}
+{% block title %}{% translate "Packages and services" %} · {{ gym.name }}
+  <div class="card stack" id="services">
+    <div class="card-head">
+      <div>
+        <h2>{% translate "Services (single sessions)" %}</h2>
+        <p class="muted small">{% translate "Paid per use, for example Gym, Sauna, Massage, Swimming or Aerobics. Company contracts are priced per service." %}</p>
+      </div>
+      {% if role_is_owner %}<a class="btn btn-small btn-primary" href="{% url 'members:service_create' %}">{% translate "Add service" %}</a>{% endif %}
+    </div>
+    {% if active_services %}
+      <ul class="item-list">
+        {% for service in active_services %}
+          <li>
+            <div class="item-main">
+              <strong>{{ service.name }}</strong>
+              <span class="muted small">{{ service.price_rwf|rwf }} {% translate "per session" %}</span>
+            </div>
+            {% if role_is_owner %}
+              <div class="item-actions">
+                <a class="btn btn-small" href="{% url 'members:service_edit' service.public_id %}">{% translate "Edit" %}</a>
+                <form method="post" action="{% url 'members:service_set_active' service.public_id %}" class="inline-form">
+                  {% csrf_token %}<input type="hidden" name="active" value="no">
+                  <button type="submit" class="btn btn-small">{% translate "Archive" %}</button>
+                </form>
+              </div>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">{% translate "No services yet." %}</p>
+    {% endif %}
+    {% if archived_services %}
+      <h3 class="small muted">{% translate "Archived" %}</h3>
+      <ul class="item-list">
+        {% for service in archived_services %}
+          <li>
+            <div class="item-main"><strong>{{ service.name }}</strong><span class="muted small">{{ service.price_rwf|rwf }}</span></div>
+            {% if role_is_owner %}
+              <form method="post" action="{% url 'members:service_set_active' service.public_id %}" class="inline-form">
+                {% csrf_token %}<input type="hidden" name="active" value="yes">
+                <button type="submit" class="btn btn-small">{% translate "Restore" %}</button>
+              </form>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+{% endblock %}
 {% block content %}
   <div class="page-head">
     <div>
-      <h1>{% translate "Packages" %}</h1>
-      <p class="muted">{% translate "What the gym sells." %}</p>
+      <h1>{% translate "Packages and services" %}</h1>
+      <p class="muted">{% translate "What the gym sells: memberships, and single sessions such as sauna or massage." %}</p>
     </div>
     {% if role_is_owner %}
       <div class="actions">
@@ -74,4 +123,53 @@
       </ul>
     </div>
   {% endif %}
+
+  <div class="card stack" id="services">
+    <div class="card-head">
+      <div>
+        <h2>{% translate "Services (single sessions)" %}</h2>
+        <p class="muted small">{% translate "Paid per use, for example Gym, Sauna, Massage, Swimming or Aerobics. Company contracts are priced per service." %}</p>
+      </div>
+      {% if role_is_owner %}<a class="btn btn-small btn-primary" href="{% url 'members:service_create' %}">{% translate "Add service" %}</a>{% endif %}
+    </div>
+    {% if active_services %}
+      <ul class="item-list">
+        {% for service in active_services %}
+          <li>
+            <div class="item-main">
+              <strong>{{ service.name }}</strong>
+              <span class="muted small">{{ service.price_rwf|rwf }} {% translate "per session" %}</span>
+            </div>
+            {% if role_is_owner %}
+              <div class="item-actions">
+                <a class="btn btn-small" href="{% url 'members:service_edit' service.public_id %}">{% translate "Edit" %}</a>
+                <form method="post" action="{% url 'members:service_set_active' service.public_id %}" class="inline-form">
+                  {% csrf_token %}<input type="hidden" name="active" value="no">
+                  <button type="submit" class="btn btn-small">{% translate "Archive" %}</button>
+                </form>
+              </div>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">{% translate "No services yet." %}</p>
+    {% endif %}
+    {% if archived_services %}
+      <h3 class="small muted">{% translate "Archived" %}</h3>
+      <ul class="item-list">
+        {% for service in archived_services %}
+          <li>
+            <div class="item-main"><strong>{{ service.name }}</strong><span class="muted small">{{ service.price_rwf|rwf }}</span></div>
+            {% if role_is_owner %}
+              <form method="post" action="{% url 'members:service_set_active' service.public_id %}" class="inline-form">
+                {% csrf_token %}<input type="hidden" name="active" value="yes">
+                <button type="submit" class="btn btn-small">{% translate "Restore" %}</button>
+              </form>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
 {% endblock %}

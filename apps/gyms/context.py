@@ -24,6 +24,8 @@ def _nav_section(request) -> str:
     if match.app_name == "billing":
         # Selling and a member's account are reached from the member's page.
         return "member" if name in ("sell", "member_account") else "payment"
+    if name.startswith("service"):
+        return "package"
     for prefix in ("member", "package", "branch", "activity"):
         if name.startswith(prefix):
             return prefix

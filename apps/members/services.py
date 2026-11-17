@@ -28,6 +28,7 @@ from apps.members.models import (
     Member,
     Membership,
     MembershipFreeze,
+    Service,
     Package,
 )
 from apps.people import services as people_services
@@ -183,6 +184,91 @@ def set_package_active(*, by: StaffAssignment, package: Package, active: bool) -
         target=package,
     )
     return package
+
+
+# --- Services (single sessions) ---------------------------------------------
+
+
+def _clean_service(gym: Gym, *, name, price_rwf, existing=None):
+    name = _clean_text(name)
+    if not name:
+        raise InvalidDetails("name", "required")
+    same_name = Service.objects.for_gym(gym).filter(name__iexact=name)
+    if existing is not None:
+        same_name = same_name.exclude(pk=existing.pk)
+    if same_name.exists():
+        raise InvalidDetails("name", "duplicate")
+    if not isinstance(price_rwf, int) or not 0 < price_rwf <= MAX_PRICE_RWF:
+        raise InvalidDetails("price_rwf", "out_of_range")
+    return {"name": name, "price_rwf": price_rwf}
+
+
+def services_for(gym: Gym, *, active_only: bool = True):
+    services = Service.objects.for_gym(gym)
+    return services.filter(is_active=True) if active_only else services
+
+
+@transaction.atomic
+def create_service(*, by: StaffAssignment, name: str, price_rwf: int) -> Service:
+    """Add a single session the gym sells, such as Sauna. Owner only."""
+    require_role(by, OWNER_ONLY)
+    values = _clean_service(by.gym, name=name, price_rwf=price_rwf)
+    service = Service.objects.create(gym=by.gym, **values)
+    audit.record(
+        action="service.created",
+        summary=f"Service '{service.name}' was added at RWF {service.price_rwf:,}",
+        gym=by.gym,
+        actor=by.person,
+        target=service,
+        details=values,
+    )
+    return service
+
+
+@transaction.atomic
+def update_service(*, by: StaffAssignment, service: Service, name: str, price_rwf: int) -> Service:
+    """Rename or reprice a service. Sessions already sold keep their own price."""
+    require_role(by, OWNER_ONLY)
+    _same_gym(by, service)
+    values = _clean_service(by.gym, name=name, price_rwf=price_rwf, existing=service)
+    changes = {
+        field: {"from": getattr(service, field), "to": new}
+        for field, new in values.items()
+        if getattr(service, field) != new
+    }
+    if not changes:
+        return service
+    for field, new in values.items():
+        setattr(service, field, new)
+    service.save()
+    audit.record(
+        action="service.updated",
+        summary=f"Service '{service.name}' was changed ({', '.join(changes)})",
+        gym=by.gym,
+        actor=by.person,
+        target=service,
+        details=changes,
+    )
+    return service
+
+
+@transaction.atomic
+def set_service_active(*, by: StaffAssignment, service: Service, active: bool) -> Service:
+    """Archive a service so it can no longer be sold, or bring it back. Owner only."""
+    require_role(by, OWNER_ONLY)
+    _same_gym(by, service)
+    if service.is_active == active:
+        return service
+    service.is_active = active
+    service.save()
+    audit.record(
+        action="service.restored" if active else "service.archived",
+        summary=f"Service '{service.name}' was {'restored' if active else 'archived'}",
+        gym=by.gym,
+        actor=by.person,
+        target=service,
+    )
+    return service
 
 
 # --- Members ----------------------------------------------------------------
