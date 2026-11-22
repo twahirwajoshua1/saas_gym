@@ -87,7 +87,7 @@ You need Python 3.12 or newer, Git, and either Docker or PostgreSQL 16.
    administrator:
 
    ```
-   CREATE USER gymos WITH PASSWORD 'gymos_dev_password' CREATEDB;
+   CREATE USER gymos WITH PASSWORD 'gymos_dev_password' CREATEDB CREATEROLE;
    CREATE DATABASE gymos OWNER gymos;
    ```
 
