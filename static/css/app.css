@@ -88,10 +88,10 @@ a:hover { color: var(--accent-dark); text-decoration: underline; }
 .icon { flex: none; vertical-align: middle; }
 
 /* --- 2. Page layouts --- */
-.shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100vh; }
+.shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: calc(100vh / var(--zoom, 1)); }
 .content { padding: 28px 32px 48px; max-width: 1320px; width: 100%; }
 
-.plain { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+.plain { min-height: calc(100vh / var(--zoom, 1)); display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
 .plain-card { width: 100%; max-width: 440px; }
 .plain-brand { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; margin-bottom: 18px; text-align: center; display: flex; gap: 10px; justify-content: center; align-items: center; }
 
@@ -107,7 +107,7 @@ a:hover { color: var(--accent-dark); text-decoration: underline; }
 .side-by-side > .side-col { flex: 1 1 300px; max-width: 400px; display: flex; flex-direction: column; gap: 16px; }
 
 /* --- 3. Navigation --- */
-.sidebar { background: var(--ink); color: #fff; padding: 16px 12px; display: flex; flex-direction: column; gap: 18px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.sidebar { background: var(--ink); color: #fff; padding: 16px 12px; display: flex; flex-direction: column; gap: 18px; position: sticky; top: 0; height: calc(100vh / var(--zoom, 1)); overflow-y: auto; }
 .sidebar-head { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; background: #151b27; border: 1px solid #252d3d; }
 .logo { width: 34px; height: 34px; border-radius: 9px; background: var(--accent); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 700; font-size: 13px; flex: none; }
 .brand-name { display: block; font-weight: 600; font-size: 0.92rem; line-height: 1.25; overflow-wrap: anywhere; }
@@ -347,7 +347,7 @@ details.card > summary { cursor: pointer; min-height: 32px; font-weight: 600; }
 .platform-main { margin: 0 auto; }
 
 /* --- 16. Entrance tablet --- */
-.kiosk { min-height: 100vh; background: var(--ink); color: #fff; display: flex; flex-direction: column; }
+.kiosk { min-height: calc(100vh / var(--zoom, 1)); background: var(--ink); color: #fff; display: flex; flex-direction: column; }
 .kiosk-top { display: flex; justify-content: space-between; align-items: center; padding: 24px 36px; gap: 16px; }
 .kiosk-clock { font-family: var(--font-display); font-size: 1.8rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .kiosk-main { flex: 1; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 36px; padding: 0 36px 24px; align-items: center; }
@@ -389,3 +389,10 @@ details.card > summary { cursor: pointer; min-height: 32px; font-weight: 600; }
 .kiosk-choice:has(input:checked) { border-color: #7fa6ff; background: #1a2a55; }
 .kiosk-choice input { width: 26px; height: 26px; accent-color: var(--accent); }
 .kiosk-input { font: inherit; font-size: 1.6rem; min-height: 64px; padding: 0 16px; border-radius: 12px; border: 2px solid #3a4458; background: #151b27; color: #fff; }
+
+/* --- 18. Big screens ---
+   Desktop monitors (1600px and wider) show everything a little larger, so a
+   receptionist or owner at a PC does not need to zoom the browser. Tablets
+   and laptops keep the normal size. */
+@media (min-width: 1600px) { html { --zoom: 1.15; zoom: var(--zoom); } }
+@media (min-width: 1900px) { html { --zoom: 1.25; } }

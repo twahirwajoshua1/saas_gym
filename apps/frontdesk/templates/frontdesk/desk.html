@@ -39,7 +39,7 @@
                  {% if corporate_on %}data-company-desk="{% url 'corporate:desk' %}"{% endif %}
                  hx-get="{% url 'attendance:home' %}?next={% url 'frontdesk:desk' %}" hx-trigger="input changed delay:300ms, search" hx-target="#desk-results" hx-sync="this:replace">
         </form>
-        <button type="button" class="btn btn-block" id="scan-start" data-jsqr="{% static 'vendor/jsQR.js' %}" data-error="{% translate 'The camera could not be opened' %}" hidden>{% icon "camera" %}{% translate "Scan with this computer's camera" %}</button>
+        <button type="button" class="btn btn-primary btn-block" id="scan-start" data-jsqr="{% static 'vendor/jsQR.js' %}" data-error="{% translate 'The camera could not be opened' %}" hidden>{% icon "camera" %}{% translate "Scan a card (QR code)" %}</button>
         <div class="scan-area stack" id="scan-area" hidden><video id="scan-video" playsinline muted></video><div><button type="button" class="btn btn-small" id="scan-stop">{% translate "Stop camera" %}</button></div></div>
         {% if corporate_on %}<a class="small" href="{% url 'corporate:desk' %}">{% translate "Company staff without their phone: search here" %}</a>{% endif %}
         <div id="desk-results" class="stack"></div>
