@@ -1,40 +1,20 @@
 {% extends "layouts/gym.html" %}
-{% load i18n %}
+{% load i18n icons %}
 {% block title %}{{ gym.name }} · Gym Business OS{% endblock %}
 {% block content %}
   <div class="page-head">
     <div>
-      <h1>{% translate "Overview" %}</h1>
-      <p class="muted">{% blocktranslate with name=user.person.full_name %}Welcome, {{ name }}.{% endblocktranslate %}</p>
+      <p class="crumb">{% now "l j F Y" %}</p>
+      <h1>{% blocktranslate with name=user.person.full_name.split.0 %}Hello, {{ name }}{% endblocktranslate %}</h1>
     </div>
-    {% if other_gyms %}
-      <a class="btn" href="{% url 'gyms:enter' %}">{% translate "Switch gym" %}</a>
-    {% endif %}
-  </div>
-
-  <div class="card-grid">
-    {% if role_can_check_in and 'attendance_access' in modules_on %}
-      <a class="card card-link" href="{% url 'attendance:home' %}">
-        <strong>{% translate "Check in a member" %}</strong>
-        <span class="muted small">{% translate "Find a member and see whether their membership is valid today." %}</span>
-      </a>
-    {% endif %}
-    {% if role_is_front_desk %}
-      <a class="card card-link" href="{% url 'members:member_register' %}">
-        <strong>{% translate "Register a member" %}</strong>
-        <span class="muted small">{% translate "Add a new member with their name and phone number." %}</span>
-      </a>
-      <a class="card card-link" href="{% url 'dashboard:renewals' %}">
-        <strong>{% translate "Renewals" %}</strong>
-        <span class="muted small">{% translate "Members whose membership is ending soon." %}</span>
-      </a>
-    {% endif %}
-  </div>
-
-  {% if role_is_manager %}
-    {# The figures belong to the dashboard module. They are fetched separately and placed here. #}
-    <div hx-get="{% url 'dashboard:figures' %}" hx-trigger="load" hx-swap="outerHTML">
-      <p class="muted"><a href="{% url 'dashboard:figures' %}">{% translate "Open the figures" %}</a></p>
+    <div class="actions">
+      {% if other_gyms %}<a class="btn" href="{% url 'gyms:enter' %}">{% translate "Switch gym" %}</a>{% endif %}
+      {% if 'attendance_access' in modules_on %}<a class="btn" href="{% url 'frontdesk:desk' %}">{% icon "scan" 16 %}{% translate "Desk" %}</a>{% endif %}
+      <a class="btn btn-primary" href="{% url 'members:member_register' %}">{% icon "plus" 16 %}{% translate "New member" %}</a>
     </div>
-  {% endif %}
+  </div>
+  {# The figures belong to the dashboard module. They are fetched separately and placed here. #}
+  <div hx-get="{% url 'dashboard:figures' %}" hx-trigger="load" hx-swap="outerHTML">
+    <p class="muted"><a href="{% url 'dashboard:figures' %}">{% translate "Open the figures" %}</a></p>
+  </div>
 {% endblock %}

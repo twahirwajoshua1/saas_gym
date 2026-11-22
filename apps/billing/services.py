@@ -8,7 +8,7 @@ either everything is saved, including the ledger and audit lines, or nothing is.
 """
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
@@ -35,6 +35,8 @@ from apps.members.models import Member, Membership, Package, Service
 from apps.members.services import InvalidDetails
 from apps.modules import services as module_services
 from apps.modules.catalog import PAYMENTS_FINANCE
+
+MOBILE_MONEY = (PaymentMethod.MTN_MOMO, PaymentMethod.AIRTEL_MONEY)
 
 # Methods where the provider gives a transaction reference that must be kept.
 METHODS_NEEDING_REFERENCE = {
@@ -460,6 +462,34 @@ def collected_between(gym: Gym, start: date, end: date) -> int:
     return _live_payments(gym, start, end).aggregate(sum=Sum("amount_rwf"))["sum"] or 0
 
 
+def collected_per_day(gym: Gym, start: date, end: date) -> list[tuple[date, int]]:
+    """Money received on each day between two days (both included), reversals left out."""
+    totals = dict(
+        _live_payments(gym, start, end)
+        .values("received_on")
+        .annotate(amount=Sum("amount_rwf"))
+        .values_list("received_on", "amount")
+    )
+    days, day = [], start
+    while day <= end:
+        days.append((day, totals.get(day, 0) or 0))
+        day += timedelta(days=1)
+    return days
+
+
+def collected_today_by_kind(gym: Gym, day: date) -> dict:
+    """Today's money split into cash and mobile money (and anything else)."""
+    rows = dict(
+        _live_payments(gym, day, day)
+        .values("method")
+        .annotate(amount=Sum("amount_rwf"))
+        .values_list("method", "amount")
+    )
+    cash = rows.pop(PaymentMethod.CASH, 0) or 0
+    mobile = sum(rows.pop(m, 0) or 0 for m in MOBILE_MONEY)
+    return {"cash": cash, "mobile": mobile, "other": sum(v or 0 for v in rows.values())}
+
+
 def collected_by_method(gym: Gym, start: date, end: date) -> list[dict]:
     """Money received between two days, per payment method, largest first."""
     labels = dict(PaymentMethod.choices)
@@ -503,8 +533,6 @@ def balances_for(gym: Gym, member_ids) -> dict[int, int]:
 
 
 # --- Shifts: what a receptionist hands over ---------------------------------------
-
-MOBILE_MONEY = (PaymentMethod.MTN_MOMO, PaymentMethod.AIRTEL_MONEY)
 
 
 def _day_start(at=None):

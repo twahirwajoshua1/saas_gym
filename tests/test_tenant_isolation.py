@@ -115,7 +115,7 @@ def test_removed_staff_lose_access_immediately(client, owner_a, gym_a):
         gym=gym_a, person=receptionist.person, role=Role.RECEPTIONIST
     )
     sign_in(client, receptionist)
-    assert client.get(reverse("gyms:home")).status_code == 200
+    assert client.get(reverse("gyms:home"), follow=True).status_code == 200
 
     services.remove_staff(assignment=assignment)
 
@@ -135,7 +135,7 @@ def test_a_receptionist_cannot_open_owner_screens(client, gym_a):
     services.assign_staff(gym=gym_a, person=receptionist.person, role=Role.RECEPTIONIST)
     sign_in(client, receptionist)
 
-    assert client.get(reverse("gyms:home")).status_code == 200
+    assert client.get(reverse("gyms:home"), follow=True).status_code == 200
     assert client.get(reverse("gyms:branch_list")).status_code == 403
 
 

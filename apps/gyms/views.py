@@ -36,6 +36,9 @@ def choose(request):
 
 @tenancy.gym_required()
 def home(request):
+    # The desk's people (receptionist, sales, trainer) start at the Desk.
+    if request.assignment.role not in (Role.OWNER, Role.BRANCH_MANAGER):
+        return redirect("frontdesk:desk")
     return render(
         request,
         "gyms/home.html",

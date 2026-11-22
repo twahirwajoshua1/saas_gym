@@ -1649,3 +1649,48 @@ def company_month(company: Company, month: date) -> dict:
         "listed": listed,
         "active": per_employee,
     }
+
+
+def gym_company_month(gym: Gym, month: date) -> list[dict]:
+    """
+    For the gym owner: each company this month, its visits and the amount so
+    far (what the bill will be), and the state of its last bill.
+    """
+    start, end = month_bounds(month)
+    amounts = {
+        r["company_id"]: r
+        for r in VisitActivity.objects.for_gym(gym)
+        .filter(cancelled_at__isnull=True, visit__checked_in_on__range=(start, end))
+        .values("company_id")
+        .annotate(amount=Sum("price_rwf"))
+    }
+    visits = dict(
+        CorporateVisit.objects.for_gym(gym)
+        .filter(checked_in_on__range=(start, end))
+        .values("company_id")
+        .annotate(n=Count("id"))
+        .values_list("company_id", "n")
+    )
+    rows = []
+    for contract in (
+        Contract.objects.for_gym(gym)
+        .filter(status=ContractStatus.APPROVED)
+        .select_related("company")
+        .order_by("company__name")
+    ):
+        last = (
+            CorporateBill.objects.for_gym(gym)
+            .filter(contract=contract)
+            .order_by("-period_start")
+            .first()
+        )
+        state = bill_state(last) if last else None
+        rows.append(
+            {
+                "company": contract.company,
+                "visits": visits.get(contract.company_id, 0),
+                "amount_rwf": (amounts.get(contract.company_id) or {}).get("amount") or 0,
+                "last_bill": state,
+            }
+        )
+    return sorted(rows, key=lambda r: -r["amount_rwf"])

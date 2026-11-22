@@ -45,8 +45,10 @@ def _desk_branch(request) -> Branch | None:
 
 
 @gym_required(*CHECK_IN_ROLES)
-@module_required(ATTENDANCE_ACCESS)
 def desk(request):
+    if not module_services.is_enabled(request.gym, ATTENDANCE_ACCESS):
+        # Without check-in switched on, the desk's daily work is the member list.
+        return redirect("members:member_list")
     today = timezone.localdate()
     branch = _desk_branch(request)
     shift = None

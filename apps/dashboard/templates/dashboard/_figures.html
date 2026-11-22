@@ -1,108 +1,69 @@
-{% load i18n money phones %}
+{% load i18n money icons phones %}
 {% comment %}
-  The owner's figures. Shown inside the Overview page and on its own page.
-  Each figure says in small text exactly what it counts.
+  The owner's figures, shown on the Today page. Every number counts something
+  real in the gym's records; the small text under it says what.
 {% endcomment %}
 <div class="stack-lg" id="figures">
-  <section class="stack" aria-labelledby="fig-members">
-    <h2 id="fig-members">{% translate "Members" %}</h2>
-    <div class="stat-grid">
-      <div class="card stat">
-        <span class="stat-label">{% translate "Active members" %}</span>
-        <span class="stat-value">{{ figures.active_members }}</span>
-        <span class="muted small">{% translate "With a membership valid today." %}</span>
-      </div>
-      <div class="card stat">
-        <span class="stat-label">{% translate "New this month" %}</span>
-        <span class="stat-value">{{ figures.new_members_this_month }}</span>
-        <span class="muted small">{% blocktranslate with day=figures.month_start|date:"j M" %}Registered since {{ day }}.{% endblocktranslate %}</span>
-      </div>
-      <a class="card stat card-link {% if figures.ending_soon %}stat-warn{% endif %}" href="{% url 'dashboard:renewals' %}">
-        <span class="stat-label">{% translate "Ending within 7 days" %}</span>
-        <span class="stat-value">{{ figures.ending_soon }}</span>
-        <span class="muted small">{% translate "Not renewed yet. See who →" %}</span>
-      </a>
-      <a class="card stat card-link" href="{% url 'dashboard:renewals' %}?show=lapsed">
-        <span class="stat-label">{% translate "Lapsed in the last 30 days" %}</span>
-        <span class="stat-value">{{ figures.lapsed }}</span>
-        <span class="muted small">{% translate "Ended and did not renew. See who →" %}</span>
-      </a>
-    </div>
-  </section>
+  <div class="kpis">
+    {% if figures.visits %}
+      <div class="card stat"><span class="stat-label">{% translate "Clients today" %}</span><span class="stat-value">{{ figures.clients_today }}</span><span class="stat-foot">{% if figures.tablet_today %}{% blocktranslate with n=figures.tablet_today %}{{ n }} via the tablet{% endblocktranslate %}{% else %}{% translate "Members and company staff" %}{% endif %}</span></div>
+    {% endif %}
+    {% if figures.money %}
+      <a class="card stat card-link" href="{% url 'billing:payments_home' %}"><span class="stat-label">{% translate "Money today" %}</span><span class="stat-value"><span class="cur">RWF</span>{{ figures.money.collected_today|thousands }}</span><span class="stat-foot">{% blocktranslate with c=figures.today_cash|thousands m=figures.today_mobile|thousands %}Cash {{ c }} · mobile money {{ m }}{% endblocktranslate %}</span></a>
+    {% endif %}
+    {% if figures.visits %}
+      <div class="card stat"><span class="stat-label">{% translate "Clients this month" %}</span><span class="stat-value">{{ figures.clients_this_month }}</span><span class="stat-foot">{% translate "Active members" %}: {{ figures.active_members }} · {% blocktranslate with n=figures.new_members_this_month %}+{{ n }} new{% endblocktranslate %}</span></div>
+    {% else %}
+      <div class="card stat"><span class="stat-label">{% translate "Active members" %}</span><span class="stat-value">{{ figures.active_members }}</span><span class="stat-foot">{% blocktranslate with n=figures.new_members_this_month %}+{{ n }} new this month{% endblocktranslate %}</span></div>
+    {% endif %}
+    {% if figures.money %}
+      <div class="card stat"><span class="stat-label">{% translate "Money this month" %}</span><span class="stat-value"><span class="cur">RWF</span>{{ figures.money.collected_this_month|thousands }}</span><span class="stat-foot">{% blocktranslate with a=figures.money.collected_last_month|thousands %}Last month: {{ a }}{% endblocktranslate %}</span></div>
+    {% endif %}
+    {% if figures.companies %}
+      <a class="card stat card-link" href="{% url 'corporate:gym_home' %}"><span class="stat-label">{% translate "Expected from companies" %}</span><span class="stat-value"><span class="cur">RWF</span>{{ figures.companies_total|thousands }}</span><span class="stat-foot">{% blocktranslate count n=figures.companies|length %}This month so far, {{ n }} company{% plural %}This month so far, {{ n }} companies{% endblocktranslate %}</span></a>
+    {% endif %}
+    <a class="card stat card-link {% if figures.ending_soon %}stat-warn{% endif %}" href="{% url 'dashboard:renewals' %}"><span class="stat-label">{% translate "Ending within 7 days" %}</span><span class="stat-value">{{ figures.ending_soon }}</span><span class="stat-foot">{% if figures.ending_soon %}{% blocktranslate with v=figures.ending_soon_value|thousands %}RWF {{ v }} at stake{% endblocktranslate %}{% else %}{% translate "Nothing ending" %}{% endif %}</span></a>
+  </div>
 
-  {% if figures.money %}
-    <section class="stack" aria-labelledby="fig-money">
-      <h2 id="fig-money">{% translate "Money" %}</h2>
-      <div class="stat-grid">
-        <div class="card stat">
-          <span class="stat-label">{% translate "Collected today" %}</span>
-          <span class="stat-value amount">{{ figures.money.collected_today|rwf }}</span>
+  <div class="two-col">
+    {% if figures.companies %}
+      <section class="card stack">
+        <div class="card-head"><div><h2>{% translate "Companies this month" %}</h2><p class="sub">{% translate "Added up for you. Each bill goes out on the month's last evening." %}</p></div><a class="small strong" href="{% url 'corporate:gym_home' %}">{% translate "Open" %}</a></div>
+        <div class="table-wrap">
+          <table class="data" style="min-width:0">
+            <thead><tr><th>{% translate "Company" %}</th><th class="num">{% translate "Visits" %}</th><th class="num">{% translate "So far (RWF)" %}</th><th>{% translate "Last bill" %}</th></tr></thead>
+            <tbody>
+              {% for row in figures.companies %}
+                <tr>
+                  <td class="strong">{{ row.company.name }}</td><td class="num">{{ row.visits }}</td><td class="num strong">{{ row.amount_rwf|thousands }}</td>
+                  <td>{% with s=row.last_bill %}{% if not s %}<span class="badge badge-off">{% translate "No bill yet" %}</span>{% elif s.status == "paid" %}<span class="badge badge-on">{{ s.bill.period_start|date:"M" }}: {% translate "paid" %}</span>{% elif s.overdue %}<span class="badge badge-danger">{{ s.bill.period_start|date:"M" }}: {{ s.owed_rwf|thousands }} · {% translate "overdue" %}</span>{% else %}<span class="badge badge-warn">{{ s.bill.period_start|date:"M" }}: {{ s.owed_rwf|thousands }} · {% translate "due" %} {{ s.bill.due_on|date:"j M" }}</span>{% endif %}{% endwith %}</td>
+                </tr>
+              {% endfor %}
+              <tr class="total"><td>{% translate "Total" %}</td><td></td><td class="num">{{ figures.companies_total|thousands }}</td><td></td></tr>
+            </tbody>
+          </table>
         </div>
-        <div class="card stat">
-          <span class="stat-label">{% translate "Collected this month" %}</span>
-          <span class="stat-value amount">{{ figures.money.collected_this_month|rwf }}</span>
-          <span class="muted small">{% blocktranslate with amount=figures.money.collected_last_month|rwf %}Last month: {{ amount }}.{% endblocktranslate %}</span>
-        </div>
-        <a class="card stat card-link" href="{% url 'billing:payments_home' %}">
-          <span class="stat-label">{% translate "Owed by members" %}</span>
-          <span class="stat-value amount">{{ figures.money.owed_by_members|rwf }}</span>
-          <span class="muted small">{% translate "Unpaid balances. See who →" %}</span>
-        </a>
-      </div>
-      <div class="two-col">
-        <div class="card stack">
-          <div>
-            <h3>{% translate "Collected this month, by payment method" %}</h3>
-            <p class="muted small">{% translate "Money received, leaving out reversed payments." %}</p>
-          </div>
-          {% include "dashboard/_bars.html" with rows=figures.money.by_method empty_text=_("Nothing collected yet this month.") %}
-        </div>
-        <div class="card stack">
-          <div>
-            <h3>{% translate "Sold this month, by package" %}</h3>
-            <p class="muted small">{% translate "Value of memberships sold, paid or not." %}</p>
-          </div>
-          {% include "dashboard/_bars.html" with rows=figures.money.by_package show_count=True empty_text=_("No memberships sold yet this month.") %}
-        </div>
-      </div>
+      </section>
+    {% endif %}
+    <section class="card stack">
+      <div class="card-head"><div><h2>{% translate "Worth knowing" %}</h2><p class="sub">{% translate "From your own records" %}</p></div></div>
+      {% for i in figures.insights %}
+        <div class="insight"><span class="ic">{% icon i.icon %}</span><div class="grow"><div class="strong">{{ i.title }}</div><div class="small muted">{{ i.text }}</div>{% if i.people %}<div class="small" style="margin-top:4px">{{ i.people|join:", " }}</div>{% endif %}</div>{% if i.link %}<a class="small strong" href="{% url i.link %}">{{ i.link_text }}</a>{% endif %}</div>
+      {% empty %}
+        <p class="muted">{% translate "Nothing that needs your attention right now." %}</p>
+      {% endfor %}
     </section>
-  {% endif %}
+  </div>
 
-  {% if figures.visits %}
-    <section class="stack" aria-labelledby="fig-visits">
-      <h2 id="fig-visits">{% translate "Visits" %}</h2>
-      <div class="stat-grid">
-        <div class="card stat">
-          <span class="stat-label">{% translate "Check-ins today" %}</span>
-          <span class="stat-value">{{ figures.visits.today }}</span>
-        </div>
-        <div class="card stat">
-          <span class="stat-label">{% translate "Check-ins this month" %}</span>
-          <span class="stat-value">{{ figures.visits.this_month }}</span>
-        </div>
-        <div class="card stat {% if figures.visits.not_visiting %}stat-warn{% endif %}">
-          <span class="stat-label">{% translate "Not seen for 14 days" %}</span>
-          <span class="stat-value">{{ figures.visits.not_visiting }}</span>
-          <span class="muted small">{% translate "Active members with no visit in 14 days. They are the most likely not to renew." %}</span>
-        </div>
-      </div>
-    </section>
-  {% endif %}
-
-  <section class="card stack" aria-labelledby="fig-soon">
-    <div class="card-head">
-      <h2 id="fig-soon">{% translate "Ending within 7 days" %}</h2>
-      <a class="btn btn-small" href="{% url 'dashboard:renewals' %}">{% translate "See all renewals" %}</a>
-    </div>
+  <section class="card stack">
+    <div class="card-head"><div><h2>{% translate "Memberships ending soon" %}</h2><p class="sub">{% translate "Renew them before they lapse" %}</p></div><a class="small strong" href="{% url 'dashboard:renewals' %}">{% blocktranslate with n=figures.ending_soon %}All {{ n }}{% endblocktranslate %}</a></div>
     {% if figures.ending_soon_list %}
       <ul class="item-list">
         {% for membership in figures.ending_soon_list %}
           <li>
-            <div class="item-main">
-              <a href="{% url 'members:member_detail' membership.member.public_id %}"><strong>{{ membership.member.full_name }}</strong></a>
-              <span class="muted small">{{ membership.package_name }} · {{ membership.member.person.phone|phone }}</span>
-            </div>
+            <div class="who grow"><span class="avatar">{{ membership.member.full_name|initials }}</span><div class="item-main"><a href="{% url 'members:member_detail' membership.member.public_id %}"><strong>{{ membership.member.full_name }}</strong></a><span class="muted small">{{ membership.package_name }} · {{ membership.member.person.phone|phone }}</span></div></div>
             <span class="badge badge-warn">{% blocktranslate with day=membership.end_date|date:"j M" %}Ends {{ day }}{% endblocktranslate %}</span>
+            {% if 'payments_finance' in modules_on %}<a class="btn btn-small" href="{% url 'billing:sell' membership.member.public_id %}">{% translate "Renew" %}</a>{% endif %}
           </li>
         {% endfor %}
       </ul>
@@ -111,5 +72,34 @@
     {% endif %}
   </section>
 
+  {% if figures.money %}
+    <div class="two-col">
+      <section class="card stack">
+        <div class="card-head"><div><h2>{% translate "Money collected per day" %}</h2><p class="sub">{% blocktranslate with m=figures.month_start|date:"F" %}{{ m }}, after reversals{% endblocktranslate %}</p></div><span class="stat-value" style="font-size:1.25rem"><span class="cur">RWF</span>{{ figures.money.collected_this_month|thousands }}</span></div>
+        <div class="chart-bars" role="img" aria-label="{% translate 'Money collected on each day this month' %}">
+          {% with top=figures.per_day|maxamount %}{% for day, amount in figures.per_day %}<i class="{% if forloop.last %}today{% endif %}" style="height: {{ amount|percent_of:top }}%" title="{{ day|date:'j M' }}: RWF {{ amount|thousands }}"></i>{% endfor %}{% endwith %}
+        </div>
+        <div class="chart-axis"><span>{{ figures.month_start|date:"j M" }}</span><span>{% translate "Today" %}</span></div>
+      </section>
+      <section class="card stack">
+        <div class="card-head"><div><h2>{% translate "Cash per receptionist today" %}</h2><p class="sub">{% translate "What each person should hand over" %}</p></div></div>
+        {% if figures.cash_by_person %}
+          <div class="table-wrap"><table class="data" style="min-width:0">
+            <thead><tr><th>{% translate "Person" %}</th><th class="num">{% translate "Cash (RWF)" %}</th><th>{% translate "Shift" %}</th></tr></thead>
+            <tbody>{% for p in figures.cash_by_person %}<tr><td class="strong">{{ p.name }}</td><td class="num strong">{{ p.cash_rwf|thousands }}</td><td class="small muted">{% if p.closed_at %}{% blocktranslate with t=p.closed_at|time:"H:i" %}Closed {{ t }}{% endblocktranslate %}{% if p.open_cash_rwf %} · {% blocktranslate with c=p.open_cash_rwf|thousands %}{{ c }} since{% endblocktranslate %}{% endif %}{% else %}{% translate "Open" %}{% endif %}</td></tr>{% endfor %}</tbody>
+          </table></div>
+        {% else %}
+          <p class="muted">{% translate "No cash received today yet." %}</p>
+        {% endif %}
+      </section>
+    </div>
+  {% endif %}
+
+  {% if figures.money %}
+    <div class="two-col">
+      <section class="card stack"><div><h2>{% translate "Sales by package" %}</h2><p class="sub">{% translate "This month" %}</p></div>{% include "dashboard/_bars.html" with rows=figures.money.by_package empty_text=_("No memberships sold yet this month.") %}</section>
+      <section class="card stack"><div><h2>{% translate "How people paid" %}</h2><p class="sub">{% translate "This month, after reversals" %}</p></div>{% include "dashboard/_bars.html" with rows=figures.money.by_method empty_text=_("Nothing collected yet this month.") %}</section>
+    </div>
+  {% endif %}
   <p class="muted small">{% blocktranslate with time=figures.today|date:"j M Y" %}Figures for {{ time }}. They update each time the page is opened.{% endblocktranslate %}</p>
 </div>

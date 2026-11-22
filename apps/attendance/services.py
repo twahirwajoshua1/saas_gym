@@ -234,6 +234,37 @@ def visit_days(member: Member, since: date) -> list[date]:
     )
 
 
+def busiest_hours(gym: Gym, since: date) -> list[tuple[int, int]]:
+    """Check-ins per hour of the day (Kigali time) since a day: [(hour, count), ...]."""
+    counts: dict[int, int] = {}
+    for at in (
+        CheckIn.objects.for_gym(gym)
+        .filter(checked_in_on__gte=since)
+        .values_list("checked_in_at", flat=True)
+    ):
+        hour = timezone.localtime(at).hour
+        counts[hour] = counts.get(hour, 0) + 1
+    return sorted(counts.items())
+
+
+def streak_at_risk(gym: Gym, today: date, goal: int = 2) -> list[Member]:
+    """
+    Members who reached the weekly goal last week but not yet this week: a
+    friendly reminder now keeps their habit going. Only from Thursday on.
+    """
+    if today.weekday() < 3:
+        return []
+    this_week = today - timedelta(days=today.weekday())
+    last_week = this_week - timedelta(days=7)
+    visits = CheckIn.objects.for_gym(gym).filter(checked_in_on__gte=last_week)
+    last, now = {}, {}
+    for member_id, day in visits.values_list("member_id", "checked_in_on"):
+        bucket = now if day >= this_week else last
+        bucket[member_id] = bucket.get(member_id, 0) + 1
+    ids = [m for m, n in last.items() if n >= goal and now.get(m, 0) < goal]
+    return list(Member.objects.for_gym(gym).filter(id__in=ids).order_by("full_name"))
+
+
 def check_ins_on(gym: Gym, day: date):
     """Everyone who came in on a day, most recent first."""
     return (

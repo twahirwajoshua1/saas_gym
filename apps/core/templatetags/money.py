@@ -58,3 +58,24 @@ def divide(amount, by):
         return int(amount) // int(by) if int(by) else 0
     except (TypeError, ValueError):
         return 0
+
+
+@register.filter
+def maxamount(pairs):
+    """The largest amount in a list of (label, amount) pairs (at least 1)."""
+    try:
+        return max([int(a) for _, a in pairs] + [1])
+    except (TypeError, ValueError):
+        return 1
+
+
+@register.filter
+def percent_of(amount, top):
+    """`amount` as a whole percentage of `top`, for bar heights (at least 2 when above zero)."""
+    try:
+        amount, top = int(amount), int(top)
+    except (TypeError, ValueError):
+        return 0
+    if amount <= 0 or top <= 0:
+        return 0
+    return max(2, round(amount * 100 / top))

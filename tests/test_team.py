@@ -164,7 +164,7 @@ def test_removed_staff_lose_access_at_once(alpha, client):
     user.must_change_password = False
     user.save()
     client.get(reverse("gyms:enter"))
-    assert client.get(reverse("gyms:home")).status_code == 200
+    assert client.get(reverse("gyms:home"), follow=True).status_code == 200
 
     services.remove_staff(by=alpha.assignment, assignment=added.assignment)
 
@@ -280,7 +280,9 @@ def test_a_new_staff_member_must_choose_a_password_first(alpha, client):
         },
     )
     client.get(reverse("gyms:enter"))
-    assert client.get(reverse("gyms:home")).status_code == 200  # still signed in, now free to work
+    assert (
+        client.get(reverse("gyms:home"), follow=True).status_code == 200
+    )  # still signed in, now free to work
 
 
 def test_staff_screens_change_reset_and_remove(alpha, sign_in):
