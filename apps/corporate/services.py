@@ -941,11 +941,20 @@ def check_employee(gym: Gym, employee: Employee, branch: Branch) -> list[dict]:
     if contract is None:
         raise InvalidDetails("employee", "no_contract")
     prices = prices_for(contract)
-    return [
+    covered = [
         {"service": service, "price": prices[(service.id, branch.id)]}
         for service in Service.objects.for_gym(gym).filter(is_active=True)
         if (service.id, branch.id) in prices
     ]
+    # The usual facilities first (the gym itself on top), then the rest A-Z.
+    usual = ["gym", "sauna", "massage", "swimming", "aerobics"]
+    covered.sort(
+        key=lambda c: (
+            usual.index(c["service"].name.lower()) if c["service"].name.lower() in usual else 99,
+            c["service"].name.lower(),
+        )
+    )
+    return covered
 
 
 @transaction.atomic

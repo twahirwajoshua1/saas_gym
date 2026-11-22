@@ -256,22 +256,54 @@ SERVICES = {
 # Invented employers with corporate wellness contracts. Any resemblance to a
 # real company is unintended. Contract prices are a share of the member price;
 # branches outside Kigali are cheaper.
+# Employers with corporate wellness contracts. These are real Rwandan
+# institutions, used by name because the founder asked for them, so pilot gyms
+# recognise their world. Every person, number and visit is invented
+# (demonstration data). Contract prices are a share of the member price;
+# branches outside Kigali are cheaper.
 COMPANIES = [
     {
-        "name": "Isimbi Insurance Ltd",
-        "tin": "102345678",
+        "name": "WASAC",
+        "tin": "",
         "officer": ("Aimée", "Ingabire"),
         "officer_phone": "0788100010",
         "employees": 40,
-        "gyms": ["Ubuzima Health Club", "Intare Strength House", "Umucyo Wellness Centre"],
+        "gyms": ["Ubuzima Health Club", "Umucyo Wellness Centre"],
         "discount": 0.8,
     },
     {
-        "name": "Akagera Logistics Ltd",
-        "tin": "107654321",
+        "name": "REG",
+        "tin": "",
         "officer": ("Olivier", "Nshimiyimana"),
         "officer_phone": "0788100011",
+        "employees": 55,
+        "gyms": ["Umucyo Wellness Centre", "Inkingi Fitness Network", "Intare Strength House"],
+        "discount": 0.8,
+    },
+    {
+        "name": "RTDA",
+        "tin": "",
+        "officer": ("Claudine", "Mukeshimana"),
+        "officer_phone": "0788100012",
         "employees": 25,
+        "gyms": ["Intare Strength House", "Umucyo Wellness Centre"],
+        "discount": 0.85,
+    },
+    {
+        "name": "REMA",
+        "tin": "",
+        "officer": ("Jean Paul", "Habimana"),
+        "officer_phone": "0788100013",
+        "employees": 15,
+        "gyms": ["Umucyo Wellness Centre"],
+        "discount": 0.85,
+    },
+    {
+        "name": "MINAGRI",
+        "tin": "",
+        "officer": ("Vestine", "Uwamahoro"),
+        "officer_phone": "0788100014",
+        "employees": 30,
         "gyms": ["Inkingi Fitness Network", "Umucyo Wellness Centre"],
         "discount": 0.85,
     },

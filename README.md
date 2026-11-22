@@ -143,8 +143,10 @@ python manage.py create_sample_gyms
 ```
 
 This creates five invented Rwandan gyms (with 1 to 5 branches), their
-services (gym, sauna, massage...), two invented companies with corporate
-wellness contracts and employees, and 75 days of history including monthly
+services (gym, sauna, massage...), five employers with corporate wellness
+contracts (WASAC, REG, RTDA, REMA and MINAGRI, used by name for demonstrations
+only; every person and visit is invented), an entrance tablet per branch, and
+75 days of history including tablet check-ins, closed shifts and monthly
 company bills, and prints every login. It takes several minutes. See
 `docs/decisions/0017-sample-data.md`.
 
@@ -153,6 +155,23 @@ company bills, and prints every login. It takes several minutes. See
 Companies pay for their employees' visits to contracted gyms. See
 `docs/decisions/0019-corporate-wellness.md` for how it works, and run
 `python manage.py issue_corporate_bills` every evening (docs/operations.md).
+
+## The front desk and the entrance tablet
+
+Gym staff see one of two views. Owners and branch managers get **Today**
+(figures and advice). Receptionists get the **Desk**: who is arriving, the few
+people who need them, search, and their own shift's cash.
+
+To set up an entrance tablet (any tablet or old phone with a front camera and a
+browser):
+
+1. As the owner, open **Settings → Entrance tablets**, add one for a branch and
+   note the 6-digit code (valid 15 minutes).
+2. On the tablet, open `/tablet/` on your gym's address and type the code.
+3. Leave it on a stand at the entrance. Members and company staff scan their
+   phone card (or type their PIN); only problems go to the desk.
+
+See `docs/decisions/0020-front-desk-tablet-streaks-league.md`.
 
 ## Backups
 

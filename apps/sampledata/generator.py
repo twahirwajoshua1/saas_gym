@@ -24,6 +24,8 @@ from apps.billing.services import PaymentInput
 from apps.corporate import services as corporate
 from apps.corporate.models import CorporateBill
 from apps.corporate.services import ContractTerms, EmployeeDetails
+from apps.frontdesk import services as frontdesk
+from apps.frontdesk.models import ProblemKind, ScanProblem
 from apps.gyms import services as gyms
 from apps.gyms.models import Branch, Role, StaffAssignment
 from apps.members import services as members
@@ -89,6 +91,7 @@ class Generator:
         self.rng = random.Random(seed)
         self.days = days
         self.scale = scale
+        self.real_now = timezone.localtime().astimezone(KIGALI) - timedelta(minutes=2)
         self.log = log
         self.used_phones = set()
         self.counts = {
@@ -107,8 +110,19 @@ class Generator:
     # --- Small helpers ---------------------------------------------------------
 
     def at(self, day: date, hour: int, minute: int = 0):
-        """Move the clock to a moment on a simulated day (Kigali time)."""
-        return time_machine.travel(datetime.combine(day, time(hour, minute), KIGALI), tick=False)
+        """
+        Move the clock to a moment on a simulated day (Kigali time). Today only
+        runs until now: today's day (05:00-22:00) is squeezed into the hours that
+        have really passed, so nothing appears to happen in the future.
+        """
+        moment = datetime.combine(day, time(hour, minute), KIGALI)
+        now = self.real_now
+        if moment > now:
+            opening = datetime.combine(now.date(), time(5, 0), KIGALI)
+            share = max(0.0, (moment - opening) / timedelta(hours=17))
+            moment = min(now, opening + (now - opening) * min(share, 1.0))
+            moment = max(moment, opening) if now > opening else now
+        return time_machine.travel(moment, tick=False)
 
     def phone(self) -> str:
         while True:
@@ -418,9 +432,16 @@ class Generator:
         if not self.is_valid(sm, day):
             return
         by = desk if self.rng.random() < 0.8 else sim.trainers[sm.branch_id]
+        # Most people scan themselves in at the entrance tablet; the rest at the desk.
+        use_tablet = day >= self.tablets_from and self.rng.random() < 0.75
         with self.at(day, hour, minute):
             try:
-                attendance.check_in(by=by, member=sm.member)
+                if use_tablet:
+                    attendance.self_check_in(
+                        gym=sim.gym, branch=sim.branches[sm.branch_id], member=sm.member
+                    )
+                else:
+                    attendance.check_in(by=by, member=sm.member)
             except attendance.NotAllowedIn:
                 return
         self.counts["check_ins"] += 1
@@ -469,14 +490,14 @@ class Generator:
             corporate.decide_contract(by=officer, contract=contract, approve=True)
             contracts.append((sim, contract))
 
-        for _ in range(max(3, round(spec["employees"] * self.scale))):
+        for number in range(max(3, round(spec["employees"] * self.scale))):
             full_name, _gender = self.name()
             employee = corporate.add_employee(
                 by=officer,
                 details=EmployeeDetails(
                     full_name=full_name,
                     phone=self.phone(),
-                    employee_number=f"{spec['name'][:2].upper()}-{self.rng.randrange(1000, 9999)}",
+                    employee_number=f"{spec['name'][:3].upper()}-{1001 + number}",
                     department=self.rng.choice(rwanda.DEPARTMENTS),
                 ),
             )
@@ -512,22 +533,30 @@ class Generator:
             if not wanted:
                 continue
             hour, minute = self.visit_time()
+            use_tablet = day >= self.tablets_from and self.rng.random() < 0.8
             with self.at(day, hour, minute):
                 try:
-                    result = corporate.check_in_employee(
-                        by=sim.desk[se.branch_id],
-                        employee=se.employee,
-                        service_ids=wanted,
-                        phone_code_ok=not se.pin,
-                        pin="1234" if se.pin else "",
-                    )
+                    if use_tablet:
+                        result = corporate.self_check_in_employee(
+                            gym=sim.gym,
+                            branch=sim.branches[se.branch_id],
+                            employee=se.employee,
+                            service_ids=wanted,
+                            phone_code_ok=not se.pin,
+                            pin="1234" if se.pin else "",
+                        )
+                    else:
+                        result = corporate.check_in_employee(
+                            by=sim.desk[se.branch_id],
+                            employee=se.employee,
+                            service_ids=wanted,
+                            phone_code_ok=not se.pin,
+                            pin="1234" if se.pin else "",
+                        )
                 except InvalidDetails:  # for example a service not covered at that branch
                     continue
             self.counts["company_visits"] += 1
-            if not se.pin and self.rng.random() < 0.85:
-                with self.at(day, min(hour + 1, 23), minute):
-                    corporate.confirm_visit(employee=se.employee, visit=result.visit)
-            if self.rng.random() < 0.01:
+            if self.rng.random() < 0.004:
                 with self.at(day, 21, 0):
                     corporate.question_visit(
                         by=se.officer,
@@ -564,9 +593,36 @@ class Generator:
                 )
             del self.paydays[bill_id]
 
+    # --- Shifts and the desk ------------------------------------------------------
+
+    def close_shifts(self, sims, day: date, today: date):
+        """Receptionists close their shift at 14:00 and 21:00 (not yet today evening)."""
+        for sim in sims:
+            for desk in sim.desk.values():
+                for hour in (14, 21):
+                    if day == today and hour == 21:
+                        continue
+                    if day == today and self.real_now.hour < hour:
+                        continue
+                    with self.at(day, hour, 2):
+                        billing.close_shift(by=desk)
+        if day == today:
+            # A few things the tablet could not let through, for the desk to see.
+            for sim in sims:
+                lapsed = [sm for sm in sim.people if sm.end and sm.end < day][:2]
+                for sm in lapsed:
+                    with self.at(day, max(6, self.real_now.hour - 1), 10):
+                        ScanProblem.objects.create(
+                            gym=sim.gym,
+                            branch=sim.branches[sm.branch_id],
+                            kind=ProblemKind.MEMBERSHIP_ENDED,
+                            member=sm.member,
+                        )
+
     # --- Everything -------------------------------------------------------------
 
     def run(self):
+        self.real_now = timezone.localtime().astimezone(KIGALI) - timedelta(minutes=2)
         today = timezone.localdate()
         start = today - timedelta(days=self.days)
 
@@ -587,6 +643,18 @@ class Generator:
                 sims.append(self.create_gym(spec, start, admin))
             self.log(f"Set up {spec['name']} ({len(spec['branches'])} branches)")
 
+        # The gyms put entrance tablets in during the last month.
+        self.tablets_from = today - timedelta(days=30)
+        for sim in sims:
+            owner = sim.owner
+            with transaction.atomic(), self.at(self.tablets_from, 8):
+                for branch in sim.branches.values():
+                    tablet = frontdesk.add_tablet(by=owner, branch=branch, name="Front entrance")
+                    tablet.secret_hash = uuid.uuid4().hex + uuid.uuid4().hex  # connected
+                    tablet.paired_at, tablet.pairing_code = timezone.now(), ""
+                    tablet.last_seen_at = timezone.now()
+                    tablet.save()
+
         by_name = {sim.spec["name"]: sim for sim in sims}
         for spec in rwanda.COMPANIES:
             with transaction.atomic(), self.at(start, 9):
@@ -599,6 +667,9 @@ class Generator:
                 for sim in sims:
                     self.simulate_day(sim, day)
                 self.corporate_day(day)
+            if day >= today - timedelta(days=6):
+                with transaction.atomic():
+                    self.close_shifts(sims, day, today)
             if (day - start).days % 15 == 0:
                 self.log(f"  {day:%d %b %Y}: {self.counts}")
             day += timedelta(days=1)

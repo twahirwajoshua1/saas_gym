@@ -7,15 +7,18 @@ card lookup (see members.services.gym_id_for_card). Only then is the database
 told which gym this request acts for, exactly as signing in does for staff.
 """
 
+from datetime import timedelta
 from urllib.parse import quote
 
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_GET, require_POST
 
-from apps.core import tenant_db
+from apps.attendance import services as attendance
+from apps.core import streaks, tenant_db
 from apps.gyms.permissions import FRONT_DESK_ROLES
 from apps.gyms.tenancy import gym_required
 from apps.memberapp import services
@@ -49,8 +52,23 @@ def card(request, token):
     member = _member_for_token(token)
     summary = services.card_summary(member)
     url = request.build_absolute_uri(reverse("memberapp:card", args=[token]))
+    today = timezone.localdate()
+    streak = streaks.compute(attendance.visit_days(member, today - timedelta(weeks=60)), today)
+    month_visits = attendance.visits_for(member).filter(
+        checked_in_on__year=today.year, checked_in_on__month=today.month
+    )
     return _private(
-        render(request, "memberapp/card.html", {"card": summary, "qr": services.qr_svg(url)})
+        render(
+            request,
+            "memberapp/card.html",
+            {
+                "card": summary,
+                "qr": services.qr_svg(url),
+                "streak": streak,
+                "month_visits": month_visits.count(),
+                "recent": attendance.visits_for(member)[:5],
+            },
+        )
     )
 
 

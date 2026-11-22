@@ -3,8 +3,9 @@
 {% block title %}{{ card.gym_name }} · {{ card.member.full_name }}{% endblock %}
 {% block body %}
   {% with s=card.status %}
-  <main class="plain">
+  <main class="plain" style="align-items:flex-start">
     <div class="plain-card stack">
+      <div><p class="small muted">{{ card.gym_name }}</p><h1>{% translate "Muraho" %}, {{ card.member.full_name.split.0 }}</h1></div>
       <div class="member-card {% if s.allowed %}member-card-ok{% else %}member-card-no{% endif %}">
         <div class="card-head">
           <div>
@@ -38,6 +39,24 @@
         {% endif %}
         {% if s.owes_rwf > 0 %}<p class="notice notice-warn">{% blocktranslate with amount=s.owes_rwf|rwf %}Still to pay: {{ amount }}.{% endblocktranslate %}</p>{% endif %}
       </div>
+
+      {% if s.allowed or streak.weeks %}
+        <section class="card stack">
+          <div class="spread"><div><div class="small muted strong" style="text-transform:uppercase;letter-spacing:.05em">{% translate "Your streak" %}</div>
+            <div class="stat-value" style="font-size:2rem">{% blocktranslate count n=streak.weeks %}{{ n }} week{% plural %}{{ n }} weeks{% endblocktranslate %}</div></div>
+            {% if streak.level %}<span class="badge badge-info">{{ streak.level }}</span>{% endif %}</div>
+          <div class="streak-weeks" aria-hidden="true">{% for w in streak.recent %}<span class="{{ w }}">{% if w == "rest" %}REST{% elif w == "now" %}{{ streak.this_week }}/{{ streak.goal }}{% elif w == "done" %}✓{% endif %}</span>{% endfor %}</div>
+          <p class="small">{% if streak.visits_needed_this_week %}<strong>{% blocktranslate count n=streak.visits_needed_this_week %}{{ n }} more visit this week{% plural %}{{ n }} more visits this week{% endblocktranslate %}</strong> {% translate "keeps your streak going." %}{% else %}<strong>{% translate "This week is done." %}</strong>{% endif %}
+            {% if streak.next_level %}{% blocktranslate with name=streak.next_level.0 count n=streak.next_level.1 %}{{ n }} week to {{ name }}.{% plural %}{{ n }} weeks to {{ name }}.{% endblocktranslate %}{% endif %}</p>
+          <p class="small muted">{% blocktranslate with g=streak.goal %}A week counts when you come {{ g }} times. One missed week a month is forgiven.{% endblocktranslate %}</p>
+        </section>
+      {% endif %}
+
+      {% if recent %}
+        <section class="card stack"><div class="spread"><h2>{% translate "Your visits" %}</h2><span class="small muted">{% blocktranslate count n=month_visits %}{{ n }} this month{% plural %}{{ n }} this month{% endblocktranslate %}</span></div>
+          <ul class="item-list">{% for v in recent %}<li><div class="item-main"><strong>{{ v.checked_in_on|date:"l j M" }}</strong><span class="small muted">{{ v.checked_in_at|time:"H:i" }} · {{ v.branch.name }}</span></div></li>{% endfor %}</ul>
+        </section>
+      {% endif %}
 
       {% if card.receipts %}
         <div class="card stack">

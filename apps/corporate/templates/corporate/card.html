@@ -27,7 +27,7 @@
             {% if streak.level %}<span class="badge badge-info">{{ streak.level }}</span>{% endif %}</div>
           <div class="streak-weeks" aria-hidden="true">{% for w in streak.recent %}<span class="{{ w }}">{% if w == "rest" %}REST{% elif w == "now" %}{{ streak.this_week }}/{{ streak.goal }}{% elif w == "done" %}✓{% endif %}</span>{% endfor %}</div>
           <p class="small">{% if streak.visits_needed_this_week %}<strong>{% blocktranslate count n=streak.visits_needed_this_week %}{{ n }} more visit this week{% plural %}{{ n }} more visits this week{% endblocktranslate %}</strong> {% translate "keeps your streak going." %}{% else %}<strong>{% translate "This week is done." %}</strong>{% endif %}
-            {% if streak.next_level %}{% blocktranslate with name=streak.next_level.0 n=streak.next_level.1 %}{{ n }} weeks to {{ name }}.{% endblocktranslate %}{% endif %}</p>
+            {% if streak.next_level %}{% blocktranslate with name=streak.next_level.0 count n=streak.next_level.1 %}{{ n }} week to {{ name }}.{% plural %}{{ n }} weeks to {{ name }}.{% endblocktranslate %}{% endif %}</p>
           <p class="small muted">{% blocktranslate with g=streak.goal %}A week counts when you come {{ g }} times. One missed week a month is forgiven.{% endblocktranslate %}</p>
         </section>
 
