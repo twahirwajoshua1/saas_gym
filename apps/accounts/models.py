@@ -70,3 +70,21 @@ class LoginThrottle(models.Model):
 
     def __str__(self):
         return self.phone
+
+
+class DemoLogin(models.Model):
+    """
+    A short demo name and password (for example "gymowner") that signs in as a
+    sample account, or opens a sample member's card. Only used when
+    settings.DEMO_LOGINS is on (a developer's own computer). The sample
+    account's real password is not changed.
+    """
+
+    name = models.CharField(max_length=40, unique=True)  # stored in lower case
+    password = models.CharField(max_length=128)  # hashed, like any password
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.CASCADE)
+    url = models.CharField(max_length=300, blank=True)  # for people without a login
+    label = models.CharField(max_length=120, blank=True)
+
+    def __str__(self):
+        return self.name

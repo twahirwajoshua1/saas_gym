@@ -19,6 +19,12 @@ def login_view(request):
 
     form = LoginForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
+        demo = services.demo_login(form.cleaned_data["phone"], form.cleaned_data["password"])
+        if demo is not None:
+            if demo.user is None:
+                return redirect(demo.url)  # a member: their card page, no login
+            login(request, demo.user, backend=settings.AUTHENTICATION_BACKENDS[0])
+            return redirect(settings.LOGIN_REDIRECT_URL)
         try:
             user = services.authenticate_by_phone(
                 request,

@@ -3,13 +3,15 @@
 import math
 import secrets
 
+from django.conf import settings
 from django.contrib.auth import authenticate
+from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
 from django.utils import timezone
 
 from apps.accounts import throttle
-from apps.accounts.models import User
+from apps.accounts.models import DemoLogin, User
 from apps.audit import services as audit
 from apps.people import services as people_services
 from apps.people.models import Person
@@ -189,3 +191,29 @@ def create_platform_admin(*, full_name: str, phone: str, password: str) -> User:
         details={"person": person.public_id},
     )
     return user
+
+
+# --- Demo names (developer's computer only) -----------------------------------
+
+
+def demo_login(name: str, password: str) -> DemoLogin | None:
+    """The demo shortcut for this name and password, or None. Off unless DEMO_LOGINS."""
+    if not settings.DEMO_LOGINS:
+        return None
+    found = DemoLogin.objects.select_related("user").filter(name=(name or "").strip().lower())
+    demo = found.first()
+    if demo is None or not check_password(password, demo.password):
+        return None
+    if demo.user is not None and not demo.user.is_active:
+        return None
+    return demo
+
+
+def set_demo_login(*, name: str, password: str, user=None, url: str = "", label: str = ""):
+    """Create or replace a demo shortcut. Refuses unless DEMO_LOGINS is on."""
+    if not settings.DEMO_LOGINS:
+        raise RuntimeError("Demo names are off. They need DEBUG=True and DEMO_LOGINS=True.")
+    DemoLogin.objects.update_or_create(
+        name=name.strip().lower(),
+        defaults={"password": make_password(password), "user": user, "url": url, "label": label},
+    )

@@ -150,6 +150,20 @@ only; every person and visit is invented), an entrance tablet per branch, and
 company bills, and prints every login. It takes several minutes. See
 `docs/decisions/0017-sample-data.md`.
 
+For quick demonstrations on your own computer you can also add short demo
+names. Put `DEMO_LOGINS=True` in `.env` (it only works while `DEBUG=True`),
+then run `python manage.py create_demo_logins`. Type the name in the phone
+number box:
+
+| Name | Password | Opens |
+|---|---|---|
+| gymowner | gymower | Owner of Umucyo Wellness Centre |
+| receptionist | receptionist | Receptionist at Umucyo, Nyarutarama |
+| member | member | A sample member's card (members have no login) |
+| company | Company | WASAC's logistics officer |
+
+Never switch this on for a real gym: anyone who knows these names gets in.
+
 ## Corporate wellness
 
 Companies pay for their employees' visits to contracted gyms. See

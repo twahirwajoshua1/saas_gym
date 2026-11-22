@@ -135,6 +135,11 @@ AUTH_USER_MODEL = "accounts.User"
 # wrong attempts. Used by our sign-in page and by the platform admin.
 AUTHENTICATION_BACKENDS = ["apps.accounts.backends.ThrottledPhoneBackend"]
 
+# Short demo names (like "gymowner") on the sign-in page, for demonstrations on
+# a developer's own computer. Needs DEBUG=True *and* DEMO_LOGINS=True in .env;
+# it can never be on in a real installation. See create_demo_logins.
+DEMO_LOGINS = DEBUG and env.bool("DEMO_LOGINS", default=False)
+
 # Where to send someone who must sign in first, and where they go afterwards.
 LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "corporate:start"
