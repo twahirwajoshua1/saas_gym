@@ -1,0 +1,50 @@
+{% load i18n icons money %}
+<div class="stack">
+  <div class="kpis">
+    <div class="card stat"><span class="stat-label">{% translate "In today" %}</span><span class="stat-value">{{ counts.total }}</span><span class="stat-foot">{% blocktranslate with n=counts.tablet %}{{ n }} scanned themselves at the tablet{% endblocktranslate %}</span></div>
+    <div class="card stat {% if problems %}stat-warn{% endif %}"><span class="stat-label">{% translate "Need you now" %}</span><span class="stat-value">{{ problems|length }}</span><span class="stat-foot">{% if problems %}{% translate "See below" %}{% else %}{% translate "Everyone else went straight in" %}{% endif %}</span></div>
+    {% if shift %}
+      <a class="card stat card-link" href="{% url 'billing:my_shift' %}"><span class="stat-label">{% translate "My shift · cash to hand over" %}</span><span class="stat-value"><span class="cur">RWF</span>{{ shift.cash_rwf|thousands }}</span><span class="stat-foot">{% blocktranslate with t=shift.started_at|time:"H:i" n=shift.payments %}{{ n }} payments since {{ t }}{% endblocktranslate %}</span></a>
+    {% endif %}
+  </div>
+
+  <div class="stack">
+      {% if problems %}
+        <section class="card card-attention stack">
+          <div class="card-head"><div><h2>{% translate "Needs you" %}</h2><p class="sub">{% translate "Only problems appear here. Deal with them and press Done." %}</p></div></div>
+          {% for p in problems %}
+            <div class="problem">
+              <span class="avatar">{% if p.member %}{{ p.member.full_name|initials }}{% elif p.employee %}{{ p.employee.full_name|initials }}{% else %}?{% endif %}</span>
+              <div class="grow">
+                <div class="row"><span class="strong">{% if p.member %}{{ p.member.full_name }}{% elif p.employee %}{{ p.employee.full_name }} · {{ p.employee.company.name }}{% else %}{% translate "Card not recognised" %}{% endif %}</span>
+                  <span class="badge {% if p.kind == 'unknown' or p.kind == 'pin_locked' %}badge-warn{% else %}badge-danger{% endif %}">{{ p.get_kind_display }}</span></div>
+                <div class="small muted">{% blocktranslate with t=p.created_at|time:"H:i" %}At the tablet, {{ t }}{% endblocktranslate %}{% if p.detail %} · {{ p.detail }}{% endif %}</div>
+              </div>
+              <div class="row">
+                {% if p.member and role_is_front_desk %}<a class="btn btn-small btn-primary" href="{% url 'billing:sell' p.member.public_id %}">{% translate "Renew" %}</a>{% endif %}
+                {% if p.kind == 'unknown' and role_is_front_desk %}<a class="btn btn-small" href="{% url 'members:member_register' %}">{% translate "Register as new member" %}</a>{% endif %}
+                <form method="post" action="{% url 'frontdesk:problem_done' p.public_id %}" class="inline-form">{% csrf_token %}<button type="submit" class="btn btn-small">{% icon "check" 16 %}{% translate "Done" %}</button></form>
+              </div>
+            </div>
+          {% endfor %}
+        </section>
+      {% endif %}
+
+      <section class="card stack">
+        <div class="card-head"><div><h2>{% translate "Arriving now" %}</h2><p class="sub">{% translate "Members and company staff together, newest first." %}</p></div>
+          {% if corporate_on %}<a class="small strong" href="{% url 'corporate:visit_list' %}">{% translate "Company visits" %}</a>{% endif %}</div>
+        {% if arrivals %}
+          <ul class="feed">
+            {% for a in arrivals %}
+              <li><span class="time">{{ a.at|time:"H:i" }}</span><span class="tick">{% icon "check" 14 %}</span><div class="grow"><span class="strong">{{ a.name }}</span> <span class="small muted">· {{ a.detail }}</span></div><span class="tag">{{ a.via }}</span></li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted">{% translate "Nobody yet today." %}</p>
+        {% endif %}
+      </section>
+    </div>
+
+
+  </div>
+</div>

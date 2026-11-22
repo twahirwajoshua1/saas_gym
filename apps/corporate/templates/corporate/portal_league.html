@@ -1,0 +1,11 @@
+{% extends "layouts/company.html" %}
+{% load i18n %}
+{% block title %}{% translate "League" %}{% endblock %}
+{% block content %}
+  <div class="page-head"><div><h1>{% translate "Company league" %} · {{ today|date:"F" }}</h1>
+    <p class="sub">{% blocktranslate %}The share of each company's listed staff who came at least {{ minimum }} times this month, at any gym. Small companies can beat big ones. Only names and percentages are shown, never people or money.{% endblocktranslate %}</p></div></div>
+  <div class="two-col">
+    <section class="card stack"><h2>{% translate "Companies" %}</h2>{% include "corporate/_league_rows.html" %}</section>
+    <section class="card stack"><h2>{% translate "Your departments" %}</h2>{% include "corporate/_department_rows.html" %}</section>
+  </div>
+{% endblock %}

@@ -10,15 +10,19 @@ def _nav_section(request) -> str:
         return ""
     if match.app_name == "corporate":
         return "companies"
-    if match.app_name == "modules":
-        return "applications"
+    if match.app_name == "frontdesk":
+        return "settings" if match.url_name.startswith("tablet") else "checkin"
+    if match.url_name == "settings":
+        return "settings"
+    if match.url_name == "member_register":
+        return "register"
+    if match.url_name == "my_shift":
+        return "shift"
     name = match.url_name or ""
     if match.app_name == "memberapp":
         return "member"
-    if match.app_name == "team":
-        return "staff"
-    if match.app_name == "spreadsheets":
-        return "spreadsheets"
+    if match.app_name in ("team", "spreadsheets", "modules"):
+        return "settings"
     if match.app_name == "dashboard":
         return "renewals" if name == "renewals" else "overview"
     if match.app_name == "attendance":
@@ -26,11 +30,10 @@ def _nav_section(request) -> str:
     if match.app_name == "billing":
         # Selling and a member's account are reached from the member's page.
         return "member" if name in ("sell", "member_account") else "payment"
-    if name.startswith("service"):
-        return "package"
-    for prefix in ("member", "package", "branch", "activity"):
-        if name.startswith(prefix):
-            return prefix
+    if name.startswith(("service", "package", "branch", "activity")):
+        return "settings"
+    if name.startswith("member"):
+        return "member"
     return "overview"
 
 

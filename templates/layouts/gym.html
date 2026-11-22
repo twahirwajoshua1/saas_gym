@@ -1,50 +1,62 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n icons money %}
 {% comment %}
-  The layout for every page inside a gym: the menu on the left (on top on a
-  phone) and the page on the right. Menu items depend on the person's role.
+  Every page inside a gym: the menu on the left (on top on a phone) and the
+  page on the right. There are two menus:
+    * the owner's (owner and branch manager): the business;
+    * the desk's (receptionist, sales, trainer): only the daily jobs.
 {% endcomment %}
 {% block body %}
   <div class="shell">
     <header class="sidebar">
       <div class="sidebar-head">
+        <span class="logo">{{ gym.name|initials }}</span>
         <div>
           <span class="brand-name">{{ gym.name }}</span>
-          <span class="brand-sub">{{ assignment.get_role_display }}</span>
+          <span class="brand-sub">{% if assignment.branch %}{{ assignment.branch.name }}{% else %}{{ assignment.get_role_display }}{% endif %}</span>
         </div>
       </div>
       <nav class="nav" aria-label="{% translate 'Main menu' %}">
-        <a href="{% url 'gyms:home' %}" {% if nav_section == 'overview' %}class="is-current" aria-current="page"{% endif %}>{% translate "Overview" %}</a>
-        {% if role_can_check_in and 'attendance_access' in modules_on %}
-          <a href="{% url 'attendance:home' %}" {% if nav_section == 'checkin' %}class="is-current" aria-current="page"{% endif %}>{% translate "Check-in" %}</a>
-        {% endif %}
-        {% if role_can_check_in and 'corporate_wellness' in modules_on %}
-          <a href="{% url 'corporate:gym_home' %}" {% if nav_section == 'companies' %}class="is-current" aria-current="page"{% endif %}>{% translate "Companies" %}</a>
-        {% endif %}
-        {% if role_is_front_desk %}
-          <a href="{% url 'members:member_list' %}" {% if nav_section == 'member' %}class="is-current" aria-current="page"{% endif %}>{% translate "Members" %}</a>
-          {% if 'payments_finance' in modules_on %}
-            <a href="{% url 'billing:payments_home' %}" {% if nav_section == 'payment' %}class="is-current" aria-current="page"{% endif %}>{% translate "Payments" %}</a>
-          {% endif %}
-          <a href="{% url 'dashboard:renewals' %}" {% if nav_section == 'renewals' %}class="is-current" aria-current="page"{% endif %}>{% translate "Renewals" %}</a>
-          <a href="{% url 'members:package_list' %}" {% if nav_section == 'package' %}class="is-current" aria-current="page"{% endif %}>{% translate "Packages & services" %}</a>
-        {% endif %}
         {% if role_is_manager %}
-          <a href="{% url 'spreadsheets:home' %}" {% if nav_section == 'spreadsheets' %}class="is-current" aria-current="page"{% endif %}>{% translate "Import & export" %}</a>
-          <a href="{% url 'gyms:branch_list' %}" {% if nav_section == 'branch' %}class="is-current" aria-current="page"{% endif %}>{% translate "Branches" %}</a>
-          <a href="{% url 'modules:list' %}" {% if nav_section == 'applications' %}class="is-current" aria-current="page"{% endif %}>{% translate "Applications" %}</a>
-        {% endif %}
-        {% if role_is_owner %}
-          <a href="{% url 'team:staff_list' %}" {% if nav_section == 'staff' %}class="is-current" aria-current="page"{% endif %}>{% translate "Staff" %}</a>
-          <a href="{% url 'gyms:activity' %}" {% if nav_section == 'activity' %}class="is-current" aria-current="page"{% endif %}>{% translate "Activity" %}</a>
+          <a href="{% url 'gyms:home' %}" {% if nav_section == 'overview' %}class="is-current" aria-current="page"{% endif %}>{% icon "home" %}{% translate "Today" %}</a>
+          {% if 'attendance_access' in modules_on %}
+            <a href="{% url 'frontdesk:desk' %}" {% if nav_section == 'checkin' %}class="is-current" aria-current="page"{% endif %}>{% icon "scan" %}{% translate "Desk" %}</a>
+          {% endif %}
+          <a href="{% url 'members:member_list' %}" {% if nav_section == 'member' or nav_section == 'register' %}class="is-current" aria-current="page"{% endif %}>{% icon "users" %}{% translate "Members" %}</a>
+          {% if 'corporate_wellness' in modules_on %}
+            <a href="{% url 'corporate:gym_home' %}" {% if nav_section == 'companies' %}class="is-current" aria-current="page"{% endif %}>{% icon "building" %}{% translate "Companies" %}</a>
+          {% endif %}
+          {% if 'payments_finance' in modules_on %}
+            <a href="{% url 'billing:payments_home' %}" {% if nav_section == 'payment' %}class="is-current" aria-current="page"{% endif %}>{% icon "wallet" %}{% translate "Money" %}</a>
+          {% endif %}
+          <a href="{% url 'dashboard:renewals' %}" {% if nav_section == 'renewals' %}class="is-current" aria-current="page"{% endif %}>{% icon "refresh" %}{% translate "Renewals" %}</a>
+          <a href="{% url 'gyms:settings' %}" {% if nav_section == 'settings' %}class="is-current" aria-current="page"{% endif %}>{% icon "settings" %}{% translate "Settings" %}</a>
+        {% else %}
+          {% if 'attendance_access' in modules_on and role_can_check_in %}
+            <a href="{% url 'frontdesk:desk' %}" {% if nav_section == 'checkin' %}class="is-current" aria-current="page"{% endif %}>{% icon "scan" %}{% translate "Desk" %}</a>
+          {% endif %}
+          {% if role_is_front_desk %}
+            <a href="{% url 'members:member_register' %}" {% if nav_section == 'register' %}class="is-current" aria-current="page"{% endif %}>{% icon "plus" %}{% translate "Register member" %}</a>
+            <a href="{% url 'members:member_list' %}" {% if nav_section == 'member' %}class="is-current" aria-current="page"{% endif %}>{% icon "refresh" %}{% translate "Sell or renew" %}</a>
+          {% endif %}
+          {% if 'corporate_wellness' in modules_on and role_can_check_in %}
+            <a href="{% url 'corporate:visit_list' %}" {% if nav_section == 'companies' %}class="is-current" aria-current="page"{% endif %}>{% icon "building" %}{% translate "Company visits" %}</a>
+          {% endif %}
+          {% if role_is_front_desk and 'payments_finance' in modules_on %}
+            <a href="{% url 'billing:my_shift' %}" {% if nav_section == 'shift' %}class="is-current" aria-current="page"{% endif %}>{% icon "wallet" %}{% translate "My shift" %}</a>
+          {% endif %}
         {% endif %}
       </nav>
       <div class="sidebar-foot">
-        <span>{{ user.person.full_name }} · <a href="{% url 'accounts:password_change' %}">{% translate "Password" %}</a></span>
-        <form method="post" action="{% url 'accounts:logout' %}">
-          {% csrf_token %}
-          <button type="submit" class="link-button">{% translate "Sign out" %}</button>
-        </form>
+        <div class="who"><span class="avatar">{{ user.person.full_name|initials }}</span><span><span style="display:block;font-weight:600">{{ user.person.full_name }}</span><span class="small" style="color:#9aa3b5">{{ assignment.get_role_display }}</span></span></div>
+        <div class="row">
+          <a href="{% url 'accounts:password_change' %}">{% translate "Password" %}</a>
+          <span aria-hidden="true">·</span>
+          <form method="post" action="{% url 'accounts:logout' %}" class="inline-form">
+            {% csrf_token %}
+            <button type="submit" class="link-button">{% translate "Sign out" %}</button>
+          </form>
+        </div>
       </div>
     </header>
     <main class="content stack-lg">

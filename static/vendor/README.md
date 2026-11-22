@@ -12,3 +12,8 @@ detection (Windows, iPhone). The check-in page loads it only when needed.
 
 To update htmx, replace the file with `dist/htmx.min.js` from the new release
 and change the version here.
+| `fonts/inter-*.woff2` | Inter (Fontsource variable) | 5.3.0 | SIL Open Font License 1.1 |
+| `fonts/inter-tight-*.woff2` | Inter Tight (Fontsource variable) | 5.3.0 | SIL Open Font License 1.1 |
+
+The fonts are served from our own server (not Google), so pages load in
+Rwanda without calling another company and nobody's address is shared.

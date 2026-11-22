@@ -199,6 +199,41 @@ def check_in(
     )
 
 
+def self_check_in(*, gym: Gym, branch: Branch, member: Member) -> tuple[CheckIn, bool]:
+    """
+    A member scanned their own card at the entrance tablet of `branch`.
+
+    The caller has already checked that the request comes from a tablet
+    connected to this gym. The same rules apply as at the desk.
+    """
+    _require_attendance(gym)
+    if member.gym_id != gym.id or branch.gym_id != gym.id:
+        raise PermissionDenied("That member belongs to a different gym.")
+    assessment = assess(member)
+    if not assessment.allowed:
+        raise NotAllowedIn(assessment)
+    return CheckIn.objects.get_or_create(
+        gym=gym,
+        member=member,
+        checked_in_on=timezone.localdate(),
+        defaults={
+            "branch": branch,
+            "membership": assessment.membership,
+            "method": CheckInMethod.TABLET,
+            "admitted_by": None,
+        },
+    )
+
+
+def visit_days(member: Member, since: date) -> list[date]:
+    """The days a member came in since a day: what their streak is made of."""
+    return list(
+        CheckIn.objects.filter(member=member, checked_in_on__gte=since).values_list(
+            "checked_in_on", flat=True
+        )
+    )
+
+
 def check_ins_on(gym: Gym, day: date):
     """Everyone who came in on a day, most recent first."""
     return (

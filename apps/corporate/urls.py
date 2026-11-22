@@ -88,5 +88,6 @@ urlpatterns = [
         name="portal_warning_accept",
     ),
     path("company/bills/", portal.bill_list, name="portal_bills"),
+    path("company/league/", portal.league, name="portal_league"),
     path("company/bills/<uuid:public_id>/", portal.bill_detail, name="portal_bill_detail"),
 ]

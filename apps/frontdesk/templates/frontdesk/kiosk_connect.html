@@ -1,0 +1,17 @@
+{% extends "frontdesk/kiosk_base.html" %}
+{% load i18n icons %}
+{% block title %}{% translate "Connect this tablet" %}{% endblock %}
+{% block body %}
+  <main class="kiosk" style="align-items:center;justify-content:center;padding:24px">
+    <form method="post" action="{% url 'frontdesk:kiosk_connect' %}" class="stack" style="max-width:520px;width:100%">
+      {% csrf_token %}
+      <div class="kiosk-title">{% translate "Connect this tablet" %}</div>
+      <p class="kiosk-text">{% translate "Type the 6-digit code shown to the gym owner under Settings → Entrance tablets." %}</p>
+      {% if error %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endif %}
+      <label class="visually-hidden" for="code">{% translate "Code" %}</label>
+      <input id="code" name="code" inputmode="numeric" autocomplete="off" maxlength="6" autofocus
+             style="font:inherit;font-size:2.4rem;letter-spacing:.3em;text-align:center;min-height:80px;border-radius:14px;border:2px solid #3a4458;background:#151b27;color:#fff">
+      <button type="submit" class="btn btn-primary btn-big">{% translate "Connect" %}</button>
+    </form>
+  </main>
+{% endblock %}

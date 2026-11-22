@@ -12,6 +12,8 @@ extend-exclude = [".venv"]
 select = ["E", "F", "I", "B", "UP", "DJ"]
 
 [tool.ruff.lint.per-file-ignores]
+# Icon drawings are long single lines of SVG paths.
+"apps/core/templatetags/icons.py" = ["E501"]
 # Migrations are written by Django; we do not reformat their long lines.
 "*/migrations/*.py" = ["E501"]
 
@@ -29,6 +31,7 @@ type = "layers"
 layers = [
     "apps.sampledata",
     "apps.dashboard | apps.spreadsheets | apps.memberapp | apps.platformadmin",
+    "apps.frontdesk",
     "apps.corporate",
     "apps.attendance",
     "apps.billing",

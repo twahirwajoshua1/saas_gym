@@ -44,6 +44,7 @@
       {% elif result.allowed %}
         <form method="post" action="{% url 'attendance:check_in' result.member.public_id %}" class="grow">
           {% csrf_token %}
+          {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
           <button type="submit" class="btn btn-primary btn-big btn-block">{% translate "Check in" %}</button>
         </form>
       {% endif %}

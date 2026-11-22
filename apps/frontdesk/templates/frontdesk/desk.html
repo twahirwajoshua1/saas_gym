@@ -1,0 +1,59 @@
+{% extends "layouts/gym.html" %}
+{% load i18n icons money static %}
+{% block title %}{% translate "Desk" %} · {{ gym.name }}{% endblock %}
+{% block scripts %}<script src="{% static 'js/scanner.js' %}" defer></script>{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Desk" %}</h1>
+      <p class="sub">{% if branch %}{{ branch.name }} · {% endif %}{{ today|date:"l j F" }}</p>
+    </div>
+    <div class="actions">
+      {% if tablets %}
+        {% for t in tablets %}<span class="badge {% if t.is_connected %}badge-on{% else %}badge-off{% endif %}">{{ t.name }}{% if not t.is_connected %}: {% translate "not connected" %}{% endif %}</span>{% endfor %}
+      {% endif %}
+      {% if branches|length > 1 %}
+        <form method="post" action="{% url 'attendance:set_branch' %}" class="row">
+          {% csrf_token %}<input type="hidden" name="next" value="{% url 'frontdesk:desk' %}">
+          <label class="visually-hidden" for="desk-branch">{% translate "This desk's branch" %}</label>
+          <select id="desk-branch" name="branch" class="select-inline" onchange="this.form.submit()">
+            {% if not branch %}<option value="">{% translate "Choose this desk's branch" %}</option>{% endif %}
+            {% for b in branches %}<option value="{{ b.public_id }}" {% if b == branch %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
+          </select>
+          <noscript><button type="submit" class="btn btn-small">{% translate "Set" %}</button></noscript>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="side-by-side">
+    <div class="main-col" id="desk-live" hx-get="{% url 'frontdesk:desk' %}" hx-trigger="every 15s" hx-swap="innerHTML">
+      {% include "frontdesk/_desk_live.html" %}
+    </div>
+    <aside class="side-col">
+      <section class="card stack">
+        <h2>{% translate "Find someone" %}</h2>
+        <form method="get" action="{% url 'attendance:home' %}" class="search search-big" role="search" style="max-width:none" onsubmit="return false">
+          <label class="visually-hidden" for="checkin-search">{% translate "Name, phone or card" %}</label>
+          <input id="checkin-search" type="search" name="q" autocomplete="off" placeholder="{% translate 'Name, phone or card' %}"
+                 {% if corporate_on %}data-company-desk="{% url 'corporate:desk' %}"{% endif %}
+                 hx-get="{% url 'attendance:home' %}?next={% url 'frontdesk:desk' %}" hx-trigger="input changed delay:300ms, search" hx-target="#desk-results" hx-sync="this:replace">
+        </form>
+        <button type="button" class="btn btn-block" id="scan-start" data-jsqr="{% static 'vendor/jsQR.js' %}" data-error="{% translate 'The camera could not be opened' %}" hidden>{% icon "camera" %}{% translate "Scan with this computer's camera" %}</button>
+        <div class="scan-area stack" id="scan-area" hidden><video id="scan-video" playsinline muted></video><div><button type="button" class="btn btn-small" id="scan-stop">{% translate "Stop camera" %}</button></div></div>
+        {% if corporate_on %}<a class="small" href="{% url 'corporate:desk' %}">{% translate "Company staff without their phone: search here" %}</a>{% endif %}
+        <div id="desk-results" class="stack"></div>
+      </section>
+      {% if shift %}
+        <section class="card stack">
+          <div class="spread"><h2>{% translate "My shift" %}</h2><span class="small muted">{{ shift.started_at|time:"H:i" }} – {% translate "now" %}</span></div>
+          <div class="shift-line"><span class="muted">{% translate "Cash" %}</span><span class="num strong">{{ shift.cash_rwf|thousands }}</span></div>
+          <div class="shift-line"><span class="muted">MTN MoMo</span><span class="num">{{ shift.mtn_rwf|thousands }}</span></div>
+          <div class="shift-line"><span class="muted">Airtel Money</span><span class="num">{{ shift.airtel_rwf|thousands }}</span></div>
+          <div class="shift-line"><span class="muted">{% translate "Sales" %}</span><span class="num">{{ shift.sales }}</span></div>
+          <a class="btn btn-primary btn-block" href="{% url 'billing:my_shift' %}">{% translate "Close shift and hand over" %}</a>
+        </section>
+      {% endif %}
+    </aside>
+  </div>
+{% endblock %}

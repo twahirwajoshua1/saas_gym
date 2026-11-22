@@ -26,7 +26,7 @@ from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.exceptions import PermissionDenied
 from django.db import connection, transaction
-from django.db.models import Exists, OuterRef, Q, Sum
+from django.db.models import Count, Exists, OuterRef, Q, Sum
 from django.utils import timezone
 
 from apps.accounts import services as account_services
@@ -829,9 +829,9 @@ class PinLocked(Exception):
     """Too many wrong PINs at this gym; try again later."""
 
 
-def _check_pin(by: StaffAssignment, employee: Employee, pin: str) -> bool:
+def _check_pin(gym: Gym, employee: Employee, pin: str) -> bool:
     since = timezone.now() - PIN_LOCK
-    recent = PinAttempt.objects.for_gym(by.gym).filter(employee=employee, at__gte=since)
+    recent = PinAttempt.objects.for_gym(gym).filter(employee=employee, at__gte=since)
     last_success = recent.filter(succeeded=True).order_by("-at").values("at").first()
     failures = recent.filter(succeeded=False)
     if last_success:
@@ -839,7 +839,7 @@ def _check_pin(by: StaffAssignment, employee: Employee, pin: str) -> bool:
     if failures.count() >= PIN_MAX_FAILURES:
         raise PinLocked()
     ok = bool(employee.pin_hash) and check_password(pin, employee.pin_hash)
-    PinAttempt.objects.create(gym=by.gym, employee=employee, succeeded=ok)
+    PinAttempt.objects.create(gym=gym, employee=employee, succeeded=ok)
     return ok
 
 
@@ -860,57 +860,119 @@ def check_in_employee(
     pin: str = "",
 ) -> DeskResult:
     """
-    Record a company employee's visit and the services they use. Calling it
-    again the same day adds services to the same visit.
+    Reception records a company employee's visit and the services they use.
+    Calling it again the same day adds services to the same visit.
 
     The first check-in of the day needs proof it is really the employee: the
-    fresh code from the card on their phone, or their PIN.
+    fresh code from the card on their phone, or their PIN. That proof is the
+    employee's signature: the visit is confirmed there and then.
     """
     require_role(by, CHECK_IN_ROLES)
     _require_module(by.gym)
     pin_ok = False
     if pin:
         # Checked (and the attempt saved) on its own, so a wrong PIN still counts.
-        pin_ok = _check_pin(by, employee, pin)
+        pin_ok = _check_pin(by.gym, employee, pin)
         if not pin_ok:
             raise InvalidDetails("pin", "wrong")
-    return _check_in(
-        by=by,
+    visit = (
+        CorporateVisit.objects.for_gym(by.gym)
+        .filter(employee=employee, checked_in_on=timezone.localdate())
+        .first()
+    )
+    return _record_visit(
+        gym=by.gym,
+        branch=visit.branch if visit is not None else desk_branch(by, branch),
         employee=employee,
         service_ids=service_ids,
-        branch=branch,
+        person=by.person,
         phone_code_ok=phone_code_ok,
         pin_ok=pin_ok,
+        method=None,
     )
 
 
-@transaction.atomic
-def _check_in(
+def self_check_in_employee(
     *,
-    by: StaffAssignment,
+    gym: Gym,
+    branch: Branch,
     employee: Employee,
     service_ids: list[int],
-    branch: Branch | None,
+    phone_code_ok: bool = False,
+    pin: str = "",
+) -> DeskResult:
+    """
+    A company employee checks themselves in at the entrance tablet of `branch`.
+    The caller has already checked the request comes from a connected tablet.
+    """
+    _require_module(gym)
+    if branch.gym_id != gym.id:
+        raise PermissionDenied("That branch belongs to a different gym.")
+    pin_ok = False
+    if pin:
+        pin_ok = _check_pin(gym, employee, pin)
+        if not pin_ok:
+            raise InvalidDetails("pin", "wrong")
+    visit = (
+        CorporateVisit.objects.for_gym(gym)
+        .filter(employee=employee, checked_in_on=timezone.localdate())
+        .first()
+    )
+    return _record_visit(
+        gym=gym,
+        branch=visit.branch if visit is not None else branch,
+        employee=employee,
+        service_ids=service_ids,
+        person=None,
+        phone_code_ok=phone_code_ok,
+        pin_ok=pin_ok,
+        method=VisitMethod.TABLET,
+    )
+
+
+def check_employee(gym: Gym, employee: Employee, branch: Branch) -> list[dict]:
+    """
+    Before a check-in: the services this employee's contract covers at this
+    branch today, with prices. Raises InvalidDetails when they cannot come in.
+    """
+    if not employee.is_active:
+        raise InvalidDetails("employee", "removed")
+    contract = running_contract(gym, employee.company_id, timezone.localdate())
+    if contract is None:
+        raise InvalidDetails("employee", "no_contract")
+    prices = prices_for(contract)
+    return [
+        {"service": service, "price": prices[(service.id, branch.id)]}
+        for service in Service.objects.for_gym(gym).filter(is_active=True)
+        if (service.id, branch.id) in prices
+    ]
+
+
+@transaction.atomic
+def _record_visit(
+    *,
+    gym: Gym,
+    branch: Branch,
+    employee: Employee,
+    service_ids: list[int],
+    person: Person | None,
     phone_code_ok: bool,
     pin_ok: bool,
+    method: str | None,
 ) -> DeskResult:
     if not employee.is_active:
         raise InvalidDetails("employee", "removed")
     today = timezone.localdate()
-    contract = running_contract(by.gym, employee.company_id, today)
+    contract = running_contract(gym, employee.company_id, today)
     if contract is None:
         raise InvalidDetails("employee", "no_contract")
     visit = (
-        CorporateVisit.objects.for_gym(by.gym)
-        .filter(employee=employee, checked_in_on=today)
-        .first()
+        CorporateVisit.objects.for_gym(gym).filter(employee=employee, checked_in_on=today).first()
     )
-    # A second check-in the same day adds to the first visit, at its branch.
-    branch = visit.branch if visit is not None else desk_branch(by, branch)
     if not service_ids:
         raise InvalidDetails("services", "required")
     prices = prices_for(visit.contract if visit is not None else contract)
-    services = {s.id: s for s in Service.objects.for_gym(by.gym).filter(id__in=service_ids)}
+    services = {s.id: s for s in Service.objects.for_gym(gym).filter(id__in=service_ids)}
     for service_id in service_ids:
         if service_id not in services or (service_id, branch.id) not in prices:
             raise InvalidDetails("services", "not_covered")
@@ -920,24 +982,25 @@ def _check_in(
     warned = False
     if visit is None:
         visit = CorporateVisit.objects.create(
-            gym=by.gym,
+            gym=gym,
             company_id=employee.company_id,
             contract=contract,
             employee=employee,
             branch=branch,
             checked_in_on=today,
-            method=VisitMethod.PIN if pin_ok else VisitMethod.PHONE,
-            admitted_by=by.person,
-            confirmed_at=timezone.now() if pin_ok else None,
+            method=method or (VisitMethod.PIN if pin_ok else VisitMethod.PHONE),
+            admitted_by=person,
+            # The scan of the phone card (or the PIN) is the signature.
+            confirmed_at=timezone.now(),
         )
         with connection.cursor() as cursor:
             cursor.execute(
                 "SELECT corporate_visited_elsewhere(%s, %s, %s, %s)",
-                [employee.pk, by.gym_id, branch.pk, timezone.now() - TWO_PLACES_WINDOW],
+                [employee.pk, gym.id, branch.pk, timezone.now() - TWO_PLACES_WINDOW],
             )
             if cursor.fetchone()[0]:
                 Flag.objects.create(
-                    gym=by.gym,
+                    gym=gym,
                     visit=visit,
                     company_id=employee.company_id,
                     kind=FlagKind.TWO_PLACES,
@@ -957,29 +1020,103 @@ def _check_in(
         if previous is not None:  # it was cancelled earlier today; bring it back
             previous.cancelled_at, previous.cancelled_by, previous.cancel_reason = None, None, ""
             previous.price_rwf = prices[(service_id, visit.branch_id)]
-            previous.added_at, previous.added_by = timezone.now(), by.person
+            previous.added_at, previous.added_by = timezone.now(), person
             previous.save()
             added.append(previous)
             continue
         added.append(
             VisitActivity.objects.create(
-                gym=by.gym,
+                gym=gym,
                 visit=visit,
                 company_id=employee.company_id,
                 service=service,
                 service_name=service.name,
                 price_rwf=prices[(service_id, visit.branch_id)],
-                added_by=by.person,
+                added_by=person,
             )
         )
-    if added and visit.confirmed_at and not pin_ok:
-        # Something new was added after the employee confirmed: ask again.
-        visit.confirmed_at = None
-        visit.save(update_fields=["confirmed_at"])
-    elif pin_ok and visit.confirmed_at is None:
-        visit.confirmed_at = timezone.now()
-        visit.save(update_fields=["confirmed_at"])
     return DeskResult(visit=visit, added=added, warned_two_places=warned)
+
+
+def visit_days(employee: Employee, since: date) -> list[date]:
+    """The days an employee came in (at any gym) since a day: their streak."""
+    return list(
+        CorporateVisit.objects.filter(employee=employee, checked_in_on__gte=since).values_list(
+            "checked_in_on", flat=True
+        )
+    )
+
+
+# --- The company league -----------------------------------------------------------
+
+LEAGUE_VISITS = 4
+
+
+@dataclass(frozen=True)
+class LeagueRow:
+    rank: int
+    company_id: int
+    name: str
+    listed: int
+    active: int
+
+    @property
+    def percent(self) -> int:
+        return round(self.active * 100 / self.listed) if self.listed else 0
+
+
+def league(month: date) -> list[LeagueRow]:
+    """
+    This month's league of companies taking part: the share of each company's
+    listed employees who came at least 4 times (at any gym). Only names and
+    percentages leave the database, never people or money.
+    """
+    start, end = month_bounds(month)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT company_id, name, listed, active FROM corporate_league(%s, %s, %s)",
+            [start, end, LEAGUE_VISITS],
+        )
+        rows = cursor.fetchall()
+    rows = [r for r in rows if r[2] > 0]
+    rows.sort(key=lambda r: (-(r[3] / r[2]), r[1]))
+    return [
+        LeagueRow(rank=i + 1, company_id=r[0], name=r[1], listed=r[2], active=r[3])
+        for i, r in enumerate(rows)
+    ]
+
+
+def league_place(company_id: int, month: date) -> tuple[LeagueRow | None, list[LeagueRow]]:
+    rows = league(month)
+    mine = next((r for r in rows if r.company_id == company_id), None)
+    return mine, rows
+
+
+def department_league(company: Company, month: date) -> list[dict]:
+    """Inside one company: the share of each department who came 4+ times."""
+    start, end = month_bounds(month)
+    employees = Employee.objects.filter(company=company, is_active=True)
+    counts = dict(
+        CorporateVisit.objects.filter(company=company, checked_in_on__range=(start, end))
+        .values("employee_id")
+        .annotate(n=Count("id"))
+        .values_list("employee_id", "n")
+    )
+    groups: dict[str, list[int]] = {}
+    for employee in employees:
+        name = employee.department or "No department"
+        groups.setdefault(name, []).append(counts.get(employee.pk, 0))
+    result = [
+        {
+            "name": name,
+            "listed": len(visits),
+            "active": sum(1 for v in visits if v >= LEAGUE_VISITS),
+        }
+        for name, visits in groups.items()
+    ]
+    for row in result:
+        row["percent"] = round(row["active"] * 100 / row["listed"]) if row["listed"] else 0
+    return sorted(result, key=lambda r: (-r["percent"], r["name"]))
 
 
 @transaction.atomic
@@ -1427,3 +1564,88 @@ def month_so_far(company: Company, today: date | None = None) -> list[dict]:
 
 def checked_in_at_local(visit: CorporateVisit) -> datetime:
     return timezone.localtime(visit.checked_in_at)
+
+
+# --- The company's month at a glance ---------------------------------------------------
+
+
+@dataclass
+class GymMonthRow:
+    gym_id: int
+    gym_name: str
+    cells: dict  # service name -> {"count", "amount"}
+    total_rwf: int
+    owed_rwf: int
+    owed_note: str
+
+
+def company_month(company: Company, month: date) -> dict:
+    """
+    For the logistics officer: this month's services at each gym, as
+    "visits x price", and what is still owed to each gym on issued bills.
+    """
+    start, end = month_bounds(month)
+    rows = (
+        VisitActivity.objects.filter(
+            company=company,
+            cancelled_at__isnull=True,
+            visit__checked_in_on__range=(start, end),
+        )
+        .values("gym_id", "gym__name", "service_name")
+        .annotate(count=Count("id"), amount=Sum("price_rwf"))
+    )
+    services: list[str] = []
+    by_gym: dict[int, GymMonthRow] = {}
+    for row in rows:
+        if row["service_name"] not in services:
+            services.append(row["service_name"])
+        entry = by_gym.setdefault(
+            row["gym_id"], GymMonthRow(row["gym_id"], row["gym__name"], {}, 0, 0, "")
+        )
+        entry.cells[row["service_name"]] = {"count": row["count"], "amount": row["amount"]}
+        entry.total_rwf += row["amount"]
+    # Gyms with an approved contract appear even before anyone visits.
+    for contract in Contract.objects.filter(
+        company=company, status=ContractStatus.APPROVED
+    ).select_related("gym"):
+        by_gym.setdefault(
+            contract.gym_id, GymMonthRow(contract.gym_id, contract.gym.name, {}, 0, 0, "")
+        )
+    for state in bills_for_company(company):
+        if state.owed_rwf <= 0:
+            continue
+        entry = by_gym.setdefault(
+            state.bill.gym_id, GymMonthRow(state.bill.gym_id, state.bill.gym.name, {}, 0, 0, "")
+        )
+        entry.owed_rwf += state.owed_rwf
+        word = "overdue since" if state.overdue else "due"
+        note = f"{state.bill.period_start:%b} bill · {word} {state.bill.due_on:%d %b}"
+        entry.owed_note = note if not entry.owed_note else entry.owed_note + "; " + note
+    preferred = ["Gym", "Sauna", "Massage", "Swimming", "Aerobics"]
+    services.sort(key=lambda n: (preferred.index(n) if n in preferred else 99, n))
+    gyms = sorted(by_gym.values(), key=lambda r: (-r.total_rwf, r.gym_name))
+    totals = {
+        name: {
+            "count": sum(g.cells.get(name, {}).get("count", 0) for g in gyms),
+            "amount": sum(g.cells.get(name, {}).get("amount", 0) for g in gyms),
+        }
+        for name in services
+    }
+    visits = CorporateVisit.objects.filter(company=company, checked_in_on__range=(start, end))
+    listed = Employee.objects.filter(company=company, is_active=True).count()
+    per_employee = (
+        visits.values("employee_id").annotate(n=Count("id")).filter(n__gte=LEAGUE_VISITS).count()
+    )
+    return {
+        "start": start,
+        "end": min(end, timezone.localdate()),
+        "services": services,
+        "gyms": gyms,
+        "totals": totals,
+        "total_rwf": sum(g.total_rwf for g in gyms),
+        "owed_rwf": sum(g.owed_rwf for g in gyms),
+        "visits": visits.count(),
+        "activities": sum(t["count"] for t in totals.values()),
+        "listed": listed,
+        "active": per_employee,
+    }

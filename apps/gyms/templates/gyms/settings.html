@@ -1,0 +1,21 @@
+{% extends "layouts/gym.html" %}
+{% load i18n icons %}
+{% block title %}{% translate "Settings" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <div class="page-head"><div><h1>{% translate "Settings" %}</h1><p class="sub">{% translate "Things you set up once and change rarely." %}</p></div></div>
+  <div class="card-grid">
+    <a class="card card-link" href="{% url 'members:package_list' %}">{% icon "tag" 22 %}<strong>{% translate "Packages & services" %}</strong><span class="small muted">{% translate "Memberships and single sessions, with their prices." %}</span></a>
+    <a class="card card-link" href="{% url 'gyms:branch_list' %}">{% icon "pin" 22 %}<strong>{% translate "Branches" %}</strong><span class="small muted">{% translate "Your locations and their opening details." %}</span></a>
+    {% if role_is_owner %}
+      <a class="card card-link" href="{% url 'team:staff_list' %}">{% icon "users" 22 %}<strong>{% translate "Staff" %}</strong><span class="small muted">{% translate "Who works here, their role, and resetting passwords." %}</span></a>
+    {% endif %}
+    {% if 'attendance_access' in modules_on %}
+      <a class="card card-link" href="{% url 'frontdesk:tablets' %}">{% icon "tablet" 22 %}<strong>{% translate "Entrance tablets" %}</strong><span class="small muted">{% translate "Connect a tablet so people scan themselves in." %}</span></a>
+    {% endif %}
+    <a class="card card-link" href="{% url 'modules:list' %}">{% icon "settings" 22 %}<strong>{% translate "Applications" %}</strong><span class="small muted">{% translate "Switch parts of the system on or off." %}</span></a>
+    <a class="card card-link" href="{% url 'spreadsheets:home' %}">{% icon "upload" 22 %}<strong>{% translate "Import & export" %}</strong><span class="small muted">{% translate "Bring in members from Excel, or take your data out." %}</span></a>
+    {% if role_is_owner %}
+      <a class="card card-link" href="{% url 'gyms:activity' %}">{% icon "clock" 22 %}<strong>{% translate "Activity log" %}</strong><span class="small muted">{% translate "Everything that happened, who did it and when." %}</span></a>
+    {% endif %}
+  </div>
+{% endblock %}

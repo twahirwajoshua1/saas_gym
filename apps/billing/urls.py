@@ -6,6 +6,7 @@ app_name = "billing"
 
 urlpatterns = [
     path("payments/", views.payments_home, name="payments_home"),
+    path("my-shift/", views.my_shift, name="my_shift"),
     path("payments/<uuid:public_id>/receipt/", views.receipt, name="receipt"),
     path("payments/<uuid:public_id>/reverse/", views.reverse_payment, name="payment_reverse"),
     path("invoices/<uuid:public_id>/pay/", views.record_payment, name="payment_record"),

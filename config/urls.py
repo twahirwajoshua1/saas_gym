@@ -15,6 +15,7 @@ urlpatterns = [
     path("gym/modules/", include("apps.modules.urls")),
     path("", include("apps.memberapp.urls")),
     path("", include("apps.corporate.urls")),
+    path("", include("apps.frontdesk.urls")),
     path("gym/spreadsheets/", include("apps.spreadsheets.urls")),
     path("gym/staff/", include("apps.team.urls")),
     path("gym/", include("apps.dashboard.urls")),

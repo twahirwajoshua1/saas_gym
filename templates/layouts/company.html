@@ -1,31 +1,34 @@
 {% extends "base.html" %}
-{% load i18n %}
-{% comment %}The layout for the company's logistics officer: the menu and the page.{% endcomment %}
+{% load i18n icons money %}
+{% comment %}The layout for the company's logistics officer: a light menu, so it is clearly a different place.{% endcomment %}
 {% block body %}
   <div class="shell">
-    <header class="sidebar">
+    <header class="sidebar sidebar-light">
       <div class="sidebar-head">
+        <span class="logo">{{ request.company.name|initials }}</span>
         <div>
           <span class="brand-name">{{ request.company.name }}</span>
-          <span class="brand-sub">{% translate "Company wellness" %}</span>
+          <span class="brand-sub">{% translate "Staff wellness" %}</span>
         </div>
       </div>
       {% with name=request.resolver_match.url_name %}
       <nav class="nav" aria-label="{% translate 'Main menu' %}">
-        <a href="{% url 'corporate:portal_home' %}" {% if name == 'portal_home' %}class="is-current" aria-current="page"{% endif %}>{% translate "Overview" %}</a>
-        <a href="{% url 'corporate:employee_list' %}" {% if 'employee' in name %}class="is-current" aria-current="page"{% endif %}>{% translate "Employees" %}</a>
-        <a href="{% url 'corporate:portal_visits' %}" {% if 'visit' in name %}class="is-current" aria-current="page"{% endif %}>{% translate "Visits" %}</a>
-        <a href="{% url 'corporate:portal_warnings' %}" {% if 'warning' in name %}class="is-current" aria-current="page"{% endif %}>{% translate "Warnings" %}</a>
-        <a href="{% url 'corporate:portal_bills' %}" {% if 'bill' in name %}class="is-current" aria-current="page"{% endif %}>{% translate "Bills" %}</a>
-        <a href="{% url 'corporate:portal_contracts' %}" {% if 'contract' in name %}class="is-current" aria-current="page"{% endif %}>{% translate "Gyms and contracts" %}</a>
+        <a href="{% url 'corporate:portal_home' %}" {% if name == 'portal_home' %}class="is-current" aria-current="page"{% endif %}>{% icon "home" %}{% translate "This month" %}</a>
+        <a href="{% url 'corporate:employee_list' %}" {% if 'employee' in name %}class="is-current" aria-current="page"{% endif %}>{% icon "users" %}{% translate "Employees" %}</a>
+        <a href="{% url 'corporate:portal_visits' %}" {% if 'visit' in name %}class="is-current" aria-current="page"{% endif %}>{% icon "clock" %}{% translate "Visits" %}</a>
+        <a href="{% url 'corporate:portal_bills' %}" {% if 'bill' in name %}class="is-current" aria-current="page"{% endif %}>{% icon "receipt" %}{% translate "Bills" %}</a>
+        <a href="{% url 'corporate:portal_league' %}" {% if 'league' in name %}class="is-current" aria-current="page"{% endif %}>{% icon "trophy" %}{% translate "League" %}</a>
+        <a href="{% url 'corporate:portal_warnings' %}" {% if 'warning' in name %}class="is-current" aria-current="page"{% endif %}>{% icon "alert" %}{% translate "Warnings" %}</a>
+        <a href="{% url 'corporate:portal_contracts' %}" {% if 'contract' in name %}class="is-current" aria-current="page"{% endif %}>{% icon "building" %}{% translate "Gyms and contracts" %}</a>
       </nav>
       {% endwith %}
       <div class="sidebar-foot">
-        <span>{{ user.person.full_name }} · <a href="{% url 'accounts:password_change' %}">{% translate "Password" %}</a></span>
-        <form method="post" action="{% url 'accounts:logout' %}">
-          {% csrf_token %}
-          <button type="submit" class="link-button">{% translate "Sign out" %}</button>
-        </form>
+        <div class="who"><span class="avatar">{{ user.person.full_name|initials }}</span><span><span style="display:block;font-weight:600">{{ user.person.full_name }}</span><span class="small muted">{% translate "Logistics officer" %}</span></span></div>
+        <div class="row">
+          <a href="{% url 'accounts:password_change' %}">{% translate "Password" %}</a>
+          <span aria-hidden="true">·</span>
+          <form method="post" action="{% url 'accounts:logout' %}" class="inline-form">{% csrf_token %}<button type="submit" class="link-button">{% translate "Sign out" %}</button></form>
+        </div>
       </div>
     </header>
     <main class="content stack-lg">

@@ -44,6 +44,12 @@ def home(request):
 
 
 @tenancy.gym_required(Role.OWNER, Role.BRANCH_MANAGER)
+def settings_home(request):
+    """One place for everything that is set up once and changed rarely."""
+    return render(request, "gyms/settings.html")
+
+
+@tenancy.gym_required(Role.OWNER, Role.BRANCH_MANAGER)
 def branch_list(request):
     branches = Branch.objects.for_gym(request.gym)
     return render(request, "gyms/branch_list.html", {"branches": branches})

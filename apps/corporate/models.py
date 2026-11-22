@@ -43,6 +43,8 @@ class Company(models.Model):
     code = models.CharField(max_length=12, unique=True)
     tin = models.CharField("TIN", max_length=20, blank=True)
     is_active = models.BooleanField(default=True)
+    # Shown (name and percentage only) in the monthly league of companies.
+    in_league = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -165,6 +167,7 @@ class VisitMethod(models.TextChoices):
     PHONE = "phone", "Card on the employee's phone"
     PIN = "pin", "Printed card or search, with PIN"
     STAFF = "staff", "Found by staff, not yet confirmed"
+    TABLET = "tablet", "Scanned at the entrance tablet"
 
 
 class CorporateVisit(GymOwnedModel):

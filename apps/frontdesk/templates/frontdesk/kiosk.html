@@ -1,0 +1,33 @@
+{% extends "frontdesk/kiosk_base.html" %}
+{% load i18n icons static money %}
+{% block title %}{{ tablet.gym.name }}{% endblock %}
+{% block body %}
+  <main class="kiosk" id="kiosk" data-scan-url="{% url 'frontdesk:kiosk_scan' %}" data-jsqr="{% static 'vendor/jsQR.js' %}">
+    <div class="kiosk-top">
+      <div class="row"><span class="logo" style="width:42px;height:42px;font-size:15px">{{ tablet.gym.name|initials }}</span><div><div class="strong" style="font-size:1.1rem">{{ tablet.gym.name }}</div><div style="color:#9aa3b5">{{ tablet.branch.name }}</div></div></div>
+      <div class="kiosk-clock" id="kiosk-clock">{% now "H:i" %}</div>
+    </div>
+    <div class="kiosk-main">
+      <div class="kiosk-camera">
+        <video id="kiosk-video" playsinline muted></video>
+        <span class="frame" aria-hidden="true"></span>
+        <div id="kiosk-camera-hint" style="text-align:center;color:#afc0e6;position:relative">{% icon "phone" 44 %}<div style="margin-top:10px">{% translate "Hold your phone card here" %}</div></div>
+      </div>
+      <div class="stack-lg">
+        <div class="kiosk-title">{% translate "Scan your card" %}<br>{% translate "and walk in." %}</div>
+        <p class="kiosk-text">{% translate "Open your gym card on your phone and hold it in front of the camera. Members and company staff use the same card." %}</p>
+        <div class="row">
+          <button type="button" class="btn btn-primary" hx-get="{% url 'frontdesk:kiosk_pin' %}" hx-target="#kiosk-overlay">{% translate "No smartphone? Use your PIN" %}</button>
+        </div>
+      </div>
+    </div>
+    {% if league %}
+      <div class="kiosk-foot">
+        <span class="eyebrow">{% translate "Company league" %} · {% now "F" %}</span>
+        {% for row in league %}<span><strong style="color:{% if forloop.first %}#fff{% else %}#afc0e6{% endif %}">{{ row.rank }}</strong> {{ row.name }} <span style="opacity:.7">{{ row.percent }}%</span></span>{% endfor %}
+      </div>
+    {% endif %}
+    <div id="kiosk-overlay" aria-live="polite"></div>
+  </main>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/kiosk.js' %}" defer></script>{% endblock %}

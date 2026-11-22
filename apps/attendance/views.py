@@ -2,7 +2,9 @@
 
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
@@ -42,6 +44,8 @@ def home(request):
         "query": query,
         "results": services.find_for_check_in(request.gym, query),
         "searched": len(query.strip()) >= services.MIN_SEARCH_LENGTH,
+        # The new desk shows these results inside itself and wants them back there.
+        "next": request.GET.get("next", ""),
     }
     # The search box asks for the results on their own (HTMX).
     if request.headers.get("HX-Request"):
@@ -61,6 +65,16 @@ def home(request):
     return render(request, "attendance/home.html", context)
 
 
+def _back(request) -> str:
+    """Where to go after an action: the page that asked (the desk), if it is ours."""
+    target = request.POST.get("next", "")
+    if target and url_has_allowed_host_and_scheme(
+        target, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return target
+    return reverse("attendance:home")
+
+
 @gym_required(*CHECK_IN_ROLES)
 @module_required(ATTENDANCE_ACCESS)
 @require_POST
@@ -68,7 +82,7 @@ def set_branch(request):
     """Remember which branch this desk is at."""
     branch = get_object_or_404(_branches(request), public_id=request.POST.get("branch") or None)
     request.session[SESSION_BRANCH] = str(branch.public_id)
-    return redirect("attendance:home")
+    return redirect(_back(request))
 
 
 @gym_required(*CHECK_IN_ROLES)
@@ -95,7 +109,7 @@ def check_in(request, public_id):
         else:
             text = _("%(name)s was already checked in today at %(time)s.")
         messages.success(request, text % {"name": member.full_name, "time": time})
-    return redirect("attendance:home")
+    return redirect(_back(request))
 
 
 @gym_required(*FRONT_DESK_ROLES)

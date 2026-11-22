@@ -68,11 +68,16 @@ def _month(request):
 @company_required
 def portal_home(request):
     company = request.company
+    today = timezone.localdate()
+    mine, league = services.league_place(company.id, today)
     return render(
         request,
         "corporate/portal_home.html",
         {
-            "so_far": services.month_so_far(company),
+            "month": services.company_month(company, today),
+            "league": league,
+            "league_mine": mine,
+            "departments": services.department_league(company, today)[:6],
             "warnings": services.open_flags_for_company(company)[:10],
             "pending": Contract.objects.filter(
                 company=company, status=ContractStatus.PROPOSED
@@ -420,6 +425,26 @@ def warning_accept(request, public_id):
     services.settle_flag(by=request.officer, flag=flag, note=request.POST.get("note", ""))
     messages.success(request, _("Accepted. The visit will go on the next bill."))
     return redirect("corporate:portal_warnings")
+
+
+# --- League ---------------------------------------------------------------------------
+
+
+@company_required
+def league(request):
+    today = timezone.localdate()
+    mine, rows = services.league_place(request.company.id, today)
+    return render(
+        request,
+        "corporate/portal_league.html",
+        {
+            "rows": rows,
+            "mine": mine,
+            "departments": services.department_league(request.company, today),
+            "today": today,
+            "minimum": services.LEAGUE_VISITS,
+        },
+    )
 
 
 # --- Bills ----------------------------------------------------------------------------

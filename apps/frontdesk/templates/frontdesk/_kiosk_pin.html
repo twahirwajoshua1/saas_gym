@@ -1,0 +1,9 @@
+{% load i18n %}
+<div class="kiosk-layer" data-close-after="45000" style="background:#0b0f17">
+  <form class="stack-lg" style="padding:0 6vw;max-width:640px;width:100%" hx-post="{% url 'frontdesk:kiosk_pin' %}" hx-target="#kiosk-overlay">
+    <div class="kiosk-title" style="font-size:2.4rem">{% translate "Check in with your PIN" %}</div>
+    <div class="field"><label for="pin-phone" style="color:#c4cad6">{% translate "Your phone number" %}</label><input id="pin-phone" name="phone" inputmode="tel" autocomplete="off" required class="kiosk-input" placeholder="078…"></div>
+    <div class="field"><label for="pin-pin" style="color:#c4cad6">{% translate "Your 4-digit PIN" %}</label><input id="pin-pin" name="pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" required class="kiosk-input"></div>
+    <div class="row"><button type="submit" class="btn btn-primary btn-big">{% translate "Continue" %}</button><button type="button" class="btn btn-ghost btn-big" data-close>{% translate "Cancel" %}</button></div>
+  </form>
+</div>

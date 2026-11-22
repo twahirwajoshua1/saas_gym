@@ -1,0 +1,39 @@
+{% load i18n icons %}
+{% if o.kind == "welcome" %}
+  <div class="kiosk-layer kiosk-welcome" data-close-after="3500">
+    <div class="stack-lg" style="padding:0 6vw">
+      <div class="row" style="gap:16px"><span class="kiosk-check">{% icon "check" 36 %}</span><span style="font-size:1.35rem;color:#dce6ff">{% if o.welcome.already %}{% translate "Already in today" %}{% else %}{% translate "You're in" %}{% endif %}{% if o.welcome.what %} · {{ o.welcome.what }}{% endif %}</span></div>
+      <div class="kiosk-hello">{% translate "Murakaza neza" %}, {{ o.welcome.first_name }}!</div>
+      <div class="kiosk-tiles">
+        <div class="kiosk-tile"><div class="label">{% translate "Your streak" %}</div><div class="value">{% blocktranslate count n=o.welcome.streak.weeks %}{{ n }} week{% plural %}{{ n }} weeks{% endblocktranslate %}</div>
+          {% if o.welcome.streak.visits_needed_this_week %}<div class="label">{% blocktranslate count n=o.welcome.streak.visits_needed_this_week %}{{ n }} more visit this week keeps it going{% plural %}{{ n }} more visits this week keep it going{% endblocktranslate %}</div>{% else %}<div class="label">{% translate "This week is done. Well done!" %}</div>{% endif %}</div>
+        <div class="kiosk-tile"><div class="label">{% translate "Level" %}</div><div class="value">{{ o.welcome.streak.level|default:_("Starter") }}</div>
+          {% if o.welcome.streak.next_level %}<div class="label">{% blocktranslate with name=o.welcome.streak.next_level.0 n=o.welcome.streak.next_level.1 %}{{ n }} more weeks to {{ name }}{% endblocktranslate %}</div>{% endif %}</div>
+        {% if o.welcome.company_line %}<div class="kiosk-tile"><div class="label">{% translate "Company league" %}</div><div class="value" style="font-size:1.6rem">{{ o.welcome.company_line }}</div><div class="label">{% translate "Your visit counts!" %}</div></div>{% endif %}
+      </div>
+    </div>
+  </div>
+{% elif o.kind == "choose" %}
+  <div class="kiosk-layer" data-close-after="30000" style="background:#0b0f17">
+    <form class="stack-lg" style="padding:0 6vw;max-width:1000px;width:100%" hx-post="{% url 'frontdesk:kiosk_enter' o.employee.public_id %}" hx-target="#kiosk-overlay">
+      <div class="kiosk-title" style="font-size:2.4rem">{% blocktranslate with name=o.employee.full_name %}Hello {{ name }}, what are you using today?{% endblocktranslate %}</div>
+      <p class="kiosk-text">{{ o.employee.company.name }}</p>
+      {% if o.message %}<p class="notice notice-warn">{{ o.message }}</p>{% endif %}
+      <input type="hidden" name="code" value="{{ o.code }}">
+      {% if pin %}<input type="hidden" name="pin" value="{{ pin }}">{% endif %}
+      <div class="kiosk-tiles">
+        {% for c in o.services %}
+          <label class="kiosk-choice"><input type="checkbox" name="service" value="{{ c.service.public_id }}" {% if forloop.first %}checked{% endif %}><span>{{ c.service.name }}</span></label>
+        {% endfor %}
+      </div>
+      <div class="row"><button type="submit" class="btn btn-primary btn-big">{% translate "Walk in" %}</button><button type="button" class="btn btn-ghost btn-big" data-close>{% translate "Cancel" %}</button></div>
+    </form>
+  </div>
+{% else %}
+  <div class="kiosk-layer kiosk-stop" data-close-after="{% if o.kind == 'old_code' %}4000{% else %}5000{% endif %}">
+    <div class="stack-lg" style="padding:0 6vw;max-width:1000px">
+      <div class="row" style="gap:16px"><span class="kiosk-check" style="color:#7a1f14">{% icon "alert" 34 %}</span></div>
+      <div class="kiosk-title">{{ o.message }}</div>
+    </div>
+  </div>
+{% endif %}

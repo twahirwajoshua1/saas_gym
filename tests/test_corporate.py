@@ -232,10 +232,7 @@ def test_a_fresh_card_from_the_phone_checks_the_employee_in(alpha, officer, empl
         phone_code_ok=True,
     )
     assert sorted(a.price_rwf for a in result.added) == [2500, 4000]  # contract prices
-    assert result.visit.confirmed_at is None  # the employee still confirms on the phone
-
-    corp.confirm_visit(employee=employee, visit=result.visit)
-    result.visit.refresh_from_db()
+    # Scanning the card from the phone is the employee's signature.
     assert result.visit.confirmed_at is not None
 
 
@@ -309,18 +306,17 @@ def test_removed_employees_uncovered_services_and_no_contract_are_refused(alpha,
     assert error.value.reason == "removed"
 
 
-def test_adding_a_service_later_the_same_day_asks_to_confirm_again(alpha, officer, employee):
+def test_adding_a_service_later_the_same_day_adds_to_the_same_visit(alpha, officer, employee):
     _, gym_service, sauna = make_contract(alpha, officer)
     first = corp.check_in_employee(
         by=alpha.assignment, employee=employee, service_ids=[gym_service.id], phone_code_ok=True
     )
-    corp.confirm_visit(employee=employee, visit=first.visit)
     second = corp.check_in_employee(
         by=alpha.assignment, employee=employee, service_ids=[sauna.id, gym_service.id]
     )
     assert second.visit == first.visit and [a.service_name for a in second.added] == ["Sauna"]
     second.visit.refresh_from_db()
-    assert second.visit.confirmed_at is None
+    assert second.visit.confirmed_at is not None
     assert CorporateVisit.objects.count() == 1
 
 

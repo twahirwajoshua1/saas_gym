@@ -116,7 +116,7 @@ def test_the_whole_journey(gym, company, gym_client, officer_client):
     phone = Client()
     card_url = reverse("corporate:card", args=[employee.card_token])
     page = phone.get(card_url)
-    assert page.status_code == 200 and "Company gym card" in page.content.decode()
+    assert page.status_code == 200 and "Company card" in page.content.decode()
     other_phone = Client()
     assert "set up on another phone" in other_phone.get(card_url).content.decode()
 
@@ -133,14 +133,12 @@ def test_the_whole_journey(gym, company, gym_client, officer_client):
     )
     assert response.status_code == 302
     visit = CorporateVisit.objects.get()
-    assert visit.activities.count() == 2 and visit.confirmed_at is None
+    # The scan of the card on the phone is the signature: nothing more to confirm.
+    assert visit.activities.count() == 2 and visit.confirmed_at is not None
 
-    # The employee confirms on their phone.
+    # The employee's card now shows their streak and this visit.
     page = phone.get(card_url).content.decode()
-    assert "Please confirm your visit" in page
-    phone.post(reverse("corporate:card_confirm", args=[employee.card_token, visit.public_id]))
-    visit.refresh_from_db()
-    assert visit.confirmed_at is not None
+    assert "Your streak" in page and "Please confirm" not in page
 
     # The company sees the visit with day, hour and services, and can question it.
     visits = officer_client.get(reverse("corporate:portal_visits")).content.decode()

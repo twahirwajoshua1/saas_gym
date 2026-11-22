@@ -11,6 +11,7 @@ from apps.people.models import Person
 class CheckInMethod(models.TextChoices):
     MANUAL = "manual", "Search at the desk"
     QR = "qr", "QR code"
+    TABLET = "tablet", "Scanned themselves at the entrance tablet"
 
 
 class CheckIn(GymOwnedModel):

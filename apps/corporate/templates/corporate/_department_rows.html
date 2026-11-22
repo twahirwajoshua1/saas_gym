@@ -1,0 +1,10 @@
+{% load i18n %}
+{% if departments %}
+  <div class="stack-sm">
+    {% for d in departments %}
+      <div class="league-row"><span class="name" style="width:150px">{{ d.name }}</span><div class="bar-track"><div class="bar-fill" style="width: {{ d.percent }}%"></div></div><span class="num strong" style="width:44px;text-align:right">{{ d.percent }}%</span></div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="muted">{% translate "Add departments to your employees to compare them." %}</p>
+{% endif %}

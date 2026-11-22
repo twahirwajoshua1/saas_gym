@@ -1,0 +1,10 @@
+{% load i18n %}
+{% if rows %}
+  <div class="stack-sm">
+    {% for row in rows %}
+      <div class="league-row {% if mine and row.company_id == mine.company_id %}is-me{% endif %}"><span class="rank">{{ row.rank }}</span><span class="name">{{ row.name }}</span><div class="bar-track"><div class="bar-fill {% if not mine or row.company_id != mine.company_id %}bar-fill-muted{% endif %}" style="width: {{ row.percent }}%"></div></div><span class="num strong" style="width:44px;text-align:right">{{ row.percent }}%</span></div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="muted">{% translate "The league starts once companies have staff on their lists." %}</p>
+{% endif %}

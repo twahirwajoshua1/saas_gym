@@ -8,16 +8,20 @@ screenshot sent to someone else stops working after about two minutes. The
 employee also confirms each visit here: this replaces signing the paper list.
 """
 
+from datetime import timedelta
+
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from apps.core import tenant_db
+from apps.core import streaks, tenant_db
 from apps.corporate import services
 from apps.corporate.models import CorporateVisit, Employee
 from apps.corporate.portal import qr_svg
 
+STREAK_LOOKBACK = timedelta(weeks=60)
 COOKIE = "gymos_card"
 COOKIE_AGE = 5 * 365 * 24 * 3600
 PRIVATE_HEADERS = {
@@ -62,8 +66,17 @@ def card(request, token):
         context |= {
             "qr": qr_svg(link),
             "code": code,
-            "to_confirm": services.visits_to_confirm(employee),
-            "recent": services.recent_visits(employee),
+            "recent": services.recent_visits(employee, limit=5),
+            "streak": streaks.compute(
+                services.visit_days(employee, timezone.localdate() - STREAK_LOOKBACK),
+                timezone.localdate(),
+            ),
+            "league": services.league_place(employee.company_id, timezone.localdate()),
+            "month_visits": services.visits_for_company(
+                employee.company, *services.month_bounds(timezone.localdate())
+            )
+            .filter(employee=employee)
+            .count(),
         }
     response = _private(render(request, "corporate/card.html", context))
     if new_secret:

@@ -1,0 +1,51 @@
+{% extends "layouts/gym.html" %}
+{% load i18n icons %}
+{% block title %}{% translate "Entrance tablets" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'gyms:settings' %}">{% icon "back" 16 %}{% translate "Settings" %}</a>
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Entrance tablets" %}</h1>
+      <p class="sub">{% translate "A tablet at the entrance lets members and company staff scan themselves in. Reception only deals with problems." %}</p>
+    </div>
+  </div>
+
+  <div class="card stack">
+    <h2>{% translate "Connect a tablet" %}</h2>
+    <ol class="steps">
+      <li>{% translate "Add it here: choose its branch and give it a name." %}</li>
+      <li>{% blocktranslate %}On the tablet, open <strong>{{ tablet_url }}</strong> in Chrome.{% endblocktranslate %}</li>
+      <li>{% translate "Type the 6-digit code shown below (valid 15 minutes)." %}</li>
+      <li>{% translate "Lock the tablet to that page (Android “screen pinning”) and keep it plugged in." %}</li>
+    </ol>
+    <form method="post" class="form-row" style="align-items:end">
+      {% csrf_token %}
+      <div class="field"><label for="t-branch">{% translate "Branch" %}</label><select id="t-branch" name="branch">{% for b in branches %}<option value="{{ b.public_id }}">{{ b.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="t-name">{% translate "Name" %}</label><input id="t-name" name="name" placeholder="{% translate 'Front entrance' %}" maxlength="60"></div>
+      <div class="field"><button type="submit" class="btn btn-primary">{% icon "plus" 16 %}{% translate "Add tablet" %}</button></div>
+    </form>
+  </div>
+
+  <div class="card stack">
+    <h2>{% translate "Your tablets" %}</h2>
+    {% if tablets %}
+      <ul class="item-list">
+        {% for t in tablets %}
+          <li>
+            <div class="item-main">
+              <span class="row"><strong>{{ t.name }}</strong>{% if t.is_connected %}<span class="badge badge-on">{% translate "Connected" %}</span>{% else %}<span class="badge badge-off">{% translate "Not connected" %}</span>{% endif %}</span>
+              <span class="small muted">{{ t.branch.name }}{% if t.last_seen_at %} · {% blocktranslate with w=t.last_seen_at|timesince %}last seen {{ w }} ago{% endblocktranslate %}{% endif %}</span>
+              {% if t.pairing_code and t.pairing_expires_at > now %}<span class="notice notice-info" style="margin-top:6px">{% translate "Code to type on the tablet:" %} <strong style="font-size:1.3rem;letter-spacing:.2em">{{ t.pairing_code }}</strong> <span class="small">({% blocktranslate with t=t.pairing_expires_at|time:"H:i" %}until {{ t }}{% endblocktranslate %})</span></span>{% endif %}
+            </div>
+            <div class="item-actions">
+              <form method="post" action="{% url 'frontdesk:tablet_action' t.public_id %}" class="inline-form">{% csrf_token %}<input type="hidden" name="action" value="code"><button type="submit" class="btn btn-small">{% translate "New code" %}</button></form>
+              {% if t.is_connected %}<form method="post" action="{% url 'frontdesk:tablet_action' t.public_id %}" class="inline-form">{% csrf_token %}<input type="hidden" name="action" value="disconnect"><button type="submit" class="btn btn-small btn-danger">{% translate "Disconnect (lost or stolen)" %}</button></form>{% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">{% translate "No tablets yet." %}</p>
+    {% endif %}
+  </div>
+{% endblock %}

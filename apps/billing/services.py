@@ -8,11 +8,12 @@ either everything is saved, including the ledger and audit lines, or nothing is.
 """
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Count, Sum
+from django.utils import timezone
 
 from apps.audit import services as audit
 from apps.billing.models import (
@@ -25,6 +26,7 @@ from apps.billing.models import (
     PaymentMethod,
     Reversal,
     Sequence,
+    ShiftClose,
 )
 from apps.gyms.models import Gym, StaffAssignment
 from apps.gyms.permissions import FRONT_DESK_ROLES, OWNER_ONLY, require_role
@@ -498,3 +500,124 @@ def balances_for(gym: Gym, member_ids) -> dict[int, int]:
         .annotate(balance=Sum("amount_rwf"))
     )
     return {r["member_id"]: r["balance"] for r in rows if r["balance"] > 0}
+
+
+# --- Shifts: what a receptionist hands over ---------------------------------------
+
+MOBILE_MONEY = (PaymentMethod.MTN_MOMO, PaymentMethod.AIRTEL_MONEY)
+
+
+def _day_start(at=None):
+    local = timezone.localtime(at or timezone.now())
+    return local.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def shift_start(gym: Gym, person) -> datetime:
+    """When the person's current shift began: their last close today, or midnight."""
+    midnight = _day_start()
+    last = (
+        ShiftClose.objects.for_gym(gym)
+        .filter(person=person, closed_at__gte=midnight)
+        .order_by("-closed_at")
+        .values_list("closed_at", flat=True)
+        .first()
+    )
+    return last or midnight
+
+
+@dataclass(frozen=True)
+class ShiftSummary:
+    started_at: datetime
+    cash_rwf: int
+    mtn_rwf: int
+    airtel_rwf: int
+    other_rwf: int
+    payments: int
+    sales: int
+
+    @property
+    def mobile_money_rwf(self) -> int:
+        return self.mtn_rwf + self.airtel_rwf
+
+    @property
+    def total_rwf(self) -> int:
+        return self.cash_rwf + self.mobile_money_rwf + self.other_rwf
+
+
+def shift_summary(gym: Gym, person, since=None) -> ShiftSummary:
+    """Money the person received since the start of their shift (reversed payments left out)."""
+    since = since or shift_start(gym, person)
+    payments = Payment.objects.for_gym(gym).filter(
+        received_by=person, created_at__gte=since, reversal__isnull=True
+    )
+    by_method = dict(
+        payments.values("method").annotate(total=Sum("amount_rwf")).values_list("method", "total")
+    )
+    mtn = by_method.pop(PaymentMethod.MTN_MOMO, 0) or 0
+    airtel = by_method.pop(PaymentMethod.AIRTEL_MONEY, 0) or 0
+    cash = by_method.pop(PaymentMethod.CASH, 0) or 0
+    return ShiftSummary(
+        started_at=since,
+        cash_rwf=cash,
+        mtn_rwf=mtn,
+        airtel_rwf=airtel,
+        other_rwf=sum(v or 0 for v in by_method.values()),
+        payments=payments.count(),
+        sales=Invoice.objects.for_gym(gym).filter(created_by=person, created_at__gte=since).count(),
+    )
+
+
+@transaction.atomic
+def close_shift(*, by: StaffAssignment) -> ShiftClose:
+    """Close the person's shift and record what they hand over."""
+    require_role(by, FRONT_DESK_ROLES)
+    _lock_billing(by.gym)
+    summary = shift_summary(by.gym, by.person)
+    closed = ShiftClose.objects.create(
+        gym=by.gym,
+        person=by.person,
+        started_at=summary.started_at,
+        cash_rwf=summary.cash_rwf,
+        mobile_money_rwf=summary.mobile_money_rwf,
+        other_rwf=summary.other_rwf,
+        payments=summary.payments,
+    )
+    audit.record(
+        action="shift.closed",
+        summary=f"{by.person.full_name} closed their shift: RWF {summary.cash_rwf:,} cash",
+        gym=by.gym,
+        actor=by.person,
+        target=closed,
+        details={"cash_rwf": summary.cash_rwf, "total_rwf": summary.total_rwf},
+    )
+    return closed
+
+
+def cash_by_person_today(gym: Gym) -> list[dict]:
+    """For the owner: cash each person received today, and whether their shift is closed."""
+    midnight = _day_start()
+    rows = (
+        Payment.objects.for_gym(gym)
+        .filter(created_at__gte=midnight, reversal__isnull=True, method=PaymentMethod.CASH)
+        .values("received_by", "received_by__full_name")
+        .annotate(cash=Sum("amount_rwf"))
+    )
+    closes = {}
+    for close in ShiftClose.objects.for_gym(gym).filter(closed_at__gte=midnight):
+        closes.setdefault(close.person_id, close)  # newest first
+    result = []
+    for row in rows:
+        person_id = row["received_by"]
+        last = closes.get(person_id)
+        open_cash = row["cash"] or 0
+        if last is not None:
+            open_cash = shift_summary(gym, last.person, since=last.closed_at).cash_rwf
+        result.append(
+            {
+                "name": row["received_by__full_name"] or "—",
+                "cash_rwf": row["cash"] or 0,
+                "closed_at": last.closed_at if last else None,
+                "open_cash_rwf": open_cash,
+            }
+        )
+    return sorted(result, key=lambda r: -r["cash_rwf"])

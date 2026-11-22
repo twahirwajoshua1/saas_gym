@@ -186,3 +186,27 @@ class LedgerEntry(GymOwnedModel):
     class Meta:
         verbose_name_plural = "ledger entries"
         ordering = ["id"]
+
+
+class ShiftClose(GymOwnedModel):
+    """
+    A receptionist closes their shift: what they received since the last close
+    (or since midnight), by method. The cash part is what they hand over.
+    Permanent, like every money record.
+    """
+
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    person = models.ForeignKey(Person, on_delete=models.PROTECT, related_name="+")
+    started_at = models.DateTimeField()
+    closed_at = models.DateTimeField(default=timezone.now)
+    cash_rwf = models.PositiveIntegerField()
+    mobile_money_rwf = models.PositiveIntegerField()
+    other_rwf = models.PositiveIntegerField()
+    payments = models.PositiveIntegerField()
+
+    class Meta:
+        ordering = ["-closed_at"]
+
+    @property
+    def total_rwf(self) -> int:
+        return self.cash_rwf + self.mobile_money_rwf + self.other_rwf

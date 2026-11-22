@@ -3,36 +3,42 @@
 {% block title %}{{ employee.company.name }} · {{ employee.full_name }}{% endblock %}
 {% block body %}
   {% if status == "this" and employee.is_active %}<meta http-equiv="refresh" content="30">{% endif %}
-  <main class="plain">
+  <main class="plain" style="align-items:flex-start">
     <div class="plain-card stack">
       {% if not employee.is_active %}
         <div class="card stack"><h1>{% translate "This card is no longer valid" %}</h1><p class="muted">{% translate "You are not on your company's gym list any more. Ask your logistics officer." %}</p></div>
       {% elif status == "other" %}
         <div class="card stack"><h1>{% translate "This card is set up on another phone" %}</h1><p class="muted">{% translate "A gym card works on one phone only. If you changed phones, ask your company's logistics officer to allow the new one." %}</p></div>
       {% else %}
-        <div class="member-card member-card-ok">
-          <div class="card-head"><div><strong>{{ employee.company.name }}</strong><p class="small card-dim">{% translate "Company gym card" %}</p></div><span class="badge badge-on">{% translate "Valid" %}</span></div>
-          <div><p class="member-card-name">{{ employee.full_name }}</p><p class="small card-dim">{% translate "No." %} {{ employee.employee_number }}{% if employee.department %} · {{ employee.department }}{% endif %}</p></div>
-          <div class="qr-box" role="img" aria-label="{% translate 'QR code to show at reception' %}">{{ qr|safe }}</div>
-          <p class="small card-dim">{% translate "Show this at reception. The code changes every 30 seconds, so screenshots do not work." %} · {{ code }}</p>
+        <div>
+          <p class="small muted">{{ employee.company.name }} · {% translate "staff wellness" %}</p>
+          <h1>{% translate "Muraho" %}, {{ employee.full_name.split.0 }}</h1>
+        </div>
+        <div class="member-card">
+          <div class="spread"><span class="eyebrow">{% translate "Company card · valid" %}</span><span class="badge badge-on">{% translate "Valid" %}</span></div>
+          <div><p class="member-card-name">{{ employee.full_name }}</p><p class="small card-dim">{{ employee.company.name }} · {% translate "No." %} {{ employee.employee_number }}{% if employee.department %} · {{ employee.department }}{% endif %}</p></div>
+          <div class="qr-box" role="img" aria-label="{% translate 'QR code to scan at the gym entrance' %}">{{ qr|safe }}</div>
+          <p class="small card-dim center">{% translate "Hold this up to the tablet at the entrance. The code changes every 30 seconds, so screenshots do not work." %}</p>
         </div>
 
-        {% for visit in to_confirm %}
-          <div class="card stack">
-            <p><strong>{% translate "Please confirm your visit" %}</strong></p>
-            <p>{{ visit.gym.name }}, {{ visit.branch.name }} · {{ visit.checked_in_on|date:"j M" }} {{ visit.checked_in_at|time:"H:i" }}</p>
-            <p class="small">{% for a in visit.activities.all %}{% if not a.cancelled_at %}{{ a.service_name }}{% if not forloop.last %}, {% endif %}{% endif %}{% endfor %}</p>
-            <form method="post" action="{% url 'corporate:card_confirm' employee.card_token visit.public_id %}">
-              {% csrf_token %}<button type="submit" class="btn btn-primary btn-block">{% translate "Yes, this was me" %}</button>
-            </form>
-            <p class="muted small">{% translate "If this was not you, do not confirm, and tell your logistics officer." %}</p>
-          </div>
-        {% endfor %}
+        <section class="card stack">
+          <div class="spread"><div><div class="small muted strong" style="text-transform:uppercase;letter-spacing:.05em">{% translate "Your streak" %}</div>
+            <div class="stat-value" style="font-size:2rem">{% blocktranslate count n=streak.weeks %}{{ n }} week{% plural %}{{ n }} weeks{% endblocktranslate %}</div></div>
+            {% if streak.level %}<span class="badge badge-info">{{ streak.level }}</span>{% endif %}</div>
+          <div class="streak-weeks" aria-hidden="true">{% for w in streak.recent %}<span class="{{ w }}">{% if w == "rest" %}REST{% elif w == "now" %}{{ streak.this_week }}/{{ streak.goal }}{% elif w == "done" %}✓{% endif %}</span>{% endfor %}</div>
+          <p class="small">{% if streak.visits_needed_this_week %}<strong>{% blocktranslate count n=streak.visits_needed_this_week %}{{ n }} more visit this week{% plural %}{{ n }} more visits this week{% endblocktranslate %}</strong> {% translate "keeps your streak going." %}{% else %}<strong>{% translate "This week is done." %}</strong>{% endif %}
+            {% if streak.next_level %}{% blocktranslate with name=streak.next_level.0 n=streak.next_level.1 %}{{ n }} weeks to {{ name }}.{% endblocktranslate %}{% endif %}</p>
+          <p class="small muted">{% blocktranslate with g=streak.goal %}A week counts when you come {{ g }} times. One missed week a month is forgiven.{% endblocktranslate %}</p>
+        </section>
+
+        {% if league.0 %}
+          <section class="card"><div class="row"><span class="logo" style="background:var(--ink)">{{ league.0.rank }}</span><div class="grow"><strong>{% blocktranslate with c=employee.company.name n=league.0.rank %}{{ c }} is number {{ n }} this month{% endblocktranslate %}</strong><div class="small muted">{% blocktranslate with p=league.0.percent %}{{ p }}% of colleagues came 4+ times{% endblocktranslate %}{% if league.1 and league.1.0.company_id != league.0.company_id %} · {% blocktranslate with name=league.1.0.name %}{{ name }} leads{% endblocktranslate %}{% endif %}</div></div></div></section>
+        {% endif %}
 
         {% if recent %}
-          <div class="card stack"><h2>{% translate "Your recent visits" %}</h2>
-            <ul class="item-list">{% for v in recent %}<li><div class="item-main"><strong>{{ v.gym.name }}</strong><span class="muted small">{{ v.checked_in_on|date:"j M" }} {{ v.checked_in_at|time:"H:i" }} · {% for a in v.activities.all %}{% if not a.cancelled_at %}{{ a.service_name }}{% if not forloop.last %}, {% endif %}{% endif %}{% endfor %}</span></div>{% if v.confirmed_at %}<span class="badge badge-on">{% translate "Confirmed" %}</span>{% endif %}</li>{% endfor %}</ul>
-          </div>
+          <section class="card stack"><div class="spread"><h2>{% translate "Your recent visits" %}</h2><span class="small muted">{% blocktranslate count n=month_visits %}{{ n }} this month{% plural %}{{ n }} this month{% endblocktranslate %}</span></div>
+            <ul class="item-list">{% for v in recent %}<li><div class="item-main"><strong>{{ v.gym.name }}</strong><span class="small muted">{{ v.checked_in_on|date:"j M" }} {{ v.checked_in_at|time:"H:i" }} · {% for a in v.activities.all %}{% if not a.cancelled_at %}{{ a.service_name }}{% if not forloop.last %}, {% endif %}{% endif %}{% endfor %}</span></div></li>{% endfor %}</ul>
+          </section>
         {% endif %}
       {% endif %}
     </div>
