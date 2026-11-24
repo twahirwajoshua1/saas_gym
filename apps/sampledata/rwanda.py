@@ -310,3 +310,75 @@ COMPANIES = [
 ]
 OUTSIDE_KIGALI = {"Musanze", "Huye", "Rubavu"}
 DEPARTMENTS = ["Finance", "Operations", "Sales", "Human Resources", "IT", "Claims", "Logistics"]
+
+
+# What the sample gyms teach: name, what to expect, minutes, places.
+CLASSES = [
+    (
+        "Aerobics",
+        "An hour of movement to music, from easy to hard. Bring water and a towel. "
+        "Good for anyone, whatever shape you are in.",
+        60,
+        25,
+    ),
+    (
+        "Spinning",
+        "Indoor cycling with the lights down and the music up. Hard work for the legs "
+        "and the lungs. Arrive early to set your saddle.",
+        45,
+        18,
+    ),
+    (
+        "Body conditioning",
+        "Weights, bands and your own body weight, in rounds. The trainer shows every "
+        "move first, so beginners are welcome.",
+        60,
+        20,
+    ),
+    (
+        "Zumba",
+        "Dance rather than drill. No experience needed and nobody is watching you.",
+        60,
+        30,
+    ),
+    (
+        "Yoga",
+        "Slow, quiet stretching and breathing. Mats are here; wear something you can move in.",
+        60,
+        16,
+    ),
+]
+
+# The weekly pattern: class, weekday (0 = Monday), hour.
+TIMETABLE = [
+    ("Aerobics", 1, 18),
+    ("Aerobics", 3, 18),
+    ("Spinning", 0, 6),
+    ("Spinning", 4, 18),
+    ("Body conditioning", 2, 17),
+    ("Zumba", 5, 10),
+    ("Yoga", 6, 9),
+]
+
+# How trainers describe themselves. Invented people, invented words.
+TRAINER_WORDS = [
+    (
+        "Strength and conditioning",
+        "Ten years on the floor. I will fix your form before I add any weight, and I "
+        "would rather you came three times a week for a year than once for an hour.",
+    ),
+    (
+        "Classes and cardio",
+        "I take the loud classes. Come as you are; nobody here started fit.",
+    ),
+    (
+        "Beginners and coming back from injury",
+        "I work with people starting again after a break, an illness or a baby. We "
+        "start where you are, not where a magazine says you should be.",
+    ),
+    (
+        "Weight training",
+        "Barbells, patience and good records. If you want to get stronger and you can "
+        "turn up, I can help.",
+    ),
+]

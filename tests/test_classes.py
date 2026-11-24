@@ -7,6 +7,7 @@ can be hidden with a reason, and a trainer's free hours cannot be
 double-booked.
 """
 
+import uuid
 from datetime import time, timedelta
 
 import pytest
@@ -14,7 +15,10 @@ from django.core.exceptions import PermissionDenied
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.attendance import services as attendance
 from apps.audit.models import AuditEntry
+from apps.billing import services as billing
+from apps.billing.services import PaymentInput
 from apps.classes import services
 from apps.classes.models import Booking, ClassSession, Review
 from apps.gyms.models import Branch, Role
@@ -71,6 +75,28 @@ def make_member(alpha):
         )
 
     return make
+
+
+@pytest.fixture
+def monthly_member(alpha, make_member):
+    """A member with a membership that is valid today."""
+    member = make_member()
+    package = members.create_package(
+        by=alpha.assignment,
+        name="Monthly",
+        price_rwf=30000,
+        duration_count=1,
+        duration_unit="month",
+    )
+    billing.sell_membership(
+        by=alpha.assignment,
+        member=member,
+        package=package,
+        start_date=timezone.localdate(),
+        idempotency_key=uuid.uuid4(),
+        payment=PaymentInput(method="cash"),
+    )
+    return member
 
 
 @pytest.fixture
@@ -480,3 +506,67 @@ def test_another_gyms_card_cannot_book_this_gyms_class(
     answer = client.post(reverse("memberapp:card_book", args=[token, session.public_id]))
     assert answer.status_code == 404
     assert services.places_left(session) == 2
+
+
+# --- Bringing a friend ------------------------------------------------------
+
+
+def test_free_guests_run_out_and_then_the_friend_pays(alpha, branch, monthly_member):
+    member = monthly_member
+    attendance.set_guest_rule(by=alpha.assignment, free_per_month=1)
+
+    first = attendance.bring_a_friend(
+        by=alpha.assignment, member=member, guest_name="Jean Bosco", branch=branch
+    )
+    second = attendance.bring_a_friend(
+        by=alpha.assignment,
+        member=member,
+        guest_name="Alice Mukamana",
+        guest_phone="0788777666",
+        branch=branch,
+    )
+    assert first.was_free is True
+    assert second.was_free is False
+    assert second.guest_phone == "+250788777666"
+    assert attendance.free_guests_left(member, timezone.localdate()) == 0
+
+
+def test_a_gym_can_give_no_free_guests_at_all(alpha, branch, monthly_member):
+    attendance.set_guest_rule(by=alpha.assignment, free_per_month=0)
+    visit = attendance.bring_a_friend(
+        by=alpha.assignment, member=monthly_member, guest_name="Jean Bosco", branch=branch
+    )
+    assert visit.was_free is False
+
+
+def test_a_member_who_cannot_come_in_cannot_bring_anybody(alpha, branch, make_member):
+    lapsed = make_member("Lapsed Person", "0788111999")
+    with pytest.raises(attendance.NotAllowedIn):
+        attendance.bring_a_friend(
+            by=alpha.assignment, member=lapsed, guest_name="Jean Bosco", branch=branch
+        )
+
+
+def test_only_a_manager_changes_the_guest_rule(alpha, add_staff):
+    desk = add_staff(alpha.gym, "0788000005", Role.RECEPTIONIST)
+    with pytest.raises(PermissionDenied):
+        attendance.set_guest_rule(by=desk.assignment, free_per_month=5)
+
+
+def test_the_desk_writes_a_friend_in_from_the_screen(
+    alpha, branch, monthly_member, add_staff, sign_in
+):
+    desk = add_staff(alpha.gym, "0788000005", Role.RECEPTIONIST)
+    client = sign_in(desk)
+    answer = client.post(
+        reverse("attendance:guest_new"),
+        {
+            "member": str(monthly_member.public_id),
+            "guest_name": "Jean Bosco",
+            "guest_phone": "",
+            "branch": str(branch.public_id),
+        },
+    )
+    assert answer.status_code == 302
+    page = client.get(reverse("attendance:guest_new")).content.decode()
+    assert "Jean Bosco" in page and monthly_member.full_name in page

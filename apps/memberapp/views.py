@@ -22,6 +22,7 @@ from apps.attendance import services as attendance
 from apps.classes import services as classes
 from apps.classes.models import ClassSession, PersonalSession, TrainerProfile
 from apps.core import streaks, tenant_db
+from apps.gyms.models import Branch
 from apps.gyms.permissions import FRONT_DESK_ROLES
 from apps.gyms.tenancy import gym_required
 from apps.memberapp import services
@@ -158,29 +159,58 @@ def _classes_or_404(member) -> None:
         raise Http404("Classes are not switched on at this gym.")
 
 
+def _chosen_branch(request, member, branches):
+    """
+    Which branch's classes to show. The one asked for, else the one the member
+    last came to, else where they signed up. They may always switch.
+    """
+    asked = request.GET.get("branch")
+    if asked:
+        for branch in branches:
+            if str(branch.public_id) == asked:
+                return branch
+    last = attendance.visits_for(member).first()
+    if last is not None:
+        return last.branch
+    return member.branch
+
+
 @require_GET
 def card_classes(request, token):
     """The week's classes, with the member's own places marked."""
     member = _member_for_token(token)
     _classes_or_404(member)
     today = timezone.localdate()
-    sessions = classes.timetable(member.gym, today, days=14)
+    branches = list(Branch.objects.for_gym(member.gym).filter(is_active=True))
+    chosen = _chosen_branch(request, member, branches)
+    sessions = classes.timetable(member.gym, today, days=7, branch=chosen)
     mine = {b.session_id for b in classes.bookings_for(member)}
-    rows = [
-        {
-            "session": s,
-            "booked": s.id in mine,
-            "left": max(0, s.places - s.taken),
-            "past": classes.starts(s) <= timezone.now(),
-        }
-        for s in sessions
-        if not s.is_cancelled
-    ]
+    days = []
+    for offset in range(7):
+        day = today + timedelta(days=offset)
+        rows = [
+            {
+                "session": s,
+                "booked": s.id in mine,
+                "left": max(0, s.places - s.taken),
+                "past": classes.starts(s) <= timezone.now(),
+            }
+            for s in sessions
+            if s.held_on == day and not s.is_cancelled
+        ]
+        if rows:
+            days.append({"day": day, "rows": rows})
     return _private(
         render(
             request,
             "memberapp/classes.html",
-            {"card": services.card_summary(member), "token": token, "rows": rows},
+            {
+                "card": services.card_summary(member),
+                "token": token,
+                "days": days,
+                "branches": branches,
+                "branch": chosen,
+            },
         )
     )
 

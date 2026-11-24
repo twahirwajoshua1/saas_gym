@@ -13,14 +13,16 @@ from django.db import transaction
 from django.db.models import Exists, Max, OuterRef, Subquery
 from django.utils import timezone
 
-from apps.attendance.models import CheckIn, CheckInMethod
+from apps.attendance.models import CheckIn, CheckInMethod, GuestRule, GuestVisit
+from apps.audit import services as audit
 from apps.billing import services as billing_services
 from apps.gyms.models import Branch, Gym, StaffAssignment
-from apps.gyms.permissions import CHECK_IN_ROLES, require_role
+from apps.gyms.permissions import CHECK_IN_ROLES, MANAGER_ROLES, require_role
 from apps.members import services as member_services
 from apps.members.models import Member, Membership
 from apps.modules import services as module_services
 from apps.modules.catalog import ATTENDANCE_ACCESS
+from apps.people.phones import InvalidPhoneNumber, normalize_phone
 
 # A membership with this many days left (or fewer) gets a "renew soon" warning.
 EXPIRING_SOON_DAYS = 7
@@ -332,3 +334,103 @@ def not_visiting(gym: Gym, today: date, days: int = 14):
         .filter(joined_on__lte=since)
         .filter(~Exists(recent))
     )
+
+
+# --- Bringing a friend ------------------------------------------------------
+#
+# Each gym decides its own rule: a number of free guests per member per month,
+# or zero, which means the friend pays the day price at reception. The rule is
+# applied here, so the desk cannot give away visits the owner did not allow.
+
+
+def guest_rule(gym: Gym) -> GuestRule:
+    """This gym's rule, made with the default the first time it is asked for."""
+    rule, _created = GuestRule.objects.get_or_create(gym=gym)
+    return rule
+
+
+@transaction.atomic
+def set_guest_rule(*, by: StaffAssignment, free_per_month: int) -> GuestRule:
+    """Managers set how many friends a member may bring free each month."""
+    require_role(by, MANAGER_ROLES)
+    if free_per_month < 0 or free_per_month > 31:
+        raise member_services.InvalidDetails("free_per_month", "out_of_range")
+    rule = guest_rule(by.gym)
+    rule.free_per_month = free_per_month
+    rule.updated_by = by.person
+    rule.save(update_fields=["free_per_month", "updated_by", "updated_at"])
+    audit.record(
+        action="guest.rule_set",
+        summary=f"Members may bring {free_per_month} free guest(s) a month",
+        gym=by.gym,
+        actor=by.person,
+        target=rule,
+    )
+    return rule
+
+
+def free_guests_left(member: Member, today: date) -> int:
+    """How many free guests this member has left this calendar month."""
+    allowed = guest_rule(member.gym).free_per_month
+    used = GuestVisit.objects.for_gym(member.gym).filter(
+        host=member, was_free=True, came_on__year=today.year, came_on__month=today.month
+    )
+    return max(0, allowed - used.count())
+
+
+@transaction.atomic
+def bring_a_friend(
+    *,
+    by: StaffAssignment,
+    member: Member,
+    guest_name: str,
+    branch: Branch,
+    guest_phone: str = "",
+    today: date | None = None,
+) -> GuestVisit:
+    """
+    Write down a friend a member brought in. Whether it is free follows the
+    gym's own rule; when it is not, the desk charges the day price as usual.
+    Raises NotAllowedIn if the member themselves may not come in today.
+    """
+    require_role(by, CHECK_IN_ROLES)
+    if member.gym_id != by.gym_id or branch.gym_id != by.gym_id:
+        raise member_services.InvalidDetails("member", "different_gym")
+    guest_name = " ".join((guest_name or "").split())
+    if not guest_name:
+        raise member_services.InvalidDetails("guest_name", "required")
+    day = today or timezone.localdate()
+    assessment = assess(member, on=day)
+    if not assessment.allowed:
+        raise NotAllowedIn(assessment)
+    phone = (guest_phone or "").strip()
+    if phone:
+        try:
+            phone = normalize_phone(phone)
+        except InvalidPhoneNumber:
+            raise member_services.InvalidDetails("guest_phone", "invalid") from None
+    visit = GuestVisit.objects.create(
+        gym=by.gym,
+        host=member,
+        branch=branch,
+        guest_name=guest_name,
+        guest_phone=phone,
+        came_on=day,
+        was_free=free_guests_left(member, day) > 0,
+        recorded_by=by.person,
+    )
+    audit.record(
+        action="guest.visited",
+        summary=f"{member.full_name} brought {guest_name} in",
+        gym=by.gym,
+        actor=by.person,
+        target=visit,
+        details={"free": visit.was_free},
+    )
+    return visit
+
+
+def guests_today(gym: Gym, today: date, branch: Branch | None = None):
+    """Friends brought in today, for the desk."""
+    visits = GuestVisit.objects.for_gym(gym).filter(came_on=today).select_related("host", "branch")
+    return visits.filter(branch=branch) if branch else visits

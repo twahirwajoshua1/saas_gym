@@ -1,0 +1,63 @@
+{% extends "layouts/gym.html" %}
+{% load i18n phones %}
+{% block title %}{% translate "Bring a friend" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'frontdesk:desk' %}">← {% translate "Desk" %}</a>
+  <div class="page-head">
+    <div><h1>{% translate "Bring a friend" %}</h1>
+      <p class="sub">
+        {% if rule.free_per_month %}
+          {% blocktranslate count n=rule.free_per_month %}Each member may bring {{ n }} friend free a month.{% plural %}Each member may bring {{ n }} friends free a month.{% endblocktranslate %}
+        {% else %}
+          {% translate "This gym gives no free guest visits: the friend pays the day price." %}
+        {% endif %}
+      </p></div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <form method="post" class="form" novalidate>
+        {% csrf_token %}
+        {% for error in form.non_field_errors %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endfor %}
+        {% include "components/field.html" with field=form.member %}
+        {% include "components/field.html" with field=form.guest_name %}
+        {% include "components/field.html" with field=form.guest_phone %}
+        {% if not branch %}{% include "components/field.html" with field=form.branch %}{% endif %}
+        <div class="form-actions"><button type="submit" class="btn btn-primary">{% translate "Write them in" %}</button></div>
+      </form>
+    </div>
+
+    <section class="card stack">
+      <div class="card-head"><div><h2>{% translate "Friends in today" %}</h2>
+        <p class="sub">{% translate "Ones marked to pay still owe the day price." %}</p></div></div>
+      {% if today %}
+        <ul class="item-list">
+          {% for visit in today %}
+            <li>
+              <div class="item-main"><strong>{{ visit.guest_name }}</strong>
+                <span class="small muted">{% blocktranslate with h=visit.host.full_name %}with {{ h }}{% endblocktranslate %}{% if visit.guest_phone %} · {{ visit.guest_phone|phone }}{% endif %}</span></div>
+              <div class="item-actions">
+                {% if visit.was_free %}<span class="badge badge-on">{% translate "Free guest" %}</span>
+                {% else %}<span class="badge badge-warn">{% translate "Pays the day price" %}</span>{% endif %}
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">{% translate "Nobody yet today." %}</p>
+      {% endif %}
+
+      {% if role_is_manager %}
+        <form method="post" action="{% url 'attendance:guest_rule_set' %}" class="stack">
+          {% csrf_token %}
+          <label class="small strong" for="free">{% translate "Free guests a member may bring each month" %}</label>
+          <div class="row">
+            <input id="free" name="free_per_month" type="number" min="0" max="31" value="{{ rule.free_per_month }}">
+            <button type="submit" class="btn">{% translate "Save rule" %}</button>
+          </div>
+          <p class="small muted">{% translate "Zero means every friend pays the day price." %}</p>
+        </form>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}

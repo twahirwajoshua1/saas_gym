@@ -9,10 +9,12 @@ from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from apps.attendance import services
+from apps.attendance.forms import GuestForm
 from apps.gyms import session
 from apps.gyms.models import Branch
-from apps.gyms.permissions import CHECK_IN_ROLES, FRONT_DESK_ROLES
+from apps.gyms.permissions import CHECK_IN_ROLES, FRONT_DESK_ROLES, MANAGER_ROLES
 from apps.gyms.tenancy import gym_required
+from apps.members import services as member_services
 from apps.members.models import Member
 from apps.modules.catalog import ATTENDANCE_ACCESS
 from apps.modules.decorators import module_required
@@ -123,3 +125,71 @@ def member_visits(request, public_id):
     if request.headers.get("HX-Request"):
         return render(request, "attendance/_member_visits.html", context)
     return render(request, "attendance/member_visits.html", context)
+
+
+# --- Bringing a friend ------------------------------------------------------
+
+
+@gym_required(*CHECK_IN_ROLES)
+@module_required(ATTENDANCE_ACCESS)
+def guest_new(request):
+    """Write down a friend a member brought in."""
+    branch = _desk_branch(request)
+    form = GuestForm(request.POST or None, gym=request.gym)
+    rule = services.guest_rule(request.gym)
+    if request.method == "POST" and form.is_valid():
+        member = form.cleaned_data["member"]
+        try:
+            visit = services.bring_a_friend(
+                by=request.assignment,
+                member=member,
+                guest_name=form.cleaned_data["guest_name"],
+                guest_phone=form.cleaned_data["guest_phone"],
+                branch=branch or form.cleaned_data["branch"],
+            )
+        except services.NotAllowedIn:
+            form.add_error("member", _("This member cannot come in today themselves."))
+        except member_services.InvalidDetails as error:
+            field = error.field if error.field in form.fields else None
+            form.add_error(field, _("Check this value."))
+        else:
+            if visit.was_free:
+                messages.success(
+                    request,
+                    _("%(guest)s is in as %(host)s's free guest.")
+                    % {"guest": visit.guest_name, "host": member.full_name},
+                )
+            else:
+                messages.warning(
+                    request,
+                    _("%(guest)s is written down. Charge the day price at the desk.")
+                    % {"guest": visit.guest_name},
+                )
+            return redirect("attendance:guest_new")
+    return render(
+        request,
+        "attendance/guest_new.html",
+        {
+            "form": form,
+            "rule": rule,
+            "branch": branch,
+            "today": services.guests_today(request.gym, timezone.localdate(), branch),
+        },
+    )
+
+
+@gym_required(*MANAGER_ROLES)
+@module_required(ATTENDANCE_ACCESS)
+@require_POST
+def guest_rule_set(request):
+    try:
+        free = int(request.POST.get("free_per_month", "0"))
+    except ValueError:
+        free = 0
+    try:
+        services.set_guest_rule(by=request.assignment, free_per_month=free)
+    except member_services.InvalidDetails:
+        messages.error(request, _("Enter a number between 0 and 31."))
+    else:
+        messages.success(request, _("Saved."))
+    return redirect("attendance:guest_new")

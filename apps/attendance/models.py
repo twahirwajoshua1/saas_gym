@@ -49,3 +49,48 @@ class CheckIn(GymOwnedModel):
 
     def __str__(self):
         return f"{self.member} on {self.checked_in_on}"
+
+
+class GuestRule(GymOwnedModel):
+    """
+    How this gym treats a member's guest. One row per gym.
+
+    free_per_month is how many friends a member may bring free in a calendar
+    month. Zero means the gym gives none away: the friend pays the day price
+    at reception like anybody else.
+    """
+
+    free_per_month = models.PositiveSmallIntegerField(default=1)
+    updated_by = models.ForeignKey(
+        Person, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class GuestVisit(GymOwnedModel):
+    """
+    A friend a member brought in.
+
+    The guest is not a member and has not signed anything, so the gym keeps
+    only what it needs to let them train and to call them back: a name, and a
+    phone number if they give one. Nothing else.
+    """
+
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    host = models.ForeignKey(Member, on_delete=models.PROTECT, related_name="guests")
+    branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="+")
+
+    guest_name = models.CharField(max_length=150)
+    guest_phone = models.CharField(max_length=16, blank=True)
+
+    came_on = models.DateField(default=timezone.localdate)
+    # False means the gym expects the day price for this visit.
+    was_free = models.BooleanField()
+
+    recorded_by = models.ForeignKey(
+        Person, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-came_on", "-id"]

@@ -21,6 +21,7 @@ from apps.accounts import services as accounts
 from apps.attendance import services as attendance
 from apps.billing import services as billing
 from apps.billing.services import PaymentInput
+from apps.classes import services as classes
 from apps.corporate import services as corporate
 from apps.corporate.models import CorporateBill
 from apps.corporate.services import ContractTerms, EmployeeDetails
@@ -32,7 +33,12 @@ from apps.members import services as members
 from apps.members.models import Gender
 from apps.members.services import InvalidDetails, MemberDetails
 from apps.modules import services as modules
-from apps.modules.catalog import ATTENDANCE_ACCESS, CORPORATE_WELLNESS, PAYMENTS_FINANCE
+from apps.modules.catalog import (
+    ATTENDANCE_ACCESS,
+    CORPORATE_WELLNESS,
+    PAYMENTS_FINANCE,
+    TRAINING_CLASSES,
+)
 from apps.people import services as people
 from apps.sampledata import rwanda
 
@@ -74,6 +80,8 @@ class SimGym:
     unpaid: list = field(default_factory=list)  # (due day, invoice, staff)
     branches: dict = field(default_factory=dict)  # branch id -> branch
     services: dict = field(default_factory=dict)  # service name -> Service
+    class_types: dict = field(default_factory=dict)  # class name -> ClassType
+    trainer_pages: dict = field(default_factory=dict)  # branch id -> TrainerProfile
 
 
 @dataclass
@@ -205,7 +213,7 @@ class Generator:
         gyms.rename_branch(by=owner, branch=main, name=spec["branches"][0])
         branches = [main] + [gyms.create_branch(by=owner, name=n) for n in spec["branches"][1:]]
 
-        for code in (PAYMENTS_FINANCE, ATTENDANCE_ACCESS):
+        for code in (PAYMENTS_FINANCE, ATTENDANCE_ACCESS, TRAINING_CLASSES):
             modules.enable_module(gym=gym, code=code, actor=admin_person)
 
         sim_services = {
@@ -235,6 +243,7 @@ class Generator:
             )
         if len(branches) >= 3:
             self.staff(sim, Role.SALES_REP, None, "Sales representative")
+        self.set_up_classes(sim)
 
         total = max(3, round(spec["members"] * self.scale))
         existing = round(total * 0.35)
@@ -593,6 +602,96 @@ class Generator:
                 )
             del self.paydays[bill_id]
 
+    # --- Classes and trainers -----------------------------------------------------
+
+    def set_up_classes(self, sim):
+        """
+        What each gym teaches, who teaches it, and the coming four weeks of the
+        timetable. Members book into it later, as the days are simulated.
+        """
+        owner = sim.owner
+        for name, expect, minutes, places in rwanda.CLASSES:
+            sim.class_types[name] = classes.save_class_type(
+                by=owner, name=name, what_to_expect=expect, minutes=minutes, places=places
+            )
+        for branch_id, staff in sim.trainers.items():
+            branch = sim.branches[branch_id]
+            headline, about = self.rng.choice(rwanda.TRAINER_WORDS)
+            profile = classes.save_trainer(by=owner, staff=staff, headline=headline, about=about)
+            sim.trainer_pages[branch_id] = profile
+            # Free hours for one-to-one sessions, two afternoons a week.
+            classes.set_trainer_hours(
+                by=owner,
+                trainer=profile,
+                windows=[
+                    (day, time(14, 0), time(17, 0), branch)
+                    for day in self.rng.sample(range(0, 5), 2)
+                ],
+            )
+
+    def schedule_classes(self, sims):
+        """
+        Put the timetable up for the coming four weeks. This runs on the real
+        clock, after the simulated days, so the classes are genuinely ahead.
+        """
+        today = timezone.localdate()
+        monday = today - timedelta(days=today.weekday())
+        for sim in sims:
+            for branch_id, profile in sim.trainer_pages.items():
+                branch = sim.branches[branch_id]
+                for name, weekday, hour in rwanda.TIMETABLE:
+                    class_type = sim.class_types.get(name)
+                    if class_type is None:
+                        continue
+                    first = monday + timedelta(days=weekday)
+                    if first < today:
+                        first += timedelta(weeks=1)
+                    classes.add_to_timetable(
+                        by=sim.owner,
+                        class_type=class_type,
+                        branch=branch,
+                        first_day=first,
+                        at=time(hour, 0),
+                        trainer=profile,
+                        repeat_weeks=4,
+                    )
+
+    def fill_classes(self, sims):
+        """Members take places in the classes coming up, and review past ones."""
+        today = timezone.localdate()
+        for sim in sims:
+            upcoming = classes.timetable(sim.gym, today, days=10)
+            active = [sm for sm in sim.people if sm.end and sm.end >= today]
+            if not active:
+                continue
+            for session in upcoming:
+                wanted = self.rng.randrange(0, session.places + 1)
+                for sm in self.rng.sample(active, min(wanted, len(active))):
+                    try:
+                        classes.book(member=sm.member, session=session)
+                    except (classes.ClassFull, classes.TooLate, InvalidDetails):
+                        break
+
+    def bring_friends(self, sims, today):
+        """A few members brought a friend in during the last week."""
+        for sim in sims:
+            attendance.set_guest_rule(by=sim.owner, free_per_month=1)
+            active = [sm for sm in sim.people if sm.end and sm.end >= today]
+            for sm in self.rng.sample(active, min(4, len(active))):
+                guest_name, _gender = self.name()
+                when = today - timedelta(days=self.rng.randrange(0, 7))
+                with self.at(when, 17, 30):
+                    try:
+                        attendance.bring_a_friend(
+                            by=sim.desk[sm.branch_id],
+                            member=sm.member,
+                            guest_name=guest_name,
+                            branch=sim.branches[sm.branch_id],
+                            today=when,
+                        )
+                    except (attendance.NotAllowedIn, InvalidDetails):
+                        continue
+
     # --- Shifts and the desk ------------------------------------------------------
 
     def close_shifts(self, sims, day: date, today: date):
@@ -673,4 +772,8 @@ class Generator:
             if (day - start).days % 15 == 0:
                 self.log(f"  {day:%d %b %Y}: {self.counts}")
             day += timedelta(days=1)
+        with transaction.atomic():
+            self.schedule_classes(sims)
+            self.fill_classes(sims)
+            self.bring_friends(sims, today)
         return self.counts
