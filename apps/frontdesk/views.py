@@ -12,13 +12,12 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
-from apps.attendance import services as attendance
-from apps.attendance.views import SESSION_BRANCH
 from apps.billing import services as billing
 from apps.corporate import services as corporate
 from apps.corporate.models import Employee
 from apps.frontdesk import services
 from apps.frontdesk.models import EntranceTablet, ScanProblem
+from apps.gyms import session
 from apps.gyms.models import Branch
 from apps.gyms.permissions import CHECK_IN_ROLES, FRONT_DESK_ROLES, MANAGER_ROLES
 from apps.gyms.tenancy import gym_required
@@ -31,14 +30,7 @@ COOKIE_AGE = 3 * 365 * 24 * 3600
 
 
 def _desk_branch(request) -> Branch | None:
-    chosen = request.session.get(SESSION_BRANCH)
-    branch = None
-    if chosen:
-        branch = Branch.objects.for_gym(request.gym).filter(public_id=chosen).first()
-    try:
-        return attendance.desk_branch(request.assignment, branch)
-    except attendance.BranchNeeded:
-        return None
+    return session.desk_branch(request)
 
 
 # --- The Desk ---------------------------------------------------------------------

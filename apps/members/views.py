@@ -17,6 +17,7 @@ from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from apps.gyms.permissions import FRONT_DESK_ROLES, MANAGER_ROLES, OWNER_ONLY
+from apps.gyms.session import desk_branch
 from apps.gyms.tenancy import gym_required
 from apps.members import services
 from apps.members.forms import ExtendForm, FreezeForm, MemberForm, PackageForm, ServiceForm
@@ -91,7 +92,7 @@ def _member_details(form) -> services.MemberDetails:
 
 @gym_required(*FRONT_DESK_ROLES)
 def member_register(request):
-    form = MemberForm(request.POST or None, gym=request.gym)
+    form = MemberForm(request.POST or None, gym=request.gym, at_branch=desk_branch(request))
     existing_member = None
     if request.method == "POST" and form.is_valid():
         try:

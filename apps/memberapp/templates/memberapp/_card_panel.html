@@ -4,7 +4,7 @@
   <div class="card-head">
     <div>
       <h2>{% translate "Member card" %}</h2>
-      {% if request.GET.new %}<p class="sub">{% translate "Send it now, so they can scan themselves in at the entrance." %}</p>{% endif %}
+      {% if not member.check_ins.exists %}<p class="sub">{% translate "Send it now, so they can scan themselves in at the entrance." %}</p>{% endif %}
     </div>
   </div>
   {% if card_url %}

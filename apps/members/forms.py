@@ -76,10 +76,14 @@ class MemberForm(forms.Form):
         label=_("Notes"), required=False, widget=forms.Textarea(attrs={"rows": 3})
     )
 
-    def __init__(self, *args, gym, editing=False, **kwargs):
+    def __init__(self, *args, gym, editing=False, at_branch=None, **kwargs):
         super().__init__(*args, **kwargs)
         branches = Branch.objects.for_gym(gym).filter(is_active=True)
         self.fields["branch"].queryset = branches
+        if at_branch is not None and not self.is_bound:
+            # The desk's own branch, so staff do not answer a question they
+            # already know the answer to. It is still theirs to change.
+            self.fields["branch"].initial = at_branch.public_id
         self.single_branch = branches.count() == 1
         if self.single_branch:
             # Nothing to choose, so the question is not asked.

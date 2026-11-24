@@ -9,6 +9,7 @@ from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from apps.attendance import services
+from apps.gyms import session
 from apps.gyms.models import Branch
 from apps.gyms.permissions import CHECK_IN_ROLES, FRONT_DESK_ROLES
 from apps.gyms.tenancy import gym_required
@@ -17,7 +18,6 @@ from apps.modules.catalog import ATTENDANCE_ACCESS
 from apps.modules.decorators import module_required
 
 # Where the desk's chosen branch is remembered while the person stays signed in.
-SESSION_BRANCH = "desk_branch"
 
 
 def _branches(request):
@@ -26,14 +26,7 @@ def _branches(request):
 
 def _desk_branch(request) -> Branch | None:
     """The branch this desk is at, or None if it still has to be chosen."""
-    chosen = None
-    chosen_id = request.session.get(SESSION_BRANCH)
-    if chosen_id:
-        chosen = _branches(request).filter(public_id=chosen_id).first()
-    try:
-        return services.desk_branch(request.assignment, chosen)
-    except services.BranchNeeded:
-        return None
+    return session.desk_branch(request)
 
 
 @gym_required(*CHECK_IN_ROLES)
@@ -81,7 +74,7 @@ def _back(request) -> str:
 def set_branch(request):
     """Remember which branch this desk is at."""
     branch = get_object_or_404(_branches(request), public_id=request.POST.get("branch") or None)
-    request.session[SESSION_BRANCH] = str(branch.public_id)
+    request.session[session.DESK_BRANCH] = str(branch.public_id)
     return redirect(_back(request))
 
 
