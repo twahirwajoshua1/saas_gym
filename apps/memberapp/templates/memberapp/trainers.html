@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% translate "Trainers" %} · {{ card.gym_name }}{% endblock %}
+{% block body %}
+  <main class="plain" style="align-items:flex-start">
+    <div class="plain-card stack">
+      <a class="back-link" href="{% url 'memberapp:card' token %}">← {% translate "My card" %}</a>
+      <div><h1>{% translate "Trainers" %}</h1><p class="small muted">{{ card.gym_name }}</p></div>
+      {% include "components/messages.html" %}
+
+      {% if mine %}
+        <section class="card stack">
+          <h2>{% translate "Your sessions" %}</h2>
+          <ul class="item-list">
+            {% for s in mine %}
+              <li>
+                <div class="item-main">
+                  <strong>{{ s.trainer.full_name }}</strong>
+                  <span class="small muted">{{ s.held_on|date:"D j M" }} · {{ s.starts_at|time:"H:i" }} · {{ s.branch.name }}</span>
+                </div>
+                <div class="item-actions">
+                  <form method="post" action="{% url 'memberapp:card_cancel_trainer' token s.public_id %}" class="inline-form">
+                    {% csrf_token %}<button type="submit" class="btn btn-small">{% translate "Cancel" %}</button>
+                  </form>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+
+      {% for row in people %}
+        <section class="card stack">
+          <div class="spread">
+            <div>
+              <h2>{{ row.trainer.full_name }}</h2>
+              {% if row.trainer.headline %}<p class="small muted">{{ row.trainer.headline }}</p>{% endif %}
+            </div>
+            {% if row.rating %}<span class="badge badge-info">★ {{ row.rating }} · {{ row.count }}</span>{% endif %}
+          </div>
+          {% if row.trainer.about %}<p class="small">{{ row.trainer.about|linebreaksbr }}</p>{% endif %}
+          {% if row.slots %}
+            <form method="post" action="{% url 'memberapp:card_book_trainer' token row.trainer.public_id %}" class="stack">
+              {% csrf_token %}
+              <label class="small strong" for="slot{{ forloop.counter }}">{% translate "Free hours" %}</label>
+              <select id="slot{{ forloop.counter }}" name="slot" class="select-inline">
+                {% for slot in row.slots %}
+                  <option value="{{ slot.held_on|date:'Y-m-d' }}T{{ slot.starts_at|time:'H:i' }}">{{ slot.label }} · {{ slot.branch.name }}</option>
+                {% endfor %}
+              </select>
+              <label class="visually-hidden" for="note{{ forloop.counter }}">{% translate "What do you want to work on?" %}</label>
+              <input id="note{{ forloop.counter }}" name="note" type="text" placeholder="{% translate 'What do you want to work on? (optional)' %}">
+              <button type="submit" class="btn btn-primary btn-block">{% translate "Book this trainer" %}</button>
+            </form>
+          {% elif row.trainer.takes_personal_sessions %}
+            <p class="small muted">{% translate "No free hours at the moment." %}</p>
+          {% else %}
+            <p class="small muted">{% translate "Takes classes only." %}</p>
+          {% endif %}
+        </section>
+      {% empty %}
+        <section class="card"><p class="muted">{% translate "No trainers listed yet." %}</p></section>
+      {% endfor %}
+    </div>
+  </main>
+{% endblock %}

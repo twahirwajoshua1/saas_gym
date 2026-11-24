@@ -10,6 +10,8 @@ def _nav_section(request) -> str:
         return ""
     if match.app_name == "corporate":
         return "companies"
+    if match.app_name == "classes":
+        return "classes"
     if match.app_name == "frontdesk":
         return "settings" if match.url_name.startswith("tablet") else "checkin"
     if match.url_name == "settings":

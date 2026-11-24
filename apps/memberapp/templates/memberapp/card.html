@@ -52,6 +52,51 @@
         </section>
       {% endif %}
 
+      {% if classes_on %}
+        <section class="card stack">
+          <div class="spread"><h2>{% translate "Classes" %}</h2>
+            <a class="small strong" href="{% url 'memberapp:card_classes' card.member.card_token %}">{% translate "See the timetable" %}</a></div>
+          {% if my_classes %}
+            <ul class="item-list">
+              {% for b in my_classes %}
+                <li><div class="item-main"><strong>{{ b.session.class_type.name }}</strong>
+                  <span class="small muted">{{ b.session.held_on|date:"D j M" }} · {{ b.session.starts_at|time:"H:i" }}{% if b.session.trainer %} · {{ b.session.trainer.full_name }}{% endif %}</span></div></li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="small muted">{% translate "You have no classes booked." %}</p>
+          {% endif %}
+          {% if my_trainer_sessions %}
+            <h2>{% translate "With your trainer" %}</h2>
+            <ul class="item-list">
+              {% for s in my_trainer_sessions %}
+                <li><div class="item-main"><strong>{{ s.trainer.full_name }}</strong>
+                  <span class="small muted">{{ s.held_on|date:"D j M" }} · {{ s.starts_at|time:"H:i" }} · {{ s.branch.name }}</span></div></li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+          <a class="btn btn-block" href="{% url 'memberapp:card_trainers' card.member.card_token %}">{% translate "Pick a trainer" %}</a>
+        </section>
+
+        {% for session in to_review %}
+          <section class="card stack">
+            <div><h2>{% translate "How was it?" %}</h2>
+              <p class="small muted">{% blocktranslate with c=session.class_type.name t=session.trainer.full_name d=session.held_on|date:"D j M" %}{{ c }} with {{ t }}, {{ d }}. Everyone at the gym reads your review.{% endblocktranslate %}</p></div>
+            <form method="post" action="{% url 'memberapp:card_review' card.member.card_token session.public_id %}" class="stack">
+              {% csrf_token %}
+              <label class="visually-hidden" for="stars{{ forloop.counter }}">{% translate "Your rating" %}</label>
+              <select id="stars{{ forloop.counter }}" name="stars" class="select-inline">
+                <option value="5">★★★★★</option><option value="4">★★★★☆</option><option value="3">★★★☆☆</option>
+                <option value="2">★★☆☆☆</option><option value="1">★☆☆☆☆</option>
+              </select>
+              <label class="visually-hidden" for="words{{ forloop.counter }}">{% translate "Anything to add?" %}</label>
+              <input id="words{{ forloop.counter }}" name="words" type="text" placeholder="{% translate 'Anything to add? (optional)' %}">
+              <button type="submit" class="btn btn-primary btn-block">{% translate "Send review" %}</button>
+            </form>
+          </section>
+        {% endfor %}
+      {% endif %}
+
       {% if recent %}
         <section class="card stack"><div class="spread"><h2>{% translate "Your visits" %}</h2><span class="small muted">{% blocktranslate count n=month_visits %}{{ n }} this month{% plural %}{{ n }} this month{% endblocktranslate %}</span></div>
           <ul class="item-list">{% for v in recent %}<li><div class="item-main"><strong>{{ v.checked_in_on|date:"l j M" }}</strong><span class="small muted">{{ v.checked_in_at|time:"H:i" }} · {{ v.branch.name }}</span></div></li>{% endfor %}</ul>

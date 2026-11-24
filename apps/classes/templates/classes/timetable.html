@@ -1,0 +1,58 @@
+{% extends "layouts/gym.html" %}
+{% load i18n icons %}
+{% block title %}{% translate "Classes" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Classes" %}</h1>
+      <p class="sub">{% if branch %}{{ branch.name }} · {% endif %}{% blocktranslate with a=week_start|date:"j M" b=week_start|date:"Y" %}Week of {{ a }} {{ b }}{% endblocktranslate %}</p>
+    </div>
+    <div class="actions">
+      <a class="btn" href="{% url 'classes:trainers' %}">{% icon "users" %}{% translate "Trainers" %}</a>
+      {% if is_manager %}
+        <a class="btn" href="{% url 'classes:class_types' %}">{% translate "What we teach" %}</a>
+        <a class="btn btn-primary" href="{% url 'classes:schedule' %}">{% icon "plus" %}{% translate "Add to timetable" %}</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row" style="margin-bottom:16px">
+    <a class="btn btn-small" href="?week={{ previous|date:'Y-m-d' }}">← {% translate "Previous week" %}</a>
+    <a class="btn btn-small" href="{% url 'classes:timetable' %}">{% translate "This week" %}</a>
+    <a class="btn btn-small" href="?week={{ next_week|date:'Y-m-d' }}">{% translate "Next week" %} →</a>
+  </div>
+
+  <div class="stack">
+    {% for row in days %}
+      <section class="card stack">
+        <div class="card-head">
+          <h2 {% if row.day == today %}class="strong"{% endif %}>{{ row.day|date:"l j F" }}{% if row.day == today %} · {% translate "today" %}{% endif %}</h2>
+        </div>
+        {% if row.sessions %}
+          <ul class="item-list">
+            {% for s in row.sessions %}
+              <li>
+                <div class="item-main">
+                  <strong>{{ s.starts_at|time:"H:i" }} · <a href="{% url 'classes:session_detail' s.public_id %}">{{ s.class_type.name }}</a></strong>
+                  <span class="small muted">
+                    {% if s.trainer %}{{ s.trainer.full_name }}{% else %}{% translate "No trainer yet" %}{% endif %}
+                    · {{ s.branch.name }} · {{ s.minutes }} {% translate "min" %}
+                  </span>
+                </div>
+                <div class="item-actions">
+                  {% if s.cancelled_at %}
+                    <span class="badge badge-danger">{% translate "Called off" %}</span>
+                  {% else %}
+                    <span class="badge {% if s.taken >= s.places %}badge-warn{% else %}badge-info{% endif %}">{% blocktranslate with t=s.taken p=s.places %}{{ t }} of {{ p }} places{% endblocktranslate %}</span>
+                  {% endif %}
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted small">{% translate "Nothing on." %}</p>
+        {% endif %}
+      </section>
+    {% endfor %}
+  </div>
+{% endblock %}

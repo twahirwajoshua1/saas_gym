@@ -23,6 +23,9 @@
             <a href="{% url 'frontdesk:desk' %}" {% if nav_section == 'checkin' %}class="is-current" aria-current="page"{% endif %}>{% icon "scan" %}{% translate "Desk" %}</a>
           {% endif %}
           <a href="{% url 'members:member_list' %}" {% if nav_section == 'member' or nav_section == 'register' %}class="is-current" aria-current="page"{% endif %}>{% icon "users" %}{% translate "Members" %}</a>
+          {% if 'training_classes' in modules_on %}
+            <a href="{% url 'classes:timetable' %}" {% if nav_section == 'classes' %}class="is-current" aria-current="page"{% endif %}>{% icon "cal" %}{% translate "Classes" %}</a>
+          {% endif %}
           {% if 'corporate_wellness' in modules_on %}
             <a href="{% url 'corporate:gym_home' %}" {% if nav_section == 'companies' %}class="is-current" aria-current="page"{% endif %}>{% icon "building" %}{% translate "Companies" %}</a>
           {% endif %}
@@ -38,6 +41,9 @@
           {% if role_is_front_desk %}
             <a href="{% url 'members:member_register' %}" {% if nav_section == 'register' %}class="is-current" aria-current="page"{% endif %}>{% icon "plus" %}{% translate "Register member" %}</a>
             <a href="{% url 'members:member_list' %}" {% if nav_section == 'member' %}class="is-current" aria-current="page"{% endif %}>{% icon "users" %}{% translate "Members" %}</a>
+          {% endif %}
+          {% if 'training_classes' in modules_on and role_can_check_in %}
+            <a href="{% url 'classes:timetable' %}" {% if nav_section == 'classes' %}class="is-current" aria-current="page"{% endif %}>{% icon "cal" %}{% translate "Classes" %}</a>
           {% endif %}
           {% if 'corporate_wellness' in modules_on and role_can_check_in %}
             <a href="{% url 'corporate:visit_list' %}" {% if nav_section == 'companies' %}class="is-current" aria-current="page"{% endif %}>{% icon "building" %}{% translate "Company visits" %}</a>

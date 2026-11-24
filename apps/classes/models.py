@@ -154,6 +154,17 @@ class Booking(GymOwnedModel):
         return self.cancelled_at is None
 
 
+WEEKDAY_NAMES = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+]
+
+
 class TrainerHours(GymOwnedModel):
     """
     When a trainer is free for one-to-one sessions: a weekday and a window,
@@ -175,6 +186,10 @@ class TrainerHours(GymOwnedModel):
 
     class Meta:
         ordering = ["weekday", "starts_at"]
+
+    @property
+    def weekday_name(self) -> str:
+        return WEEKDAY_NAMES[self.weekday]
 
 
 class PersonalSession(GymOwnedModel):

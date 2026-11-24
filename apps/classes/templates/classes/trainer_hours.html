@@ -1,0 +1,41 @@
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% translate "Free hours" %} · {{ trainer.full_name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'classes:trainer_detail' trainer.public_id %}">← {{ trainer.full_name }}</a>
+  <div class="page-head">
+    <div><h1>{% translate "Free hours" %}</h1>
+      <p class="sub">{% translate "Members book one-to-one sessions inside these hours, one hour at a time." %}</p></div>
+  </div>
+
+  <div class="card stack">
+    <h2>{% translate "Now set" %}</h2>
+    {% if hours %}
+      <ul class="item-list">
+        {% for index, h in hours %}
+          <li>
+            <div class="item-main"><strong>{{ h.weekday_name }}</strong>
+              <span class="small muted">{{ h.starts_at|time:"H:i" }}–{{ h.ends_at|time:"H:i" }} · {{ h.branch.name }}</span></div>
+            <div class="item-actions">
+              <form method="post" class="inline-form">{% csrf_token %}
+                <input type="hidden" name="remove" value="{{ index }}">
+                <button type="submit" class="btn btn-small">{% translate "Remove" %}</button>
+              </form>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">{% translate "None yet, so nobody can book this trainer." %}</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <form method="post" class="form" novalidate>
+      {% csrf_token %}
+      {% for error in form.non_field_errors %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endfor %}
+      {% for field in form %}{% include "components/field.html" with field=field %}{% endfor %}
+      <div class="form-actions"><button type="submit" class="btn btn-primary">{% translate "Add these hours" %}</button></div>
+    </form>
+  </div>
+{% endblock %}

@@ -1,0 +1,76 @@
+{% extends "layouts/gym.html" %}
+{% load i18n phones %}
+{% block title %}{{ session.class_type.name }} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'classes:timetable' %}">← {% translate "Classes" %}</a>
+  <div class="page-head">
+    <div>
+      <h1>{{ session.class_type.name }}</h1>
+      <p class="muted">{{ session.held_on|date:"l j F" }} · {{ session.starts_at|time:"H:i" }} · {{ session.branch.name }} · {{ session.minutes }} {% translate "min" %}</p>
+    </div>
+    <div class="actions">
+      {% if session.cancelled_at %}
+        <span class="badge badge-danger">{% translate "Called off" %}</span>
+      {% elif is_manager %}
+        <form method="post" action="{% url 'classes:session_cancel' session.public_id %}" class="row">
+          {% csrf_token %}
+          <label class="visually-hidden" for="reason">{% translate "Reason" %}</label>
+          <input id="reason" name="reason" type="text" placeholder="{% translate 'Reason, for example trainer ill' %}">
+          <button type="submit" class="btn">{% translate "Call it off" %}</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if session.cancelled_at and session.cancel_reason %}
+    <p class="notice notice-warn">{% blocktranslate with r=session.cancel_reason %}Called off: {{ r }}{% endblocktranslate %} {% translate "Tell the people below." %}</p>
+  {% endif %}
+
+  <div class="two-col">
+    <section class="card stack">
+      <div class="card-head">
+        <div><h2>{% translate "Who is coming" %}</h2>
+          <p class="sub">{% blocktranslate with n=places_left %}{{ n }} places still free{% endblocktranslate %}</p></div>
+      </div>
+      {% if coming %}
+        <ul class="item-list">
+          {% for booking in coming %}
+            <li>
+              <div class="item-main">
+                <strong>{{ booking.member.full_name }}</strong>
+                <span class="small muted">{{ booking.member.person.phone|phone }}</span>
+              </div>
+              <div class="item-actions">
+                <form method="post" action="{% url 'classes:mark_came' session.public_id %}" class="inline-form">
+                  {% csrf_token %}<input type="hidden" name="booking" value="{{ booking.public_id }}">
+                  <button type="submit" class="btn btn-small {% if booking.came_at %}btn-primary{% endif %}">{% if booking.came_at %}{% translate "Came" %}{% else %}{% translate "Mark came" %}{% endif %}</button>
+                </form>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">{% translate "Nobody has booked yet." %}</p>
+      {% endif %}
+    </section>
+
+    <section class="card stack">
+      <h2>{% translate "The trainer" %}</h2>
+      {% if session.trainer %}
+        <p><a class="strong" href="{% url 'classes:trainer_detail' session.trainer.public_id %}">{{ session.trainer.full_name }}</a>
+          {% if session.trainer.headline %}<span class="muted">· {{ session.trainer.headline }}</span>{% endif %}</p>
+        {% if rating %}
+          <p><span class="badge badge-info">★ {{ rating }}</span> <span class="small muted">{% blocktranslate count n=rating_count %}{{ n }} review{% plural %}{{ n }} reviews{% endblocktranslate %}</span></p>
+        {% else %}
+          <p class="small muted">{% translate "No reviews yet." %}</p>
+        {% endif %}
+      {% else %}
+        <p class="muted">{% translate "Nobody is down to take this class yet." %}</p>
+      {% endif %}
+      {% if session.class_type.what_to_expect %}
+        <h2>{% translate "What to expect" %}</h2>
+        <p>{{ session.class_type.what_to_expect|linebreaksbr }}</p>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}

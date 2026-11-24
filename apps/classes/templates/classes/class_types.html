@@ -1,0 +1,36 @@
+{% extends "layouts/gym.html" %}
+{% load i18n icons %}
+{% block title %}{% translate "What we teach" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'classes:timetable' %}">← {% translate "Classes" %}</a>
+  <div class="page-head">
+    <div><h1>{% translate "What we teach" %}</h1>
+      <p class="sub">{% translate "Each one can go on the timetable as often as you like." %}</p></div>
+    <div class="actions"><a class="btn btn-primary" href="{% url 'classes:class_type_new' %}">{% icon "plus" %}{% translate "New class" %}</a></div>
+  </div>
+  <div class="card stack">
+    {% if class_types %}
+      <ul class="item-list">
+        {% for c in class_types %}
+          <li>
+            <div class="item-main">
+              <strong>{{ c.name }}</strong>
+              <span class="small muted">{{ c.minutes }} {% translate "min" %} · {{ c.places }} {% translate "places" %}{% if c.what_to_expect %} · {{ c.what_to_expect|truncatewords:14 }}{% endif %}</span>
+            </div>
+            <div class="item-actions">
+              {% if not c.is_active %}<span class="badge badge-off">{% translate "No longer taught" %}</span>{% endif %}
+              <a class="btn btn-small" href="{% url 'classes:class_type_edit' c.public_id %}">{% translate "Edit" %}</a>
+              {% if c.is_active %}
+                <form method="post" action="{% url 'classes:class_type_archive' c.public_id %}" class="inline-form">
+                  {% csrf_token %}<button type="submit" class="btn btn-small">{% translate "Stop teaching" %}</button>
+                </form>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">{% translate "Nothing yet. Add the first class, for example Aerobics." %}</p>
+    {% endif %}
+  </div>
+{% endblock %}

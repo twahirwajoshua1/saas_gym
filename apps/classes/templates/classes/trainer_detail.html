@@ -1,0 +1,91 @@
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{{ trainer.full_name }} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'classes:trainers' %}">← {% translate "Trainers" %}</a>
+  <div class="page-head">
+    <div>
+      <h1>{{ trainer.full_name }}</h1>
+      <p class="muted">{{ trainer.headline|default:"" }}</p>
+    </div>
+    <div class="actions">
+      {% if is_manager or is_them %}
+        <a class="btn" href="{% url 'classes:trainer_hours' trainer.public_id %}">{% translate "Free hours" %}</a>
+        <a class="btn btn-primary" href="{% url 'classes:trainer_edit' trainer.public_id %}">{% translate "Edit page" %}</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="two-col">
+    <section class="card stack">
+      <div class="card-head">
+        <div><h2>{% translate "This week" %}</h2><p class="sub">{% translate "Classes and one-to-ones together." %}</p></div>
+      </div>
+      {% if diary %}
+        <ul class="item-list">
+          {% for item in diary %}
+            <li>
+              <div class="item-main">
+                <strong>{{ item.held_on|date:"D j M" }} · {{ item.starts_at|time:"H:i" }}</strong>
+                <span class="small muted">
+                  {% if item.class_type %}{{ item.class_type.name }} · {{ item.taken }}/{{ item.places }}{% else %}{% translate "One-to-one" %} · {{ item.member.full_name }}{% endif %}
+                  · {{ item.branch.name }}
+                </span>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">{% translate "Nothing booked this week." %}</p>
+      {% endif %}
+
+      <h2>{% translate "Free hours for one-to-ones" %}</h2>
+      {% if trainer.takes_personal_sessions and hours %}
+        <ul class="item-list">
+          {% for h in hours %}
+            <li><div class="item-main"><strong>{{ h.weekday_name }}</strong>
+              <span class="small muted">{{ h.starts_at|time:"H:i" }}–{{ h.ends_at|time:"H:i" }} · {{ h.branch.name }}</span></div></li>
+          {% endfor %}
+        </ul>
+      {% elif not trainer.takes_personal_sessions %}
+        <p class="muted small">{% translate "This trainer does not take one-to-one sessions." %}</p>
+      {% else %}
+        <p class="muted small">{% translate "No free hours set, so members cannot book them." %}</p>
+      {% endif %}
+    </section>
+
+    <section class="card stack">
+      <div class="card-head">
+        <div><h2>{% translate "What members say" %}</h2>
+          <p class="sub">{% translate "Everyone can read these." %}</p></div>
+        {% if rating %}<span class="badge badge-info">★ {{ rating }} · {{ rating_count }}</span>{% endif %}
+      </div>
+      {% if trainer.about %}<p>{{ trainer.about|linebreaksbr }}</p>{% endif %}
+      {% if reviews %}
+        <ul class="item-list">
+          {% for review in reviews %}
+            <li>
+              <div class="item-main">
+                <strong>{{ review.stars }}★ · {{ review.member.full_name }}</strong>
+                <span class="small muted">{{ review.created_at|date:"j M Y" }}{% if review.session %} · {{ review.session.class_type.name }}{% endif %}</span>
+                {% if review.words %}<span>{{ review.words }}</span>{% endif %}
+              </div>
+              {% if is_manager %}
+                <div class="item-actions">
+                  <form method="post" action="{% url 'classes:review_hide' review.public_id %}" class="row">
+                    {% csrf_token %}
+                    <label class="visually-hidden" for="why{{ forloop.counter }}">{% translate "Why hide it" %}</label>
+                    <input id="why{{ forloop.counter }}" name="reason" type="text" placeholder="{% translate 'Why hide it' %}">
+                    <button type="submit" class="btn btn-small">{% translate "Hide" %}</button>
+                  </form>
+                </div>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">{% translate "No reviews yet." %}</p>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}

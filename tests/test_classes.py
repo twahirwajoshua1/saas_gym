@@ -11,6 +11,7 @@ from datetime import time, timedelta
 
 import pytest
 from django.core.exceptions import PermissionDenied
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.audit.models import AuditEntry
@@ -20,7 +21,7 @@ from apps.gyms.models import Branch, Role
 from apps.members import services as members
 from apps.members.services import InvalidDetails, MemberDetails
 from apps.modules import services as module_services
-from apps.modules.catalog import ATTENDANCE_ACCESS, PAYMENTS_FINANCE
+from apps.modules.catalog import ATTENDANCE_ACCESS, PAYMENTS_FINANCE, TRAINING_CLASSES
 
 pytestmark = pytest.mark.django_db
 
@@ -342,3 +343,140 @@ def test_hiding_a_review_needs_a_reason_and_a_manager(alpha, add_staff, session,
     desk = add_staff(alpha.gym, "0788000005", Role.RECEPTIONIST)
     with pytest.raises(PermissionDenied):
         services.hide_review(by=desk.assignment, review=review, reason="No")
+
+
+# --- The screens ------------------------------------------------------------
+
+
+@pytest.fixture
+def classes_on(alpha):
+    module_services.enable_module(gym=alpha.gym, code=TRAINING_CLASSES)
+    return alpha
+
+
+def _card(member, staff):
+    token = members.create_card_link(by=staff.assignment, member=member)
+    member.refresh_from_db()
+    return token
+
+
+def test_the_owner_builds_a_timetable_and_the_desk_sees_it(
+    classes_on, aerobics, branch, trainer, add_staff, sign_in, tomorrow
+):
+    owner = sign_in(classes_on)
+    answer = owner.post(
+        reverse("classes:schedule"),
+        {
+            "class_type": str(aerobics.public_id),
+            "branch": str(branch.public_id),
+            "trainer": str(trainer.public_id),
+            "first_day": tomorrow.isoformat(),
+            "at": "18:00",
+            "repeat_weeks": "2",
+        },
+    )
+    assert answer.status_code == 302
+    assert ClassSession.objects.for_gym(classes_on.gym).count() == 2
+
+    desk = add_staff(classes_on.gym, "0788000005", Role.RECEPTIONIST)
+    page = sign_in(desk).get(reverse("classes:timetable")).content.decode()
+    assert "Aerobics" in page and "Eric Habimana" in page
+    # A receptionist cannot change the timetable.
+    assert sign_in(desk).get(reverse("classes:schedule")).status_code in (302, 403)
+
+
+def test_a_member_books_from_their_card_and_the_desk_sees_who_is_coming(
+    classes_on, session, make_member, add_staff, sign_in, client
+):
+    member = make_member()
+    token = _card(member, classes_on)
+
+    page = client.get(reverse("memberapp:card_classes", args=[token])).content.decode()
+    assert "Aerobics" in page and "Book" in page
+
+    booked = client.post(reverse("memberapp:card_book", args=[token, session.public_id]))
+    assert booked.status_code == 302
+    assert services.places_left(session) == 1
+
+    desk = add_staff(classes_on.gym, "0788000005", Role.RECEPTIONIST)
+    detail = (
+        sign_in(desk)
+        .get(reverse("classes:session_detail", args=[session.public_id]))
+        .content.decode()
+    )
+    assert "Solange Keza" in detail and "1 places still free" in detail
+
+    # Giving up the place frees it again.
+    client.post(reverse("memberapp:card_book", args=[token, session.public_id]), {"give_up": "yes"})
+    assert services.places_left(session) == 2
+
+
+def test_a_member_books_a_trainer_from_their_card(classes_on, trainer, branch, make_member, client):
+    member = make_member()
+    token = _card(member, classes_on)
+    weekday = (timezone.localdate() + timedelta(days=2)).weekday()
+    services.set_trainer_hours(
+        by=classes_on.assignment,
+        trainer=trainer,
+        windows=[(weekday, time(14, 0), time(16, 0), branch)],
+    )
+
+    page = client.get(reverse("memberapp:card_trainers", args=[token])).content.decode()
+    assert "Eric Habimana" in page and "Strength and conditioning" in page
+
+    slot = services.free_slots(trainer, timezone.localdate())[0]
+    answer = client.post(
+        reverse("memberapp:card_book_trainer", args=[token, trainer.public_id]),
+        {"slot": f"{slot.held_on:%Y-%m-%d}T{slot.starts_at:%H:%M}", "note": "Back pain"},
+    )
+    assert answer.status_code == 302
+    booked = services.personal_sessions_for(member).get()
+    assert booked.trainer_id == trainer.pk and booked.note == "Back pain"
+
+
+def test_a_member_reviews_the_trainer_from_their_card_and_the_gym_sees_it(
+    classes_on, trainer, session, make_member, sign_in, client
+):
+    member = make_member()
+    token = _card(member, classes_on)
+    services.book(member=member, session=session)
+    _held_yesterday(session)
+
+    card = client.get(reverse("memberapp:card", args=[token])).content.decode()
+    assert "How was it?" in card
+
+    client.post(
+        reverse("memberapp:card_review", args=[token, session.public_id]),
+        {"stars": "5", "words": "Eric is patient and clear."},
+    )
+    assert services.rating(trainer) == (5.0, 1)
+
+    page = (
+        sign_in(classes_on)
+        .get(reverse("classes:trainer_detail", args=[trainer.public_id]))
+        .content.decode()
+    )
+    assert "Eric is patient and clear." in page and "Solange Keza" in page
+
+
+def test_the_card_shows_no_classes_when_the_gym_has_not_bought_the_module(
+    alpha, make_member, client
+):
+    member = make_member()
+    token = _card(member, alpha)
+    card = client.get(reverse("memberapp:card", args=[token])).content.decode()
+    assert "See the timetable" not in card
+    assert client.get(reverse("memberapp:card_classes", args=[token])).status_code == 404
+
+
+def test_another_gyms_card_cannot_book_this_gyms_class(
+    classes_on, session, make_gym, add_staff, client
+):
+    bravo = make_gym("Bravo Fitness", "0788000002")
+    theirs = members.register_member(
+        by=bravo.assignment, phone="0788999111", details=MemberDetails(full_name="Outsider")
+    )
+    token = members.create_card_link(by=bravo.assignment, member=theirs)
+    answer = client.post(reverse("memberapp:card_book", args=[token, session.public_id]))
+    assert answer.status_code == 404
+    assert services.places_left(session) == 2

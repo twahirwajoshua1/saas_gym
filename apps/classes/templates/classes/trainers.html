@@ -1,0 +1,49 @@
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% translate "Trainers" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'classes:timetable' %}">← {% translate "Classes" %}</a>
+  <div class="page-head">
+    <div><h1>{% translate "Trainers" %}</h1>
+      <p class="sub">{% translate "What members see, and how members rate them." %}</p></div>
+  </div>
+  <div class="card stack">
+    {% if people %}
+      <ul class="item-list">
+        {% for row in people %}
+          <li>
+            <div class="item-main">
+              <strong><a href="{% url 'classes:trainer_detail' row.trainer.public_id %}">{{ row.trainer.full_name }}</a></strong>
+              <span class="small muted">{{ row.trainer.headline|default:"—" }}</span>
+            </div>
+            <div class="item-actions">
+              {% if row.rating %}
+                <span class="badge badge-info">★ {{ row.rating }} · {{ row.count }}</span>
+              {% else %}
+                <span class="small muted">{% translate "No reviews yet" %}</span>
+              {% endif %}
+              {% if not row.trainer.is_listed %}<span class="badge badge-off">{% translate "Hidden" %}</span>{% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">{% translate "No trainer pages yet." %}</p>
+    {% endif %}
+  </div>
+
+  {% if without_page %}
+    <div class="card stack">
+      <div class="card-head"><div><h2>{% translate "Staff without a trainer page" %}</h2>
+        <p class="sub">{% translate "Members cannot book them until they have one." %}</p></div></div>
+      <ul class="item-list">
+        {% for staff in without_page %}
+          <li>
+            <div class="item-main"><strong>{{ staff.person.full_name }}</strong></div>
+            <div class="item-actions"><a class="btn btn-small btn-primary" href="{% url 'classes:trainer_new' staff.person.public_id %}">{% translate "Write their page" %}</a></div>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+{% endblock %}
