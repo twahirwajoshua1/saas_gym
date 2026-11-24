@@ -400,3 +400,14 @@ details.card > summary { cursor: pointer; min-height: 32px; font-weight: 600; }
 /* A row of small labels under the figures, for example which packages the
    active members are on. */
 .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -8px 0 0; }
+
+/* A row in a list of people where this one cannot come in: a quiet red edge,
+   so the desk sees it without the whole list shouting. */
+.item-list li.row-no { box-shadow: inset 3px 0 0 var(--danger); padding-left: 10px; }
+
+/* A correction the desk rarely needs: present, but not shouting from every row. */
+details.quiet > summary { cursor: pointer; color: var(--muted); font-size: .8125rem; list-style: none; }
+details.quiet > summary::-webkit-details-marker { display: none; }
+details.quiet > summary:hover { color: var(--accent); text-decoration: underline; }
+details.quiet[open] > summary { color: var(--accent); }
+.strike { text-decoration: line-through; }

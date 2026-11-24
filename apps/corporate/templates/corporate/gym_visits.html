@@ -4,35 +4,68 @@
 {% block content %}
   <a class="back-link" href="{% url 'corporate:gym_home' %}">← {% translate "Companies" %}</a>
   <div class="page-head">
-    <h1>{% translate "Company visits" %}</h1>
-    <form method="get" class="inline-form"><input type="date" name="day" value="{{ day|date:'Y-m-d' }}"><button class="btn btn-small" type="submit">{% translate "Show" %}</button></form>
+    <div>
+      <h1>{% translate "Company visits" %}</h1>
+      <p class="sub">{{ day|date:"l j F Y" }} · {% blocktranslate count n=visits|length %}{{ n }} visit{% plural %}{{ n }} visits{% endblocktranslate %} · {% blocktranslate with a=day_total|rwf %}{{ a }} on company bills{% endblocktranslate %}</p>
+    </div>
+    <div class="actions">
+      <a class="btn" href="{% url 'corporate:desk' %}">{% translate "Check someone in" %}</a>
+      <form method="get" class="inline-form">
+        <label class="visually-hidden" for="company">{% translate "Company" %}</label>
+        <select id="company" name="company" class="select-inline">
+          <option value="">{% translate "All companies" %}</option>
+          {% for c in companies %}<option value="{{ c.public_id }}" {% if c == company %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+        </select>
+        <label class="visually-hidden" for="day">{% translate "Day" %}</label>
+        <input id="day" type="date" name="day" value="{{ day|date:'Y-m-d' }}">
+        <button class="btn btn-small" type="submit">{% translate "Show" %}</button>
+      </form>
+    </div>
   </div>
-  <div class="card stack">
-    <h2>{{ day|date:"l j F Y" }}</h2>
-    {% for visit in visits %}
-      <div class="stack">
-        <p><strong>{{ visit.employee.full_name }}</strong> <span class="muted small">{{ visit.company.name }} · {{ visit.employee.employee_number }} · {{ visit.branch.name }} · {{ visit.checked_in_at|time:"H:i" }}</span>
-          {% if visit.confirmed_at %}<span class="badge badge-on">{% translate "Confirmed" %}</span>{% else %}<span class="badge badge-off">{% translate "Not confirmed" %}</span>{% endif %}
+
+  {% for visit in visits %}
+    <section class="card stack visit">
+      <div class="card-head">
+        <div>
+          <strong>{{ visit.employee.full_name }}</strong>
+          <p class="small muted">{{ visit.company.name }} · {{ visit.employee.employee_number }} · {{ visit.branch.name }} · {{ visit.checked_in_at|time:"H:i" }}</p>
+        </div>
+        <div class="item-actions">
           {% for flag in visit.flags.all %}{% if flag.is_open %}<span class="badge badge-danger">{{ flag.get_kind_display }}</span>{% endif %}{% endfor %}
-        </p>
-        <ul class="item-list">
-          {% for a in visit.activities.all %}
-            <li>
-              <div class="item-main"><span>{{ a.service_name }} · {{ a.price_rwf|rwf }}</span>
-                {% if a.cancelled_at %}<span class="muted small">{% translate "Cancelled:" %} {{ a.cancel_reason }}</span>{% endif %}</div>
-              {% if not a.cancelled_at %}
-                <form method="post" action="{% url 'corporate:activity_cancel' a.public_id %}" class="inline-form">
-                  {% csrf_token %}
-                  <input name="reason" placeholder="{% translate 'Reason' %}" required size="14">
-                  <button type="submit" class="btn btn-small">{% translate "Cancel" %}</button>
-                </form>
-              {% endif %}
-            </li>
-          {% endfor %}
-        </ul>
+          {% if visit.confirmed_at %}<span class="badge badge-on">{% translate "Signed in" %}</span>{% else %}<span class="badge badge-off">{% translate "Not signed" %}</span>{% endif %}
+        </div>
       </div>
-    {% empty %}
-      <p class="muted">{% translate "No company visits on this day." %}</p>
-    {% endfor %}
-  </div>
+
+      <table class="data">
+        <tbody>
+          {% for a in visit.activities.all %}
+            <tr {% if a.cancelled_at %}class="muted"{% endif %}>
+              <td>{{ a.service_name }}{% if a.cancelled_at %} · <span class="small">{% blocktranslate with r=a.cancel_reason %}taken off: {{ r }}{% endblocktranslate %}</span>{% endif %}</td>
+              <td class="num {% if a.cancelled_at %}strike{% endif %}">{{ a.price_rwf|rwf }}</td>
+              <td class="num" style="width:1%">
+                {% if not a.cancelled_at %}
+                  <details class="quiet">
+                    <summary>{% translate "Take off" %}</summary>
+                    <form method="post" action="{% url 'corporate:activity_cancel' a.public_id %}" class="row" style="margin-top:6px">
+                      {% csrf_token %}
+                      <label class="visually-hidden" for="why-{{ a.public_id }}">{% translate "Why" %}</label>
+                      <input id="why-{{ a.public_id }}" name="reason" placeholder="{% translate 'Why, for example did not use it' %}" required size="22">
+                      <button type="submit" class="btn btn-small">{% translate "Take off the bill" %}</button>
+                    </form>
+                  </details>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          <tr class="total">
+            <td>{% translate "On the company's bill" %}</td>
+            <td class="num">{{ visit.billed_rwf|rwf }}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  {% empty %}
+    <div class="card empty"><p class="muted">{% translate "No company visits on this day." %}</p></div>
+  {% endfor %}
 {% endblock %}

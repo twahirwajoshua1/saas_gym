@@ -376,3 +376,78 @@ def test_the_desk_offers_a_written_message_for_members_about_to_lapse(
     assert "sms:%2B250788400402?body=" in page or "sms:+250788400402?body=" in page
     # The message names the member and the gym, so staff can send it as it is.
     assert "Muraho%20Chantal" in page and "missed%20you" in page
+
+
+# --- The receptionist's working lists ----------------------------------------
+
+
+def test_several_matches_are_short_rows_and_one_match_is_the_full_decision(
+    alpha, monthly, add_staff, sign_in
+):
+    """A choice between people is a list; a single person is a decision."""
+    desk = add_staff(alpha.gym, "0788000005", Role.RECEPTIONIST)
+    new_member(alpha, monthly, name="Alice Mutoni", phone="0788300301")
+    new_member(alpha, monthly, name="Daniel Mutoni", phone="0788300302")
+    client = sign_in(desk)
+
+    many = client.get(reverse("attendance:home"), {"q": "Mutoni"}).content.decode()
+    assert "people match" in many
+    assert "Alice Mutoni" in many and "Daniel Mutoni" in many
+    # The long explanations belong to the single-result card, not the list.
+    assert "valid until" not in many
+
+    one = client.get(reverse("attendance:home"), {"q": "Alice Mut"}).content.decode()
+    assert "people match" not in one and "valid until" in one
+
+
+def test_the_member_list_shows_where_each_membership_stands_and_can_be_narrowed(
+    alpha, monthly, add_staff, sign_in
+):
+    desk = add_staff(alpha.gym, "0788000005", Role.RECEPTIONIST)
+    today = timezone.localdate()
+    active = new_member(alpha, monthly, name="Active Person", phone="0788300311")
+    ended = new_member(alpha, monthly, name="Ended Person", phone="0788300312")
+    Membership.objects.filter(member=ended).update(
+        start_date=today - timedelta(days=40), end_date=today - timedelta(days=10)
+    )
+    never = new_member(alpha, None, name="Never Person", phone="0788300313")
+    client = sign_in(desk)
+
+    page = client.get(reverse("members:member_list")).content.decode()
+    assert "Monthly" in page and "Ended" in page and "None yet" in page
+
+    only_active = client.get(reverse("members:member_list"), {"show": "active"}).content.decode()
+    assert active.full_name in only_active
+    assert ended.full_name not in only_active and never.full_name not in only_active
+
+    only_lapsed = client.get(reverse("members:member_list"), {"show": "lapsed"}).content.decode()
+    assert ended.full_name in only_lapsed and active.full_name not in only_lapsed
+
+    only_never = client.get(reverse("members:member_list"), {"show": "never"}).content.decode()
+    assert never.full_name in only_never and active.full_name not in only_never
+
+
+def test_the_member_list_asks_the_database_the_same_few_times_however_long_it_is(
+    alpha, monthly, add_staff, sign_in, django_capture_on_commit_callbacks
+):
+    """
+    Status for a page of members must not cost one query per member, or a gym
+    with thousands of them would crawl.
+    """
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    desk = add_staff(alpha.gym, "0788000005", Role.RECEPTIONIST)
+    client = sign_in(desk)
+
+    for index in range(4):
+        new_member(alpha, monthly, name=f"Small {index}", phone=f"07883105{index:02d}")
+    with CaptureQueriesContext(connection) as few:
+        client.get(reverse("members:member_list"))
+
+    for index in range(20):
+        new_member(alpha, monthly, name=f"Large {index}", phone=f"07883106{index:02d}")
+    with CaptureQueriesContext(connection) as many:
+        client.get(reverse("members:member_list"))
+
+    assert len(many) == len(few)

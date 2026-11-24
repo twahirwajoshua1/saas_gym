@@ -539,6 +539,80 @@ def memberships_valid_on(gym: Gym, day: date):
     )
 
 
+# The states the member list can be narrowed to, for the desk.
+MEMBER_STATES = ("active", "soon", "lapsed", "never")
+
+
+def narrow_members(gym: Gym, members, state: str, today: date):
+    """
+    Narrow a list of members to one state: who may train now, whose membership
+    runs out within a week, who stopped in the last month, and who never
+    bought one. An unknown state changes nothing.
+    """
+    if state == "active":
+        return members.filter(pk__in=members_with_valid_membership(gym, today).values("pk"))
+    if state == "soon":
+        ids = ending_soon(gym, today, 7).values("member_id")
+        return members.filter(pk__in=ids)
+    if state == "lapsed":
+        ids = lapsed(gym, today, 30).values("member_id")
+        return members.filter(pk__in=ids)
+    if state == "never":
+        has_any = Membership.objects.for_gym(gym).filter(member=OuterRef("pk"))
+        return members.filter(~Exists(has_any))
+    return members
+
+
+@dataclass(frozen=True)
+class MemberStatus:
+    """A member with the membership that explains where they stand today."""
+
+    member: Member
+    membership: Membership | None  # valid today, else the most recent one that ended
+    is_active: bool
+    days_left: int = 0
+
+    @property
+    def ends_on(self) -> date | None:
+        return self.membership.end_date if self.membership else None
+
+
+def status_for(members, today: date) -> list[MemberStatus]:
+    """
+    Where each of these members stands, in two queries however long the list
+    is, so the desk's list stays fast on a gym with thousands of members.
+    """
+    members = list(members)
+    if not members:
+        return []
+    gym = members[0].gym
+    ids = [m.pk for m in members]
+    live = Membership.objects.for_gym(gym).filter(
+        member_id__in=ids, cancelled_at__isnull=True, start_date__lte=today, end_date__gte=today
+    )
+    current = {m.member_id: m for m in live.order_by("end_date")}
+    missing = [i for i in ids if i not in current]
+    last: dict[int, Membership] = {}
+    if missing:
+        past = Membership.objects.for_gym(gym).filter(
+            member_id__in=missing, cancelled_at__isnull=True
+        )
+        for membership in past.order_by("member_id", "end_date"):
+            last[membership.member_id] = membership  # the latest wins
+    rows = []
+    for member in members:
+        live_one = current.get(member.pk)
+        rows.append(
+            MemberStatus(
+                member=member,
+                membership=live_one or last.get(member.pk),
+                is_active=live_one is not None,
+                days_left=(live_one.end_date - today).days if live_one else 0,
+            )
+        )
+    return rows
+
+
 def active_by_package(gym: Gym, day: date) -> list[tuple[str, int]]:
     """
     How many memberships valid today sit on each package ("Monthly: 84",

@@ -1152,6 +1152,12 @@ def cancel_activity(*, by: StaffAssignment, activity: VisitActivity, reason: str
         )
 
 
+def companies_with_contracts(gym: Gym):
+    """Every company this gym has ever had a contract with, by name."""
+    ids = Contract.objects.for_gym(gym).values("company_id")
+    return Company.objects.filter(id__in=ids).order_by("name")
+
+
 def visits_for_gym(gym: Gym, start: date, end: date, company_id=None):
     visits = (
         CorporateVisit.objects.for_gym(gym)

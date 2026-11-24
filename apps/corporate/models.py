@@ -192,6 +192,11 @@ class CorporateVisit(GymOwnedModel):
         ]
         indexes = [models.Index(fields=["company", "checked_in_on"])]
 
+    @property
+    def billed_rwf(self) -> int:
+        """What this visit puts on the company's bill, cancelled lines left out."""
+        return sum(a.price_rwf for a in self.activities.all() if a.cancelled_at is None)
+
 
 class VisitActivity(GymOwnedModel):
     public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)

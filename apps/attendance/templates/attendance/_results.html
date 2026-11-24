@@ -1,5 +1,55 @@
 {% load i18n money phones %}
-{% comment %}One card per matching member, each saying whether they may come in today.{% endcomment %}
+{% comment %}
+  One match is a decision, so it gets the full card. Several matches are a
+  choice, so they become short rows: the desk needs to pick the right person
+  before it needs the detail.
+{% endcomment %}
+{% if results|length > 1 %}
+  <div class="card stack">
+    <p class="small muted">{% blocktranslate count n=results|length %}{{ n }} person matches. Keep typing to narrow it down.{% plural %}{{ n }} people match. Keep typing to narrow it down.{% endblocktranslate %}</p>
+    <ul class="item-list">
+      {% for result in results %}
+        <li class="{% if not result.allowed %}row-no{% endif %}">
+          <div class="item-main">
+            <strong>{{ result.member.full_name }}</strong>
+            <span class="small muted">
+              {{ result.member.person.phone|phone_masked }} ·
+              {% if result.allowed %}
+                {% blocktranslate with p=result.membership.package_name d=result.membership.end_date|date:"j M" %}{{ p }} to {{ d }}{% endblocktranslate %}
+              {% elif result.reason == "frozen" %}
+                {% blocktranslate with d=result.frozen_until|date:"j M" %}Frozen until {{ d }}{% endblocktranslate %}
+              {% elif result.reason == "expired" %}
+                {% blocktranslate with d=result.membership.end_date|date:"j M" %}Ended {{ d }}{% endblocktranslate %}
+              {% elif result.reason == "not_started" %}
+                {% blocktranslate with d=result.membership.start_date|date:"j M" %}Starts {{ d }}{% endblocktranslate %}
+              {% else %}
+                {% translate "Never had a membership" %}
+              {% endif %}
+              {% if result.owes_rwf > 0 %} · {% blocktranslate with a=result.owes_rwf|rwf %}owes {{ a }}{% endblocktranslate %}{% endif %}
+            </span>
+          </div>
+          <div class="item-actions">
+            {% if result.already_today %}
+              <span class="badge badge-on">{% blocktranslate with t=result.already_today.checked_in_at|time:"H:i" %}In at {{ t }}{% endblocktranslate %}</span>
+            {% elif result.allowed %}
+              <form method="post" action="{% url 'attendance:check_in' result.member.public_id %}" class="inline-form">
+                {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+                <button type="submit" class="btn btn-small btn-primary">{% translate "Check in" %}</button>
+              </form>
+            {% elif role_is_front_desk and 'payments_finance' in modules_on and result.reason != "frozen" %}
+              <a class="btn btn-small btn-primary" href="{% url 'billing:sell' result.member.public_id %}">{% if result.membership %}{% translate "Renew" %}{% else %}{% translate "Sell" %}{% endif %}</a>
+            {% else %}
+              <span class="badge badge-danger">{% translate "Not valid" %}</span>
+            {% endif %}
+            {% if role_is_front_desk %}
+              <a class="btn btn-small" href="{% url 'members:member_detail' result.member.public_id %}">{% translate "Open" %}</a>
+            {% endif %}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% else %}
 {% for result in results %}
   <div class="card stack decision {% if result.allowed %}decision-yes{% else %}decision-no{% endif %}">
     <div class="card-head">
@@ -66,3 +116,4 @@
     </div>
   {% endif %}
 {% endfor %}
+{% endif %}

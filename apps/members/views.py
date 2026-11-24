@@ -67,9 +67,19 @@ def _show_error(form, error: services.InvalidDetails) -> None:
 @gym_required(*FRONT_DESK_ROLES)
 def member_list(request):
     query = request.GET.get("q", "")
+    state = request.GET.get("show", "")
+    today = timezone.localdate()
     members = services.search_members(request.gym, query)
+    if state in services.MEMBER_STATES:
+        members = services.narrow_members(request.gym, members, state, today)
     page = Paginator(members, PAGE_SIZE).get_page(request.GET.get("page"))
-    context = {"page": page, "query": query}
+    context = {
+        "page": page,
+        "query": query,
+        "state": state if state in services.MEMBER_STATES else "",
+        "rows": services.status_for(page.object_list, today),
+        "today": today,
+    }
 
     # When the search box asks (via HTMX), send back only the results part.
     if request.headers.get("HX-Request"):

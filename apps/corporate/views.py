@@ -463,10 +463,23 @@ def _is_uuid(value) -> bool:
 @corporate_gym(*CHECK_IN_ROLES)
 def visit_list(request):
     day = parse_date(request.GET.get("day", "")) or timezone.localdate()
+    companies = services.companies_with_contracts(request.gym)
+    chosen = next(
+        (c for c in companies if str(c.public_id) == request.GET.get("company", "")), None
+    )
+    visits = list(
+        services.visits_for_gym(request.gym, day, day, company_id=chosen.id if chosen else None)
+    )
     return render(
         request,
         "corporate/gym_visits.html",
-        {"day": day, "visits": services.visits_for_gym(request.gym, day, day)},
+        {
+            "day": day,
+            "visits": visits,
+            "companies": companies,
+            "company": chosen,
+            "day_total": sum(v.billed_rwf for v in visits),
+        },
     )
 
 
