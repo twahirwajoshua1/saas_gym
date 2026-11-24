@@ -253,7 +253,7 @@ def test_the_desk_lists_arrivals_and_problems_are_marked_done(
     tablet_client.post(reverse("frontdesk:kiosk_scan"), {"text": "/card/" + "q" * 43 + "/"})
     client = sign_in(alpha)
     page = client.get(reverse("frontdesk:desk")).content.decode()
-    assert "Arriving now" in page and "Eric Mugisha" in page and "Tablet" in page
+    assert "Checked in today" in page and "Eric Mugisha" in page and "Tablet" in page
     problem = ScanProblem.objects.get()
     client.post(reverse("frontdesk:problem_done", args=[problem.public_id]))
     problem.refresh_from_db()
@@ -342,3 +342,37 @@ def test_the_officer_sees_each_gym_by_service(alpha, company_setup, tablet_clien
     assert row.gym_name == "Alpha Fitness" and row.total_rwf == 6500
     assert row.cells["Gym"] == {"count": 1, "amount": 2500}
     assert month["services"] == ["Gym", "Sauna"]
+
+
+# --- Reaching out -----------------------------------------------------------
+
+
+def test_the_desk_offers_a_written_message_for_members_about_to_lapse(
+    alpha, branch, monthly, add_staff, sign_in
+):
+    """Ending soon and gone quiet both appear, each with WhatsApp and SMS."""
+    today = timezone.localdate()
+    desk = add_staff(alpha.gym, "0788000005", Role.RECEPTIONIST)
+
+    leaving = new_member(alpha, monthly, name="Chantal Uwase", phone="0788400401")
+    Membership.objects.filter(member=leaving).update(
+        start_date=today - timedelta(days=28), end_date=today + timedelta(days=2)
+    )
+
+    quiet = new_member(alpha, monthly, name="Patrick Nsengimana", phone="0788400402")
+    CheckIn.objects.create(
+        gym=alpha.gym,
+        branch=branch,
+        member=quiet,
+        membership=Membership.objects.filter(member=quiet).first(),
+        checked_in_on=today - timedelta(days=4),
+    )
+
+    page = sign_in(desk).get(reverse("frontdesk:desk")).content.decode()
+
+    assert "Reach out today" in page
+    assert "Chantal Uwase" in page and "Patrick Nsengimana" in page
+    assert "https://wa.me/250788400401?text=" in page
+    assert "sms:%2B250788400402?body=" in page or "sms:+250788400402?body=" in page
+    # The message names the member and the gym, so staff can send it as it is.
+    assert "Muraho%20Chantal" in page and "missed%20you" in page

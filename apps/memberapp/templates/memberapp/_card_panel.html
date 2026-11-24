@@ -2,7 +2,10 @@
 {% comment %}The member's card link, for staff. Shown inside the member's page.{% endcomment %}
 <div class="card stack" id="member-card-panel">
   <div class="card-head">
-    <h2>{% translate "Member card" %}</h2>
+    <div>
+      <h2>{% translate "Member card" %}</h2>
+      {% if request.GET.new %}<p class="sub">{% translate "Send it now, so they can scan themselves in at the entrance." %}</p>{% endif %}
+    </div>
   </div>
   {% if card_url %}
     <div class="card-panel">
@@ -11,7 +14,8 @@
         <p class="small muted">{% translate "The member opens this private link on their phone and shows the QR code at reception." %}</p>
         <p class="link-text small">{{ card_url }}</p>
         <div class="form-actions">
-          <a class="btn btn-small btn-primary" href="{{ whatsapp_url }}" target="_blank" rel="noopener">{% translate "Send by WhatsApp" %}</a>
+          <a class="btn btn-primary" href="{{ whatsapp_url }}" target="_blank" rel="noopener">{% translate "Send by WhatsApp" %}</a>
+          <a class="btn" href="{{ sms_url }}">{% translate "Send by SMS" %}</a>
           <a class="btn btn-small" href="{{ card_url }}" target="_blank" rel="noopener">{% translate "Open card" %}</a>
           <form method="post" action="{% url 'memberapp:card_link' member.public_id %}" class="inline-form">
             {% csrf_token %}<input type="hidden" name="renew" value="yes">

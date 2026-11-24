@@ -79,6 +79,7 @@ class Overview:
     companies: list = field(default_factory=list)
     companies_total: int = 0
     cash_by_person: list = field(default_factory=list)
+    active_by_package: list = field(default_factory=list)
     insights: list = field(default_factory=list)
 
 
@@ -94,6 +95,7 @@ def overview(gym: Gym, today: date) -> Overview:
         lapsed=members.lapsed(gym, today, LAPSED_DAYS).count(),
         ending_soon_list=list(soon[:8]),
         ending_soon_value=sum(m.price_rwf for m in soon),
+        active_by_package=members.active_by_package(gym, today),
     )
 
     if modules.is_enabled(gym, PAYMENTS_FINANCE):

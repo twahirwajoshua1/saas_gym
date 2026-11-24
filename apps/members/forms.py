@@ -52,7 +52,10 @@ class MemberForm(forms.Form):
         widget=forms.TextInput(attrs={"inputmode": "tel", "autocomplete": "off"}),
     )
     branch = forms.ModelChoiceField(
-        label=_("Home branch"), queryset=Branch.objects.none(), to_field_name="public_id"
+        label=_("Signed up at"),
+        help_text=_("Only where they registered. They may train at any branch."),
+        queryset=Branch.objects.none(),
+        to_field_name="public_id",
     )
     gender = forms.ChoiceField(
         label=_("Gender"), required=False, choices=[("", "—"), *Gender.choices]

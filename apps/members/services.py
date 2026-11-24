@@ -14,7 +14,7 @@ from datetime import date, timedelta
 
 from django.core.exceptions import PermissionDenied
 from django.db import connection, transaction
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Count, Exists, OuterRef, Q
 from django.utils import timezone
 
 from apps.audit import services as audit
@@ -369,7 +369,13 @@ def register_member(*, by: StaffAssignment, phone: str, details: MemberDetails) 
     if existing is not None:
         raise AlreadyMember(existing)
 
-    member = Member.objects.create(gym=by.gym, person=person, registered_by=by.person, **values)
+    member = Member.objects.create(
+        gym=by.gym,
+        person=person,
+        registered_by=by.person,
+        card_token=_new_card_token(),
+        **values,
+    )
     audit.record(
         action="member.registered",
         summary=f"{member.full_name} was registered as a member",
@@ -531,6 +537,21 @@ def memberships_valid_on(gym: Gym, day: date):
     return Membership.objects.for_gym(gym).filter(
         cancelled_at__isnull=True, start_date__lte=day, end_date__gte=day
     )
+
+
+def active_by_package(gym: Gym, day: date) -> list[tuple[str, int]]:
+    """
+    How many memberships valid today sit on each package ("Monthly: 84",
+    "Annual: 12"). Biggest group first. The owner uses this to see how much of
+    the gym is on long subscriptions.
+    """
+    rows = (
+        memberships_valid_on(gym, day)
+        .values("package_name")
+        .annotate(people=Count("member_id", distinct=True))
+        .order_by("-people", "package_name")
+    )
+    return [(row["package_name"], row["people"]) for row in rows]
 
 
 def new_member_count(gym: Gym, start: date, end: date) -> int:

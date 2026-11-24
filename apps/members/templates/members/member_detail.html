@@ -13,6 +13,11 @@
     </div>
   </div>
 
+  {# The card link belongs to the member app module. It is fetched separately and placed here. #}
+  <div hx-get="{% url 'memberapp:card_panel' member.public_id %}" hx-trigger="load" hx-swap="outerHTML">
+    <a href="{% url 'memberapp:card_panel' member.public_id %}">{% translate "Member card" %}</a>
+  </div>
+
   <div class="card stack">
     <div class="card-head">
       <h2>{% translate "Membership" %}</h2>
@@ -64,11 +69,6 @@
     </div>
   {% endif %}
 
-  {# The card link belongs to the member app module. It is fetched separately and placed here. #}
-  <div hx-get="{% url 'memberapp:card_panel' member.public_id %}" hx-trigger="load" hx-swap="outerHTML">
-    <a href="{% url 'memberapp:card_panel' member.public_id %}">{% translate "Member card" %}</a>
-  </div>
-
   {% if 'attendance_access' in modules_on %}
     {# The visits part belongs to the attendance module. It is fetched separately and placed here. #}
     <div hx-get="{% url 'attendance:member_visits' member.public_id %}" hx-trigger="load" hx-swap="outerHTML">
@@ -79,7 +79,7 @@
   <div class="card stack">
     <h2>{% translate "Details" %}</h2>
     <dl class="detail-list">
-      <div><dt>{% translate "Home branch" %}</dt><dd>{{ member.branch.name }}</dd></div>
+      <div><dt>{% translate "Signed up at" %}</dt><dd>{{ member.branch.name }} <span class="muted small">· {% translate "may train at any branch" %}</span></dd></div>
       <div><dt>{% translate "Joined" %}</dt><dd>{{ member.joined_on|date:"j M Y" }}</dd></div>
       <div><dt>{% translate "Gender" %}</dt><dd>{{ member.get_gender_display|default:"—" }}</dd></div>
       <div><dt>{% translate "Date of birth" %}</dt><dd>{{ member.date_of_birth|date:"j M Y"|default:"—" }}</dd></div>

@@ -1,4 +1,4 @@
-{% load i18n icons money %}
+{% load i18n icons money phones %}
 <div class="stack">
   <div class="kpis">
     <div class="card stat"><span class="stat-label">{% translate "In today" %}</span><span class="stat-value">{{ counts.total }}</span><span class="stat-foot">{% blocktranslate with n=counts.tablet %}{{ n }} scanned themselves at the tablet{% endblocktranslate %}</span></div>
@@ -31,7 +31,7 @@
       {% endif %}
 
       <section class="card stack">
-        <div class="card-head"><div><h2>{% translate "Arriving now" %}</h2><p class="sub">{% translate "Members and company staff together, newest first." %}</p></div>
+        <div class="card-head"><div><h2>{% translate "Checked in today" %}</h2><p class="sub">{% translate "Members and company staff together, newest first." %}</p></div>
           {% if corporate_on %}<a class="small strong" href="{% url 'corporate:visit_list' %}">{% translate "Company visits" %}</a>{% endif %}</div>
         {% if arrivals %}
           <ul class="feed">
@@ -44,4 +44,27 @@
         {% endif %}
       </section>
     </div>
+{% if reminders %}
+  <section class="card stack">
+    <div class="card-head">
+      <div><h2>{% translate "Reach out today" %}</h2>
+        <p class="sub">{% translate "Memberships about to end, and people we have not seen for a few days. The message is written for you; you can change it before sending." %}</p></div>
+      <a class="small strong" href="{% url 'dashboard:renewals' %}">{% translate "All renewals" %}</a>
+    </div>
+    <ul class="item-list">
+      {% for r in reminders %}
+        <li>
+          <div class="item-main">
+            <strong>{{ r.member.full_name }}</strong>
+            <span class="small muted">{{ r.detail }} · {{ r.phone|phone }}</span>
+          </div>
+          <div class="item-actions">
+            <a class="btn btn-small btn-primary" href="{{ r.whatsapp_url }}" target="_blank" rel="noopener">{% translate "WhatsApp" %}</a>
+            <a class="btn btn-small" href="{{ r.sms_url }}">{% translate "SMS" %}</a>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endif %}
 </div>

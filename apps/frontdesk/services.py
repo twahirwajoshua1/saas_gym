@@ -11,6 +11,7 @@ import hashlib
 import secrets
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from urllib.parse import quote
 
 from django.core.exceptions import PermissionDenied
 from django.db import connection, transaction
@@ -489,3 +490,77 @@ def counts_today(gym: Gym, day: date, branch: Branch | None = None) -> dict:
         + company.filter(method=VisitMethod.TABLET).count()
     )
     return {"total": total, "tablet": by_tablet}
+
+
+# --- Messages the desk sends ------------------------------------------------
+#
+# The gym sends from its own phone, through WhatsApp or the phone's SMS app.
+# We only write the message and open the right app; nothing is sent by us and
+# no message is stored. That keeps the gym's own number as the sender, which is
+# what members recognise, and costs the gym nothing extra.
+
+REMINDER_DAYS = 7  # a membership ending within a week
+QUIET_AFTER_DAYS = 3  # not seen for three days
+QUIET_BEFORE_DAYS = 7  # but seen within the last week
+
+
+@dataclass(frozen=True)
+class Reminder:
+    """One member to reach out to, with the message already written."""
+
+    member: Member
+    phone: str
+    reason: str  # "ending" or "quiet"
+    detail: str  # what the desk sees under the name
+    message: str
+
+    @property
+    def whatsapp_url(self) -> str:
+        return f"https://wa.me/{self.phone.lstrip('+')}?text={quote(self.message)}"
+
+    @property
+    def sms_url(self) -> str:
+        return f"sms:{self.phone}?body={quote(self.message)}"
+
+
+def reminders(gym: Gym, today: date, limit: int = 6) -> list[Reminder]:
+    """
+    Who the desk should message now: memberships about to end first, then
+    members who have gone quiet. The text is a starting point; staff can change
+    it in WhatsApp before sending.
+    """
+    out: list[Reminder] = []
+    for membership in member_services.ending_soon(gym, today, REMINDER_DAYS)[:limit]:
+        member = membership.member
+        days = (membership.end_date - today).days
+        when = "today" if days == 0 else ("tomorrow" if days == 1 else f"in {days} days")
+        out.append(
+            Reminder(
+                member=member,
+                phone=member.person.phone,
+                reason="ending",
+                detail=f"{membership.package_name} ends {when}",
+                message=(
+                    f"Muraho {_first_name(member.full_name)}, your {membership.package_name} at "
+                    f"{gym.name} ends on {membership.end_date:%d/%m}. "
+                    f"Renew at reception and keep your streak going."
+                ),
+            )
+        )
+    room = limit - len(out)
+    if room > 0:
+        quiet = attendance.quiet_members(gym, today, QUIET_AFTER_DAYS, QUIET_BEFORE_DAYS)
+        for member in quiet[:room]:
+            out.append(
+                Reminder(
+                    member=member,
+                    phone=member.person.phone,
+                    reason="quiet",
+                    detail="not seen for a few days",
+                    message=(
+                        f"Muraho {_first_name(member.full_name)}, we have missed you at {gym.name}. "
+                        f"Come back this week and keep your streak going."
+                    ),
+                )
+            )
+    return out

@@ -396,3 +396,7 @@ details.card > summary { cursor: pointer; min-height: 32px; font-weight: 600; }
    and laptops keep the normal size. */
 @media (min-width: 1600px) { html { --zoom: 1.15; zoom: var(--zoom); } }
 @media (min-width: 1900px) { html { --zoom: 1.25; } }
+
+/* A row of small labels under the figures, for example which packages the
+   active members are on. */
+.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -8px 0 0; }

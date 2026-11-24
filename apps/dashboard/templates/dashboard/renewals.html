@@ -10,7 +10,7 @@
   </div>
 
   <nav class="tabs" aria-label="{% translate 'Which members' %}">
-    <a href="?show=soon" {% if view == 'soon' %}class="is-current" aria-current="page"{% endif %}>{% translate "Ending within 7 days" %}</a>
+    <a href="?show=soon" {% if view == 'soon' %}class="is-current" aria-current="page"{% endif %}>{% translate "Ending in 7 days" %}</a>
     <a href="?show=later" {% if view == 'later' %}class="is-current" aria-current="page"{% endif %}>{% translate "Within 30 days" %}</a>
     <a href="?show=lapsed" {% if view == 'lapsed' %}class="is-current" aria-current="page"{% endif %}>{% translate "Lapsed (last 30 days)" %}</a>
   </nav>

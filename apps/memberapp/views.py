@@ -101,6 +101,7 @@ def card_panel(request, public_id):
             "card_url": url,
             "qr": services.qr_svg(url, scale=4),
             "whatsapp_url": f"https://wa.me/{digits}?text={quote(message)}",
+            "sms_url": f"sms:{member.person.phone}?body={quote(message)}",
         }
     if request.headers.get("HX-Request"):
         return render(request, "memberapp/_card_panel.html", context)

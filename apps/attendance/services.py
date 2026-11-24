@@ -10,7 +10,7 @@ from datetime import date, timedelta
 
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import Exists, OuterRef
+from django.db.models import Exists, Max, OuterRef, Subquery
 from django.utils import timezone
 
 from apps.attendance.models import CheckIn, CheckInMethod
@@ -277,6 +277,26 @@ def check_ins_on(gym: Gym, day: date):
 def visits_for(member: Member):
     """A member's visits, most recent first."""
     return CheckIn.objects.for_gym(member.gym).filter(member=member).select_related("branch")
+
+
+def quiet_members(gym: Gym, today: date, after_days: int = 3, before_days: int = 7):
+    """
+    Members who still have a valid membership but whose last visit was between
+    `after_days` and `before_days` ago: people slipping away, while a short
+    message can still bring them back. Longest absent first.
+    """
+    last_allowed = today - timedelta(days=after_days)
+    first_allowed = today - timedelta(days=before_days)
+    recent = (
+        CheckIn.objects.for_gym(gym)
+        .values("member_id")
+        .annotate(last_visit=Max("checked_in_on"))
+        .filter(last_visit__range=(first_allowed, last_allowed))
+    )
+    members = member_services.members_with_valid_membership(gym, today).filter(
+        id__in=Subquery(recent.values("member_id"))
+    )
+    return members.select_related("person").order_by("full_name")
 
 
 # --- Figures for the owner --------------------------------------------------

@@ -66,6 +66,9 @@ def token(alpha, member):
 
 
 def test_a_card_link_is_long_random_kept_and_renewable(alpha, member):
+    # Registering already gave this member a card; clear it to see one made.
+    Member.objects.filter(pk=member.pk).update(card_token=None)
+    member.refresh_from_db()
     first = members.create_card_link(by=alpha.assignment, member=member)
     again = members.create_card_link(by=alpha.assignment, member=member)
     renewed = members.create_card_link(by=alpha.assignment, member=member, renew=True)
@@ -200,15 +203,21 @@ def test_staff_create_and_share_a_card_link(alpha, member, sign_in):
     client = sign_in(alpha)
     panel_url = reverse("memberapp:card_panel", args=[member.public_id])
 
+    # A member registered at the desk already has a card, ready to hand over.
+    panel = client.get(panel_url, headers={"HX-Request": "true"}).content.decode()
+    assert "<html" not in panel and member.card_token
+
+    # A member brought in from paper records may have none until staff ask.
+    Member.objects.filter(pk=member.pk).update(card_token=None)
     empty = client.get(panel_url, headers={"HX-Request": "true"}).content.decode()
-    assert "Create card link" in empty and "<html" not in empty
+    assert "Create card link" in empty
 
     client.post(reverse("memberapp:card_link", args=[member.public_id]))
     panel = client.get(panel_url, headers={"HX-Request": "true"}).content.decode()
 
     member.refresh_from_db()
     assert f"/card/{member.card_token}/" in panel
-    assert "https://wa.me/250788111222?text=" in panel
+    assert "https://wa.me/250788111222?text=" in panel and "sms:+250788111222?body=" in panel
     member_page = client.get(reverse("members:member_detail", args=[member.public_id]))
     assert panel_url in member_page.content.decode()
 
@@ -219,7 +228,7 @@ def test_another_gyms_staff_cannot_reach_the_panel(alpha, member, make_gym, sign
 
     assert client.get(reverse("memberapp:card_panel", args=[member.public_id])).status_code == 404
     assert client.post(reverse("memberapp:card_link", args=[member.public_id])).status_code == 404
-    assert Member.objects.get(pk=member.pk).card_token is None
+    assert Member.objects.get(pk=member.pk).card_token == member.card_token
 
 
 # --- QR check-in ------------------------------------------------------------

@@ -11,6 +11,7 @@ from dataclasses import replace
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
@@ -106,7 +107,7 @@ def member_register(request):
             _show_error(form, error)
         else:
             messages.success(request, _("%(name)s was registered.") % {"name": member.full_name})
-            return redirect("members:member_detail", public_id=member.public_id)
+            return redirect(reverse("members:member_detail", args=[member.public_id]) + "?new=1")
 
     return render(
         request, "members/member_form.html", {"form": form, "existing_member": existing_member}

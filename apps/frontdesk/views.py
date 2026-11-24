@@ -68,6 +68,7 @@ def desk(request):
             **({"branch": branch} if branch else {})
         ),
         "corporate_on": module_services.is_enabled(request.gym, CORPORATE_WELLNESS),
+        "reminders": services.reminders(request.gym, today),
     }
     if request.headers.get("HX-Request"):
         return render(request, "frontdesk/_desk_live.html", context)

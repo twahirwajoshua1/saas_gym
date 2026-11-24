@@ -328,7 +328,7 @@ def test_the_owner_sees_the_figures_on_the_overview_page(alpha, packages, sign_i
 
     part = client.get(reverse("dashboard:figures"), headers={"HX-Request": "true"}).content.decode()
     assert "<html" not in part
-    assert "Clients today" in part and "Money today" in part and "Worth knowing" in part
+    assert "Clients today" in part and "Collected today" in part and "Worth knowing" in part
     assert "RWF 30,000" in part
     assert "Eric Mugisha" in part  # in the "ending within 7 days" list
 
