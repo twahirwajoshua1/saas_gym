@@ -558,8 +558,8 @@ def reminders(gym: Gym, today: date, limit: int = 6) -> list[Reminder]:
                     reason="quiet",
                     detail="not seen for a few days",
                     message=(
-                        f"Muraho {_first_name(member.full_name)}, we have missed you at {gym.name}. "
-                        f"Come back this week and keep your streak going."
+                        f"Muraho {_first_name(member.full_name)}, we have missed you at "
+                        f"{gym.name}. Come back this week and keep your streak going."
                     ),
                 )
             )
