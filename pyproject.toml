@@ -33,6 +33,7 @@ layers = [
     "apps.dashboard | apps.spreadsheets | apps.memberapp | apps.platformadmin",
     "apps.frontdesk",
     "apps.corporate",
+    "apps.classes",
     "apps.attendance",
     "apps.billing",
     "apps.members | apps.team",
