@@ -1,0 +1,47 @@
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% translate "Change a visit" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'frontdesk:desk' %}">← {% translate "Home" %}</a>
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Change a company visit" %}</h1>
+      <p class="muted">{{ visit.employee.full_name }} · {{ visit.company.name }}{% if visit.employee.department %} · {{ visit.employee.department }}{% endif %} · {{ visit.checked_in_at|date:"j M, H:i" }}</p>
+    </div>
+  </div>
+
+  <div class="card stack">
+    <h2>{% translate "What they used" %}</h2>
+    {% if not can_change %}
+      <p class="notice notice-error" role="alert">{% translate "A visit can only be changed on the day it happened. This one is closed, so the company's figures cannot move behind their back." %}</p>
+    {% endif %}
+    <ul class="item-list">
+      {% for activity in activities %}
+        <li>
+          <div class="item-main">
+            <strong>{% if activity.cancelled_at %}<span class="strike">{{ activity.service_name }}</span>{% else %}{{ activity.service_name }}{% endif %}</strong>
+            {% if activity.cancelled_at %}
+              <span class="small muted">{% blocktranslate with t=activity.cancelled_at|time:"H:i" r=activity.cancel_reason %}Taken off at {{ t }}: {{ r }}{% endblocktranslate %}</span>
+            {% endif %}
+          </div>
+          {% if can_change and not activity.cancelled_at %}
+            <div class="item-actions">
+              <details class="quiet">
+                <summary class="small strong">{% translate "Take off" %}</summary>
+                <form method="post" action="{% url 'corporate:activity_cancel' activity.public_id %}" class="form">
+                  {% csrf_token %}
+                  <label class="small strong" for="why-{{ activity.public_id }}">{% translate "Why are you taking it off?" %}</label>
+                  <input id="why-{{ activity.public_id }}" type="text" name="reason" maxlength="200" required>
+                  <div class="form-actions"><button type="submit" class="btn btn-small btn-primary">{% translate "Take it off" %}</button></div>
+                </form>
+              </details>
+            </div>
+          {% endif %}
+        </li>
+      {% empty %}
+        <li><div class="item-main"><span class="muted">{% translate "Nothing was recorded on this visit." %}</span></div></li>
+      {% endfor %}
+    </ul>
+    <p class="small muted">{% translate "Nothing is deleted. A service taken off stays on record with your name, the time and your reason, and the company sees it crossed out on the report." %}</p>
+  </div>
+{% endblock %}

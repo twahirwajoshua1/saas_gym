@@ -154,7 +154,8 @@ def test_owner_adds_a_package_through_the_form_typing_the_price_with_a_comma(alp
 
     page = response.content.decode()
     assert "Monthly was added." in page
-    assert "RWF 30,000 · 1 month" in page
+    assert "RWF 30,000" in page
+    assert "1 month, as often as you like" in page
     assert Package.objects.for_gym(alpha.gym).get().price_rwf == 30000
 
 
@@ -226,9 +227,9 @@ def test_a_trainer_cannot_open_packages_or_members(alpha, add_staff, sign_in):
     client = sign_in(add_staff(alpha.gym, "0788000005", Role.TRAINER))
 
     assert client.get(reverse("members:package_list")).status_code == 403
-    assert client.get(reverse("members:member_list")).status_code == 403
+    assert client.get(reverse("frontdesk:people")).status_code == 403
     page = client.get(reverse("gyms:home")).content.decode()
-    assert reverse("members:member_list") not in page
+    assert reverse("frontdesk:people") not in page
 
 
 def test_archiving_needs_a_post(alpha, sign_in):

@@ -7,6 +7,8 @@ openpyxl>=3.1
 defusedxml>=0.7
 # Draws QR codes for member cards.
 segno>=1.6
+# Writes the PDF a gym sends to a company each month.
+reportlab>=4.2
 
 # Moves the clock back while creating sample data (create_sample_gyms).
 time-machine>=2.14

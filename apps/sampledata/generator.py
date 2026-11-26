@@ -29,6 +29,7 @@ from apps.frontdesk import services as frontdesk
 from apps.frontdesk.models import ProblemKind, ScanProblem
 from apps.gyms import services as gyms
 from apps.gyms.models import Branch, Role, StaffAssignment
+from apps.massage import services as massage
 from apps.members import services as members
 from apps.members.models import Gender
 from apps.members.services import InvalidDetails, MemberDetails
@@ -82,6 +83,8 @@ class SimGym:
     services: dict = field(default_factory=dict)  # service name -> Service
     class_types: dict = field(default_factory=dict)  # class name -> ClassType
     trainer_pages: dict = field(default_factory=dict)  # branch id -> TrainerProfile
+    massage_types: dict = field(default_factory=dict)  # massage name -> MassageType
+    masseuses: dict = field(default_factory=dict)  # branch id -> TrainerProfile
 
 
 @dataclass
@@ -226,6 +229,7 @@ class Generator:
             )
             for name, price, count, unit in spec["packages"]
         }
+        self.add_shaped_packages(owner, sim_services, packages)
         sim = SimGym(spec, gym, owner, {}, {}, {}, packages)
         sim.branches = {b.id: b for b in branches}
         sim.services = sim_services
@@ -446,14 +450,36 @@ class Generator:
         with self.at(day, hour, minute):
             try:
                 if use_tablet:
-                    attendance.self_check_in(
+                    record, _new = attendance.self_check_in(
                         gym=sim.gym, branch=sim.branches[sm.branch_id], member=sm.member
                     )
                 else:
-                    attendance.check_in(by=by, member=sm.member)
+                    record, _new = attendance.check_in(by=by, member=sm.member)
             except attendance.NotAllowedIn:
                 return
+            self.record_what_they_did(sim, by, record, use_tablet)
         self.counts["check_ins"] += 1
+
+    def record_what_they_did(self, sim, by, record, use_tablet):
+        """
+        What the member said they were doing. Most people tick one thing; some
+        tick two. Only what their package covers can be ticked at all.
+        """
+        choices = attendance.choices_for(record.member, record.checked_in_on)
+        if not choices:
+            return
+        wanted = [choices[0].service]
+        if len(choices) > 1 and self.rng.random() < 0.35:
+            wanted.append(self.rng.choice(choices[1:]).service)
+        try:
+            if use_tablet:
+                attendance.record_self_activities(
+                    gym=sim.gym, check_in=record, services_chosen=wanted
+                )
+            else:
+                attendance.record_activities(by=by, check_in=record, services_chosen=wanted)
+        except InvalidDetails:
+            return
 
     # --- Companies (corporate wellness) -------------------------------------------
 
@@ -604,6 +630,55 @@ class Generator:
 
     # --- Classes and trainers -----------------------------------------------------
 
+    def add_shaped_packages(self, owner, sim_services, packages):
+        """
+        A few packages that show the shapes a gym can sell: one service only, a
+        combination, and a book of prepaid visits. The plain ones above include
+        everything the gym sells; these say exactly what is in them.
+        """
+        swimming = sim_services.get("Swimming")
+        gym_floor = sim_services.get("Gym")
+        sauna = sim_services.get("Sauna")
+        massage = sim_services.get("Massage")
+
+        if swimming is not None:
+            packages["Swimming only, monthly"] = members.create_package(
+                by=owner,
+                name="Swimming only, monthly",
+                price_rwf=swimming.price_rwf * 7,
+                services=[swimming],
+                duration_count=1,
+                duration_unit="month",
+            )
+            packages["15 swimming tickets"] = members.create_package(
+                by=owner,
+                name="15 swimming tickets",
+                price_rwf=int(swimming.price_rwf * 0.8) * 15,
+                kind=members.PackageKind.COUNT,
+                services=[swimming],
+                visit_count=15,
+                duration_count=3,
+                duration_unit="month",
+            )
+        if swimming is not None and gym_floor is not None and sauna is not None:
+            packages["Gym + sauna + swimming, monthly"] = members.create_package(
+                by=owner,
+                name="Gym + sauna + swimming, monthly",
+                price_rwf=(gym_floor.price_rwf + sauna.price_rwf + swimming.price_rwf) * 5,
+                services=[gym_floor, sauna, swimming],
+                duration_count=1,
+                duration_unit="month",
+            )
+        if massage is not None:
+            packages["5 massages"] = members.create_package(
+                by=owner,
+                name="5 massages",
+                price_rwf=int(massage.price_rwf * 0.8) * 5,
+                kind=members.PackageKind.COUNT,
+                services=[massage],
+                visit_count=5,
+            )
+
     def set_up_classes(self, sim):
         """
         What each gym teaches, who teaches it, and the coming four weeks of the
@@ -628,6 +703,49 @@ class Generator:
                     for day in self.rng.sample(range(0, 5), 2)
                 ],
             )
+        self.set_up_massage(sim)
+
+    def set_up_massage(self, sim):
+        """
+        The kinds of massage a gym offers, and who gives them.
+
+        Only gyms that sell massage at all get this. Each kind is also a
+        service, so a company can agree its own price for it in a contract.
+        """
+        if "Massage" not in sim.services:
+            return
+        owner = sim.owner
+        base = sim.services["Massage"].price_rwf
+        for name, minutes, share, expect in rwanda.MASSAGE_TYPES:
+            made = massage.create_type(
+                by=owner,
+                name=name,
+                minutes=minutes,
+                price_rwf=int(round(base * share / 1000 / 500)) * 500,
+                what_to_expect=expect,
+            )
+            sim.massage_types[name] = made
+            # Each kind is a service too, so company contracts can price it.
+            sim.services[name] = made.service
+        massage.set_rules(by=owner, cut_off_minutes=120, gap_minutes=10, reminder_minutes=10)
+        # One masseuse per branch, working mornings and late afternoons.
+        for branch_id in sim.desk:
+            branch = sim.branches[branch_id]
+            person = self.staff(sim, Role.TRAINER, branch, f"Masseuse, {branch.name}")
+            profile = classes.save_trainer(
+                by=owner,
+                staff=person,
+                headline="Massage therapist",
+                about="Sports and deep tissue massage.",
+                takes_personal_sessions=False,
+                gives_massages=True,
+            )
+            classes.set_trainer_hours(
+                by=owner,
+                trainer=profile,
+                windows=[(day, time(8, 0), time(18, 0), branch) for day in range(0, 6)],
+            )
+            sim.masseuses[branch_id] = profile
 
     def schedule_classes(self, sims):
         """
@@ -671,6 +789,111 @@ class Generator:
                         classes.book(member=sm.member, session=session)
                     except (classes.ClassFull, classes.TooLate, InvalidDetails):
                         break
+
+    def book_massages(self, sims):
+        """
+        Massages in the coming days: most accepted, a couple still waiting for
+        the desk to answer, so the demonstration shows both.
+        """
+        today = timezone.localdate()
+        for sim in sims:
+            if not sim.massage_types:
+                continue
+            kinds = list(sim.massage_types.values())
+            for branch_id, masseuse in sim.masseuses.items():
+                branch = sim.branches[branch_id]
+                people_here = [
+                    sm
+                    for sm in sim.people
+                    if sm.branch_id == branch_id and self.is_valid(sm, today)
+                ]
+                if not people_here:
+                    continue
+                for step in range(5):
+                    kind = self.rng.choice(kinds)
+                    day = today + timedelta(days=self.rng.randint(0, 4))
+                    free = massage.free_slots(
+                        sim.gym, branch=branch, massage_type=kind, day=day, masseuse=masseuse
+                    )
+                    if not free:
+                        continue
+                    slot = self.rng.choice(free)
+                    sm = self.rng.choice(people_here)
+                    try:
+                        massage.book(
+                            by=sim.desk[branch_id],
+                            massage_type=kind,
+                            masseuse=masseuse,
+                            branch=branch,
+                            day=day,
+                            at=slot.at,
+                            person=sm.member.person,
+                            member=sm.member,
+                            accepted=step >= 2,
+                        )
+                    except InvalidDetails:
+                        continue
+                    self.counts["massages"] = self.counts.get("massages", 0) + 1
+
+    def sell_ticketbooks(self, sims):
+        """
+        A few members buy a book of prepaid visits instead of, or as well as,
+        a membership: "15 swimming tickets", "5 massages".
+        """
+        today = timezone.localdate()
+        for sim in sims:
+            books = [p for p in sim.packages.values() if p.is_count]
+            if not books or not sim.people:
+                continue
+            for _step in range(6):
+                sm = self.rng.choice(sim.people)
+                package = self.rng.choice(books)
+                by = sim.desk.get(sm.branch_id) or sim.owner
+                try:
+                    with self.at(today - timedelta(days=self.rng.randint(0, 20)), 10):
+                        sale = billing.sell_package(
+                            by=by,
+                            member=sm.member,
+                            package=package,
+                            start_date=today,
+                            idempotency_key=uuid.uuid4(),
+                            payment=self.payment_for(package.price_rwf),
+                        )
+                except (InvalidDetails, billing.AlreadyReversed):
+                    continue
+                self.counts["ticketbooks"] = self.counts.get("ticketbooks", 0) + 1
+                # Some of the visits have already been used.
+                book = sale.ticketbook
+                service = book.included_services.first()
+                for _used in range(self.rng.randint(0, 4)):
+                    try:
+                        members.spend_ticket(by=by, ticketbook=book, service=service)
+                    except InvalidDetails:
+                        break
+
+    def waiting_signups(self, sims):
+        """
+        A couple of people per gym who filled in the sign-up page on their own
+        phone and have not paid yet, so the desk has something waiting.
+        """
+        for sim in sims:
+            on_sale = list(members.packages_on_sale(sim.gym))
+            if not on_sale:
+                continue
+            for _step in range(2):
+                full_name, gender = self.name()
+                try:
+                    members.create_signup(
+                        sim.gym,
+                        full_name=full_name,
+                        phone=self.phone(),
+                        package=self.rng.choice(on_sale),
+                        gender=gender,
+                        wants_messages=self.rng.random() < 0.6,
+                    )
+                except (InvalidDetails, members.AlreadyMember, members.AlreadySignedUp):
+                    continue
+                self.counts["signups"] = self.counts.get("signups", 0) + 1
 
     def bring_friends(self, sims, today):
         """A few members brought a friend in during the last week."""
@@ -775,5 +998,8 @@ class Generator:
         with transaction.atomic():
             self.schedule_classes(sims)
             self.fill_classes(sims)
+            self.book_massages(sims)
+            self.sell_ticketbooks(sims)
+            self.waiting_signups(sims)
             self.bring_friends(sims, today)
         return self.counts

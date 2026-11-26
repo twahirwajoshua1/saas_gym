@@ -45,7 +45,7 @@
           <li>
             <div class="item-main">
               <a href="{% url 'billing:receipt' payment.public_id %}"><strong>{{ payment.display_number }}</strong></a>
-              <span class="muted small">{{ payment.received_on|date:"j M Y" }} · {{ payment.get_method_display }}{% if payment.reference %} · {{ payment.reference }}{% endif %}</span>
+              <span class="muted small">{{ payment.received_on|date:"j M Y" }} · {{ payment.get_method_display }}</span>
             </div>
             <div class="item-actions">
               {% if payment.is_reversed %}<span class="badge badge-danger">{% translate "Reversed" %}</span>{% endif %}

@@ -38,7 +38,6 @@ def _error_message(error: services.InvalidDetails) -> str:
         ("amount_rwf", "out_of_range"): _("Enter an amount above zero."),
         ("amount_rwf", "more_than_owed"): _("This is more than what is owed."),
         ("method", "invalid"): _("Choose how it was paid."),
-        ("reference", "required"): _("Enter the transaction reference for this payment."),
         ("reason", "required"): _("Give a reason."),
         ("service", "archived"): _("This service is no longer sold."),
         ("quantity", "out_of_range"): _("Enter between 1 and 50 sessions."),
@@ -60,7 +59,6 @@ def _payment_input(data, *, full: bool = False) -> services.PaymentInput:
     return services.PaymentInput(
         method=data["method"],
         amount_rwf=None if full else data["amount_rwf"],
-        reference=data["reference"],
     )
 
 
@@ -69,18 +67,16 @@ def _payment_input(data, *, full: bool = False) -> services.PaymentInput:
 
 @gym_required(*FRONT_DESK_ROLES)
 @module_required(PAYMENTS_FINANCE)
-def sell_membership(request, public_id):
+def sell_package(request, public_id):
     member = _get_member(request, public_id)
     initial = {"start_date": member_services.next_start_date(member)}
     form = SellMembershipForm(request.POST or None, gym=request.gym, initial=initial)
 
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
-        payment = None
-        if data["pay_now"] != PayNow.LATER:
-            payment = _payment_input(data, full=data["pay_now"] == PayNow.FULL)
+        payment = _payment_input(data, full=data["pay_now"] == PayNow.FULL)
         try:
-            sale = services.sell_membership(
+            sale = services.sell_package(
                 by=request.assignment,
                 member=member,
                 package=data["package"],
@@ -94,7 +90,7 @@ def sell_membership(request, public_id):
             messages.success(
                 request,
                 _("%(package)s sold to %(name)s.")
-                % {"package": sale.membership.package_name, "name": member.full_name},
+                % {"package": sale.package_name, "name": member.full_name},
             )
             if sale.payment is not None:
                 return redirect("billing:receipt", public_id=sale.payment.public_id)
@@ -115,9 +111,7 @@ def sell_sessions(request, public_id):
 
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
-        payment = None
-        if data["pay_now"] != PayNow.LATER:
-            payment = _payment_input(data, full=data["pay_now"] == PayNow.FULL)
+        payment = _payment_input(data, full=data["pay_now"] == PayNow.FULL)
         try:
             sale = services.sell_sessions(
                 by=request.assignment,

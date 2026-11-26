@@ -259,7 +259,7 @@ def test_a_new_staff_member_must_choose_a_password_first(alpha, client):
 
     client.post(reverse("accounts:login"), {"phone": "0788200001", "password": temporary})
     assert client.get(reverse("gyms:home")).url == reverse("accounts:password_change")
-    assert client.get(reverse("members:member_list")).url == reverse("accounts:password_change")
+    assert client.get(reverse("frontdesk:people")).url == reverse("accounts:password_change")
 
     mismatch = client.post(
         reverse("accounts:password_change"),

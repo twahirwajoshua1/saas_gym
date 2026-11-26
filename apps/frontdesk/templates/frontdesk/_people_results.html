@@ -1,17 +1,18 @@
 {% load i18n phones %}
 {% comment %}
-  The desk's working list: who they are, where their membership stands, and the
-  one thing to do about it. Shown inside member_list.html, and sent on its own
-  when searching or narrowing.
+  The desk's working list: who they are, where they stand, and the one thing
+  to do about it. Shown inside people_list.html, and sent on its own when
+  searching or narrowing.
 {% endcomment %}
 <div class="card">
   {% if rows %}
     <p class="muted small" style="margin-bottom: 12px">
-      {% blocktranslate count total=page.paginator.count %}{{ total }} member{% plural %}{{ total }} members{% endblocktranslate %}
+      {% blocktranslate count total=page.paginator.count %}{{ total }} person{% plural %}{{ total }} people{% endblocktranslate %}
       {% if state == "active" %}· {% translate "who may train now" %}
       {% elif state == "soon" %}· {% translate "ending within 7 days" %}
       {% elif state == "lapsed" %}· {% translate "ended in the last 30 days" %}
-      {% elif state == "never" %}· {% translate "never bought a membership" %}{% endif %}
+      {% elif group == "individuals" %}· {% translate "the gym's own members" %}
+      {% elif group == "staff" %}· {% translate "company staff" %}{% endif %}
     </p>
     <div class="table-wrap">
       <table class="data">
@@ -27,10 +28,19 @@
         <tbody>
           {% for row in rows %}
             <tr>
-              <td><a href="{% url 'members:member_detail' row.member.public_id %}">{{ row.member.full_name }}</a></td>
-              <td class="nowrap">{{ row.member.person.phone|phone }}</td>
+              <td>
+                {% if row.member %}
+                  <a href="{% url 'members:member_detail' row.member.public_id %}">{{ row.name }}</a>
+                {% else %}
+                  <a href="{% url 'corporate:desk' %}?q={{ row.phone|urlencode }}">{{ row.name }}</a>
+                {% endif %}
+              </td>
+              <td class="nowrap">{{ row.phone|phone }}</td>
               <td class="nowrap">
-                {% if row.is_active %}
+                {% if row.from_a_company %}
+                  <span class="badge badge-on">{% blocktranslate with company=row.company_name %}{{ company }} staff{% endblocktranslate %}</span>
+                  {% if row.covered_until %}<span class="small muted">{% blocktranslate with d=row.covered_until|date:"j M Y" %}to {{ d }}{% endblocktranslate %}</span>{% endif %}
+                {% elif row.is_active %}
                   <span class="badge badge-on">{{ row.membership.package_name }}</span>
                   <span class="small muted">{% blocktranslate with d=row.membership.end_date|date:"j M Y" %}to {{ d }}{% endblocktranslate %}</span>
                 {% elif row.membership %}
@@ -40,13 +50,15 @@
                   <span class="badge badge-off">{% translate "None yet" %}</span>
                 {% endif %}
               </td>
-              <td class="hide-narrow">{{ row.member.branch.name }}</td>
+              <td class="hide-narrow">
+                {% if row.from_a_company %}<span class="muted">{{ row.employee.department|default:"—" }}</span>{% else %}{{ row.member.branch.name }}{% endif %}
+              </td>
               <td class="nowrap">
-                {% if 'payments_finance' in modules_on %}
+                {% if 'payments_finance' in modules_on and not row.from_a_company %}
                   {% if not row.is_active %}
-                    <a class="btn btn-small btn-primary" href="{% url 'billing:sell' row.member.public_id %}">{% if row.membership %}{% translate "Renew" %}{% else %}{% translate "Sell" %}{% endif %}</a>
+                    <a class="btn btn-small btn-primary" href="{% url 'billing:sell' row.member.public_id %}">{% if row.membership %}{% translate "Renew membership" %}{% else %}{% translate "Sell membership" %}{% endif %}</a>
                   {% elif row.days_left <= 7 %}
-                    <a class="btn btn-small" href="{% url 'billing:sell' row.member.public_id %}">{% if row.days_left == 0 %}{% translate "Renew · ends today" %}{% else %}{% blocktranslate count n=row.days_left %}Renew · {{ n }} day left{% plural %}Renew · {{ n }} days left{% endblocktranslate %}{% endif %}</a>
+                    <a class="btn btn-small" href="{% url 'billing:sell' row.member.public_id %}">{% if row.days_left == 0 %}{% translate "Renew membership · ends today" %}{% else %}{% blocktranslate count n=row.days_left %}Renew membership · {{ n }} day left{% plural %}Renew membership · {{ n }} days left{% endblocktranslate %}{% endif %}</a>
                   {% endif %}
                 {% endif %}
               </td>
@@ -58,18 +70,18 @@
     {% if page.has_other_pages %}
       <div class="pager">
         {% if page.has_previous %}
-          <a class="btn btn-small" href="?q={{ query|urlencode }}&show={{ state }}&page={{ page.previous_page_number }}">← {% translate "Previous" %}</a>
+          <a class="btn btn-small" href="?q={{ query|urlencode }}&show={{ state }}&company={{ group }}&page={{ page.previous_page_number }}">← {% translate "Previous" %}</a>
         {% else %}<span></span>{% endif %}
         <span class="muted small">{% blocktranslate with number=page.number total=page.paginator.num_pages %}Page {{ number }} of {{ total }}{% endblocktranslate %}</span>
         {% if page.has_next %}
-          <a class="btn btn-small" href="?q={{ query|urlencode }}&show={{ state }}&page={{ page.next_page_number }}">{% translate "Next" %} →</a>
+          <a class="btn btn-small" href="?q={{ query|urlencode }}&show={{ state }}&company={{ group }}&page={{ page.next_page_number }}">{% translate "Next" %} →</a>
         {% else %}<span></span>{% endif %}
       </div>
     {% endif %}
-  {% elif query or state %}
+  {% elif query or state or group != "everyone" %}
     <div class="empty">
       {% if query %}
-        <p>{% blocktranslate %}No member matches "{{ query }}".{% endblocktranslate %}</p>
+        <p>{% blocktranslate %}Nobody matches "{{ query }}".{% endblocktranslate %}</p>
       {% else %}
         <p>{% translate "Nobody in this group right now." %}</p>
       {% endif %}

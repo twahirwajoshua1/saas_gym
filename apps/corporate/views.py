@@ -5,9 +5,11 @@ employee's card is in card.py.
 """
 
 import uuid
+from datetime import timedelta
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -17,13 +19,15 @@ from django.views.decorators.http import require_POST
 
 from apps.attendance import services as attendance
 from apps.core.amounts import parse_rwf
-from apps.corporate import services
+from apps.corporate import reportfiles, services
+from apps.corporate.forms import ReportFilterForm
 from apps.corporate.models import (
     BillLine,
     BillPayment,
     Contract,
     ContractStatus,
     CorporateBill,
+    CorporateVisit,
     Employee,
     Flag,
     VisitActivity,
@@ -59,6 +63,9 @@ ERRORS = {
     ("reason", "required"): _("Give a reason."),
     ("note", "required"): _("Write a short note for the company."),
     ("activity", "billed"): _("This is already on a bill. Give a credit from the bill instead."),
+    ("activity", "too_late"): _(
+        "A visit can only be changed on the day it happened. This one is closed."
+    ),
     ("month", "not_over"): _("A month's bill is issued on its last day."),
     ("reference", "required"): _("Enter the bank transfer reference."),
     ("amount_rwf", "out_of_range"): _("Enter an amount above zero."),
@@ -500,9 +507,7 @@ def activity_cancel(request, public_id):
         messages.success(
             request, _("%(service)s was cancelled.") % {"service": activity.service_name}
         )
-    return redirect(
-        f"{reverse('corporate:visit_list')}?day={activity.visit.checked_in_on:%Y-%m-%d}"
-    )
+    return redirect(reverse("corporate:visit_change", args=[activity.visit.public_id]))
 
 
 @corporate_gym(*MANAGER_ROLES)
@@ -666,3 +671,117 @@ def bill_line_credit(request, pk):
     else:
         messages.success(request, _("Credit given. It will appear on the next bill."))
     return redirect("corporate:bill_detail", public_id=line.bill.public_id)
+
+
+# --- The monthly report a gym sends a company ---------------------------------
+
+
+def _month_choices(count: int = 24) -> list[tuple[str, str]]:
+    """The last two years of months, newest first, as values a form can use."""
+    month = timezone.localdate().replace(day=1)
+    months = []
+    for _step in range(count):
+        months.append((month.isoformat(), f"{month:%B %Y}"))
+        month = (month - timedelta(days=1)).replace(day=1)
+    return months
+
+
+def _report(request):
+    """Read the filters and work out what the report covers. Shared by both views."""
+    months = _month_choices()
+    form = ReportFilterForm(
+        request.GET or None,
+        gym=request.gym,
+        companies=services.companies_with_contracts(request.gym),
+        months=months,
+    )
+    chosen = form.cleaned_data if form.is_valid() else {}
+    last_month = parse_date(chosen.get("last_month") or "") or timezone.localdate().replace(day=1)
+    start, end = services.report_window(last_month, chosen.get("months") or 1)
+    company, service = chosen.get("company"), chosen.get("service")
+    lines = services.report_lines(
+        request.gym, start=start, end=end, company=company, service=service
+    )
+    heading = " · ".join(
+        [
+            company.name if company else _("All companies"),
+            service.name if service else _("All activities"),
+            f"{start:%B %Y}"
+            if start.month == end.month and start.year == end.year
+            else f"{start:%B %Y} to {end:%B %Y}",
+        ]
+    )
+    return form, lines, heading, start, end
+
+
+@corporate_gym(*CHECK_IN_ROLES)
+def reports(request):
+    form, lines, heading, start, end = _report(request)
+    totals = services.report_totals(lines)
+    return render(
+        request,
+        "corporate/reports.html",
+        {
+            "form": form,
+            "lines": lines,
+            "heading": heading,
+            "totals": totals,
+            "total_times": sum(times for _, times, _ in totals),
+            "total_amount": sum(amount for _, _, amount in totals),
+            "start": start,
+            "end": end,
+            "query": request.GET.urlencode(),
+        },
+    )
+
+
+@corporate_gym(*CHECK_IN_ROLES)
+def report_download(request, suffix):
+    if suffix not in ("pdf", "xlsx"):
+        raise Http404
+    form, lines, heading, start, end = _report(request)
+    totals = services.report_totals(lines)
+    write = reportfiles.to_pdf if suffix == "pdf" else reportfiles.to_excel
+    content = write(gym_name=request.gym.name, heading=heading, lines=lines, totals=totals)
+    company = form.cleaned_data.get("company") if form.is_bound and form.is_valid() else None
+    name = reportfiles.file_name(
+        gym_name=request.gym.name,
+        company_name=company.name if company else "all-companies",
+        start=start,
+        end=end,
+        suffix=suffix,
+    )
+    kind = (
+        "application/pdf"
+        if suffix == "pdf"
+        else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response = HttpResponse(content, content_type=kind)
+    response["Content-Disposition"] = f'attachment; filename="{name}"'
+    return response
+
+
+@corporate_gym(*CHECK_IN_ROLES)
+def visit_change(request, public_id):
+    """
+    Fix a service ticked by mistake on a company visit, on the day it happened.
+
+    Nothing is deleted: the service stays on record, crossed out, with who
+    took it off and why, so the company can see the correction on its report.
+    """
+    visit = get_object_or_404(
+        CorporateVisit.objects.for_gym(request.gym)
+        .select_related("employee__person", "company", "branch")
+        .prefetch_related("activities"),
+        public_id=public_id,
+    )
+    return render(
+        request,
+        "corporate/visit_change.html",
+        {
+            "visit": visit,
+            "activities": visit.activities.order_by("service_name"),
+            "today": timezone.localdate(),
+            "can_change": visit.checked_in_on == timezone.localdate(),
+        },
+    )

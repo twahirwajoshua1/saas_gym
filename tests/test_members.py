@@ -311,16 +311,16 @@ def test_edit_through_the_form(alpha, sign_in):
 
 def test_the_list_shows_members_and_an_empty_state(alpha, sign_in):
     client = sign_in(alpha)
-    assert "No members yet" in client.get(reverse("members:member_list")).content.decode()
+    assert "No members yet" in client.get(reverse("frontdesk:people")).content.decode()
 
     register(alpha)
-    page = client.get(reverse("members:member_list")).content.decode()
-    assert "Eric Mugisha" in page and "1 member" in page
+    page = client.get(reverse("frontdesk:people")).content.decode()
+    assert "Eric Mugisha" in page and "1 person" in page
 
 
 def test_searching_from_the_page_and_from_the_live_search_box(three_members, sign_in):
     client = sign_in(three_members)
-    url = reverse("members:member_list")
+    url = reverse("frontdesk:people")
 
     full_page = client.get(url, {"q": "0722"}).content.decode()
     assert "Claudine Mukamana" in full_page and "Eric Mugisha" not in full_page
@@ -332,7 +332,7 @@ def test_searching_from_the_page_and_from_the_live_search_box(three_members, sig
     assert "<html" not in part
 
     nothing = client.get(url, {"q": "zzz"}).content.decode()
-    assert "No member matches" in nothing
+    assert "Nobody matches" in nothing
 
 
 def test_long_lists_are_split_into_pages(alpha, sign_in):
@@ -340,8 +340,8 @@ def test_long_lists_are_split_into_pages(alpha, sign_in):
         register(alpha, name=f"Member {number:02d}", phone=f"07881000{number:02d}")
     client = sign_in(alpha)
 
-    first = client.get(reverse("members:member_list")).content.decode()
-    second = client.get(reverse("members:member_list"), {"page": 2}).content.decode()
+    first = client.get(reverse("frontdesk:people")).content.decode()
+    second = client.get(reverse("frontdesk:people"), {"page": 2}).content.decode()
 
     assert "Member 00" in first and "Member 29" not in first
     assert "Page 1 of 2" in first

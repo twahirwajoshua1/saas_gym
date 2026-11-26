@@ -1,0 +1,36 @@
+{% extends "layouts/gym.html" %}
+{% load i18n phones %}
+{% block title %}{% translate "Book a massage" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'massage:diary' %}">← {% translate "Massage" %}</a>
+  <div class="page-head"><div><h1>{% translate "Who is the massage for?" %}</h1></div></div>
+
+  <form method="get" class="search" role="search">
+    <label for="who" class="small muted">{% translate "Search by name, phone number or staff number" %}</label>
+    <input id="who" type="search" name="q" value="{{ query }}" autocomplete="off" autofocus>
+    <button type="submit" class="btn">{% translate "Search" %}</button>
+  </form>
+
+  {% if query %}
+    <div class="card stack">
+      {% if members or staff %}
+        <ul class="item-list">
+          {% for member in members %}
+            <li>
+              <div class="item-main"><strong>{{ member.full_name }}</strong><span class="small muted">{{ member.person.phone|phone }} · {% translate "member" %}</span></div>
+              <div class="item-actions"><a class="btn btn-small btn-primary" href="{% url 'massage:book' %}?member={{ member.public_id }}">{% translate "Book" %}</a></div>
+            </li>
+          {% endfor %}
+          {% for employee in staff %}
+            <li>
+              <div class="item-main"><strong>{{ employee.person.full_name }}</strong><span class="small muted">{{ employee.person.phone|phone }} · {{ employee.company.name }} · {{ employee.employee_number }}</span></div>
+              <div class="item-actions"><a class="btn btn-small btn-primary" href="{% url 'massage:book' %}?employee={{ employee.public_id }}">{% translate "Book" %}</a></div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">{% blocktranslate %}Nobody matches "{{ query }}".{% endblocktranslate %}</p>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endblock %}

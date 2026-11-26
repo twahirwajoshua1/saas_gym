@@ -24,7 +24,6 @@
           {% include "components/field.html" with field=form.amount_rwf %}
           {% include "components/field.html" with field=form.method %}
         </div>
-        {% include "components/field.html" with field=form.reference %}
         <p class="muted small">{% translate "For mobile money, check the confirmation message before recording. The system does not verify payments with MTN or Airtel yet." %}</p>
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">{% translate "Record payment" %}</button>

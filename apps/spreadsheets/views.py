@@ -175,7 +175,7 @@ def confirm(request):
             "skipped": result.skipped,
         },
     )
-    return redirect("members:member_list")
+    return redirect("frontdesk:people")
 
 
 @gym_required(*MANAGER_ROLES)

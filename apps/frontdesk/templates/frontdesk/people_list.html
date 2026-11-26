@@ -1,0 +1,55 @@
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% translate "Members" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Members" %}</h1>
+      {% if companies %}<p class="muted">{% translate "The gym's own members and the staff of its companies, together." %}</p>{% endif %}
+    </div>
+    <div class="actions">
+      {% if role_is_manager %}<a class="btn" href="{% url 'spreadsheets:home' %}">{% translate "Import" %}</a>{% endif %}
+      <a class="btn btn-primary" href="{% url 'members:member_register' %}">{% translate "Register member" %}</a>
+    </div>
+  </div>
+
+  {# Typing here asks the server for matching people and swaps them in below (HTMX). #}
+  {# Without JavaScript it still works: press Enter to search. #}
+  <form method="get" action="{% url 'frontdesk:people' %}" class="search" role="search">
+    <div class="filter-row">
+      <div style="flex:1;min-width:240px;max-width:440px">
+        <label for="member-search" class="small muted">{% translate "Search by name or phone number" %}</label>
+        <input id="member-search" type="search" name="q" value="{{ query }}" autocomplete="off"
+               hx-get="{% url 'frontdesk:people' %}?show={{ state }}&company={{ group }}"
+               hx-trigger="input changed delay:300ms, search"
+               hx-target="#member-results"
+               hx-push-url="true">
+      </div>
+      {% if companies %}
+        <div>
+          <label for="company-filter" class="small muted">{% translate "Company" %}</label>
+          <select id="company-filter" name="company" class="select-inline" onchange="this.form.submit()">
+            <option value="everyone" {% if group == 'everyone' %}selected{% endif %}>{% translate "Everyone" %}</option>
+            <option value="individuals" {% if group == 'individuals' %}selected{% endif %}>{% translate "Individuals only" %}</option>
+            <option value="staff" {% if group == 'staff' %}selected{% endif %}>{% translate "All company staff" %}</option>
+            {% for company in companies %}
+              <option value="{{ company.public_id }}" {% if group == company.public_id|stringformat:'s' %}selected{% endif %}>{{ company.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      {% endif %}
+    </div>
+    <input type="hidden" name="show" value="{{ state }}">
+  </form>
+
+  <div class="tabs" role="group" aria-label="{% translate 'Narrow the list' %}">
+    <a href="?q={{ query|urlencode }}&company={{ group }}" {% if not state %}class="is-current" aria-current="true"{% endif %}>{% translate "All members" %}</a>
+    <a href="?q={{ query|urlencode }}&show=active" {% if state == 'active' %}class="is-current" aria-current="true"{% endif %}>{% translate "Active" %}</a>
+    <a href="?q={{ query|urlencode }}&show=soon" {% if state == 'soon' %}class="is-current" aria-current="true"{% endif %}>{% translate "Ending in 7 days" %}</a>
+    <a href="?q={{ query|urlencode }}&show=lapsed" {% if state == 'lapsed' %}class="is-current" aria-current="true"{% endif %}>{% translate "Ended recently" %}</a>
+  </div>
+
+  <div id="member-results">
+    {% include "frontdesk/_people_results.html" %}
+  </div>
+{% endblock %}

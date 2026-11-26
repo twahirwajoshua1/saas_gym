@@ -1,6 +1,12 @@
 """Makes the current gym and the person's role available to every page template."""
 
-from apps.gyms.permissions import CHECK_IN_ROLES, FRONT_DESK_ROLES, MANAGER_ROLES, OWNER_ONLY
+from apps.gyms.models import Role
+from apps.gyms.permissions import (
+    CHECK_IN_ROLES,
+    FRONT_DESK_ROLES,
+    MANAGER_ROLES,
+    OWNER_ONLY,
+)
 
 
 def _nav_section(request) -> str:
@@ -9,10 +15,18 @@ def _nav_section(request) -> str:
     if match is None:
         return ""
     if match.app_name == "corporate":
+        if (match.url_name or "").startswith("report"):
+            return "reports"
         return "companies"
-    if match.app_name == "classes":
+    if match.app_name in ("classes", "massage"):
+        if match.url_name in ("my_day", "note"):
+            return "myday"
+        if match.app_name == "massage" and (match.url_name or "").startswith(("type", "rules")):
+            return "settings"
         return "classes"
     if match.app_name == "frontdesk":
+        if match.url_name == "people":
+            return "member"
         return "settings" if match.url_name.startswith("tablet") else "checkin"
     if match.url_name == "settings":
         return "settings"
@@ -51,4 +65,5 @@ def current_gym(request):
         "role_is_manager": assignment.role in MANAGER_ROLES,
         "role_is_front_desk": assignment.role in FRONT_DESK_ROLES,
         "role_can_check_in": assignment.role in CHECK_IN_ROLES,
+        "role_is_trainer": assignment.role == Role.TRAINER,
     }

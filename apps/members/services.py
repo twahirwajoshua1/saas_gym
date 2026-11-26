@@ -28,14 +28,23 @@ from apps.members.models import (
     Member,
     Membership,
     MembershipFreeze,
+    MembershipService,
     Package,
+    PackageKind,
+    PackageService,
     Service,
+    SignUp,
+    SignUpStatus,
+    Ticketbook,
+    TicketbookService,
+    TicketUse,
 )
 from apps.people import services as people_services
 from apps.people.phones import InvalidPhoneNumber, normalize_phone
 
 MAX_PRICE_RWF = 100_000_000
 MAX_DURATION_COUNT = 999
+MAX_VISIT_COUNT = 999
 
 # How far from today a membership may start. Reception sometimes records a sale
 # a few days late, or sells a renewal in advance.
@@ -71,7 +80,40 @@ def _same_gym(by: StaffAssignment, record) -> None:
 # --- Packages ---------------------------------------------------------------
 
 
-def _clean_package(gym: Gym, *, name, price_rwf, duration_count, duration_unit, existing=None):
+def _clean_services(gym: Gym, services) -> list[Service]:
+    """
+    The services a package includes: all this gym's, all still on sale.
+
+    `services=None` means every service the gym sells today. That is what a
+    package meant before packages listed their services, so callers that do not
+    care (a test, an import) keep the old behaviour.
+    """
+    if services is None:
+        return list(Service.objects.for_gym(gym).filter(is_active=True))
+    chosen = list(services)
+    if not chosen:
+        raise InvalidDetails("services", "required")
+    ids = {service.pk for service in chosen}
+    found = list(Service.objects.for_gym(gym).filter(pk__in=ids))
+    if len(found) != len(ids):
+        raise InvalidDetails("services", "unknown")
+    if any(not service.is_active for service in found):
+        raise InvalidDetails("services", "archived")
+    return found
+
+
+def _clean_package(
+    gym: Gym,
+    *,
+    name,
+    price_rwf,
+    kind,
+    services,
+    duration_count,
+    duration_unit,
+    visit_count,
+    existing=None,
+):
     name = _clean_text(name)
     if not name:
         raise InvalidDetails("name", "required")
@@ -82,39 +124,87 @@ def _clean_package(gym: Gym, *, name, price_rwf, duration_count, duration_unit, 
         raise InvalidDetails("name", "duplicate")
     if not isinstance(price_rwf, int) or not 0 < price_rwf <= MAX_PRICE_RWF:
         raise InvalidDetails("price_rwf", "out_of_range")
-    if not isinstance(duration_count, int) or not 0 < duration_count <= MAX_DURATION_COUNT:
-        raise InvalidDetails("duration_count", "out_of_range")
-    if duration_unit not in DurationUnit.values:
-        raise InvalidDetails("duration_unit", "invalid")
+    if kind not in PackageKind.values:
+        raise InvalidDetails("kind", "invalid")
+
+    chosen = _clean_services(gym, services)
+
+    counts_visits = kind == PackageKind.COUNT
+    if counts_visits:
+        if not isinstance(visit_count, int) or not 0 < visit_count <= MAX_VISIT_COUNT:
+            raise InvalidDetails("visit_count", "out_of_range")
+        # Visits may run out after a while, or never. Both parts are left empty
+        # together: "3" with no unit says nothing.
+        if duration_count in (None, "") and not duration_unit:
+            duration_count, duration_unit = None, ""
+        elif not (
+            isinstance(duration_count, int)
+            and 0 < duration_count <= MAX_DURATION_COUNT
+            and duration_unit in DurationUnit.values
+        ):
+            raise InvalidDetails("duration_count", "out_of_range")
+    else:
+        visit_count = None
+        if not isinstance(duration_count, int) or not 0 < duration_count <= MAX_DURATION_COUNT:
+            raise InvalidDetails("duration_count", "out_of_range")
+        if duration_unit not in DurationUnit.values:
+            raise InvalidDetails("duration_unit", "invalid")
+
     return {
         "name": name,
         "price_rwf": price_rwf,
+        "kind": kind,
         "duration_count": duration_count,
         "duration_unit": duration_unit,
-    }
+        "visit_count": visit_count,
+    }, chosen
+
+
+def _set_package_services(package: Package, services: list[Service]) -> None:
+    wanted = {service.pk for service in services}
+    package.service_links.exclude(service_id__in=wanted).delete()
+    already = set(package.service_links.values_list("service_id", flat=True))
+    PackageService.objects.bulk_create(
+        [
+            PackageService(gym_id=package.gym_id, package=package, service_id=service_id)
+            for service_id in wanted - already
+        ]
+    )
 
 
 @transaction.atomic
 def create_package(
-    *, by: StaffAssignment, name: str, price_rwf: int, duration_count: int, duration_unit: str
+    *,
+    by: StaffAssignment,
+    name: str,
+    price_rwf: int,
+    services=None,
+    kind: str = PackageKind.TIME,
+    duration_count: int | None = None,
+    duration_unit: str = "",
+    visit_count: int | None = None,
 ) -> Package:
     """Add something the gym sells. Owner only."""
     require_role(by, OWNER_ONLY)
-    values = _clean_package(
+    values, chosen = _clean_package(
         by.gym,
         name=name,
         price_rwf=price_rwf,
+        kind=kind,
+        services=services,
         duration_count=duration_count,
         duration_unit=duration_unit,
+        visit_count=visit_count,
     )
     package = Package.objects.create(gym=by.gym, **values)
+    _set_package_services(package, chosen)
     audit.record(
         action="package.created",
         summary=f"Package '{package.name}' was added at RWF {package.price_rwf:,}",
         gym=by.gym,
         actor=by.person,
         target=package,
-        details=values,
+        details={**values, "services": [service.name for service in chosen]},
     )
     return package
 
@@ -126,23 +216,33 @@ def update_package(
     package: Package,
     name: str,
     price_rwf: int,
-    duration_count: int,
-    duration_unit: str,
+    services=None,
+    kind: str | None = None,
+    duration_count: int | None = None,
+    duration_unit: str = "",
+    visit_count: int | None = None,
 ) -> Package:
     """
     Change a package. Owner only.
 
-    The audit log keeps the old and new values. Memberships already sold are
-    not affected: each sale will keep its own copy of the price and duration.
+    The audit log keeps the old and new values. Memberships and ticketbooks
+    already sold are not affected: each sale keeps its own copy of the price,
+    the rule and the services it included.
     """
     require_role(by, OWNER_ONLY)
     _same_gym(by, package)
-    values = _clean_package(
+    # Leaving the services out means "keep the ones it already has".
+    if services is None:
+        services = list(package.included_services.all()) or None
+    values, chosen = _clean_package(
         by.gym,
         name=name,
         price_rwf=price_rwf,
+        kind=package.kind if kind is None else kind,
+        services=services,
         duration_count=duration_count,
         duration_unit=duration_unit,
+        visit_count=visit_count,
         existing=package,
     )
     changes = {
@@ -150,12 +250,17 @@ def update_package(
         for field, new in values.items()
         if getattr(package, field) != new
     }
+    was = sorted(service.name for service in package.included_services.all())
+    now = sorted(service.name for service in chosen)
+    if was != now:
+        changes["services"] = {"from": was, "to": now}
     if not changes:
         return package
 
     for field, new in values.items():
         setattr(package, field, new)
     package.save()
+    _set_package_services(package, chosen)
     audit.record(
         action="package.updated",
         summary=f"Package '{package.name}' was changed ({', '.join(changes)})",
@@ -481,6 +586,8 @@ def create_membership(
     _same_gym(by, package)
     if not package.is_active:
         raise InvalidDetails("package", "archived")
+    if package.is_count:
+        raise InvalidDetails("package", "counts_visits")
 
     today = timezone.localdate()
     earliest = today - timedelta(days=MAX_DAYS_BACKDATED)
@@ -507,6 +614,12 @@ def create_membership(
         end_date=end_date,
         sold_by=by.person,
     )
+    MembershipService.objects.bulk_create(
+        [
+            MembershipService(gym=by.gym, membership=membership, service=service)
+            for service in package.included_services.all()
+        ]
+    )
     audit.record(
         action="membership.created",
         summary=(
@@ -519,6 +632,190 @@ def create_membership(
         details={"member": member.public_id, "package": package.public_id},
     )
     return membership
+
+
+# --- Ticketbooks (packages counted in visits) -------------------------------
+
+
+@transaction.atomic
+def create_ticketbook(
+    *, by: StaffAssignment, member: Member, package: Package, bought_on: date | None = None
+) -> Ticketbook:
+    """
+    Give a member a book of prepaid visits, for example 15 swimming tickets.
+    Front-desk roles.
+
+    This only creates the book. Charging for it is done by the billing module,
+    which calls this function as part of a sale.
+    """
+    require_role(by, FRONT_DESK_ROLES)
+    _same_gym(by, member)
+    _same_gym(by, package)
+    if not package.is_active:
+        raise InvalidDetails("package", "archived")
+    if not package.is_count:
+        raise InvalidDetails("package", "counts_time")
+
+    today = timezone.localdate()
+    bought_on = today if bought_on is None else bought_on
+    earliest = today - timedelta(days=MAX_DAYS_BACKDATED)
+    if not isinstance(bought_on, date) or not earliest <= bought_on <= today:
+        raise InvalidDetails("bought_on", "out_of_range")
+
+    expires_on = None
+    if package.expires:
+        expires_on = end_date_for(bought_on, package.duration_count, package.duration_unit)
+
+    book = Ticketbook.objects.create(
+        gym=by.gym,
+        member=member,
+        package=package,
+        package_name=package.name,
+        price_rwf=package.price_rwf,
+        visits_allowed=package.visit_count,
+        bought_on=bought_on,
+        expires_on=expires_on,
+        sold_by=by.person,
+    )
+    TicketbookService.objects.bulk_create(
+        [
+            TicketbookService(gym=by.gym, ticketbook=book, service=service)
+            for service in package.included_services.all()
+        ]
+    )
+    audit.record(
+        action="ticketbook.created",
+        summary=(
+            f"{member.full_name} got {package.name}: "
+            f"{book.visits_allowed} visits, {book.expiry_label}"
+        ),
+        gym=by.gym,
+        actor=by.person,
+        target=book,
+        details={"member": member.public_id, "package": package.public_id},
+    )
+    return book
+
+
+def ticketbooks_for(member: Member):
+    return Ticketbook.objects.for_gym(member.gym).filter(member=member)
+
+
+def usable_ticketbooks(member: Member, day: date | None = None):
+    """The member's books that still have a visit left and have not run out."""
+    day = timezone.localdate() if day is None else day
+    books = (
+        ticketbooks_for(member)
+        .filter(cancelled_at__isnull=True, bought_on__lte=day)
+        .filter(Q(expires_on__isnull=True) | Q(expires_on__gte=day))
+    )
+    return [book for book in books.prefetch_related("included_services") if book.visits_left > 0]
+
+
+@dataclass(frozen=True)
+class Allowed:
+    """What a member may use on a day, and what pays for it."""
+
+    service: Service
+    membership: Membership | None = None
+    ticketbook: Ticketbook | None = None
+
+    @property
+    def by_ticket(self) -> bool:
+        return self.ticketbook is not None
+
+
+def allowed_services(member: Member, day: date | None = None) -> list[Allowed]:
+    """
+    Which services this member may use on a day without paying again.
+
+    A membership covers its services as often as the member likes. A ticketbook
+    covers its services while it still has visits. A service in neither list is
+    paid for at the desk.
+    """
+    day = timezone.localdate() if day is None else day
+    found: dict[int, Allowed] = {}
+
+    membership = current_membership(member, day)
+    if membership is not None:
+        for service in membership.included_services.all():
+            found[service.pk] = Allowed(service=service, membership=membership)
+
+    for book in usable_ticketbooks(member, day):
+        for service in book.included_services.all():
+            if service.pk not in found:
+                found[service.pk] = Allowed(service=service, ticketbook=book)
+
+    return sorted(found.values(), key=lambda allowed: allowed.service.name)
+
+
+@transaction.atomic
+def spend_ticket(
+    *, by: StaffAssignment, ticketbook: Ticketbook, service: Service, used_on: date | None = None
+) -> TicketUse:
+    """Take one visit out of a book. Front-desk roles."""
+    require_role(by, FRONT_DESK_ROLES)
+    _same_gym(by, ticketbook)
+    _same_gym(by, service)
+
+    day = timezone.localdate() if used_on is None else used_on
+    # Lock the book so two tills cannot spend the last visit at the same moment.
+    locked = Ticketbook.objects.select_for_update().get(pk=ticketbook.pk)
+    if not locked.is_usable_on(day):
+        raise InvalidDetails("ticketbook", "used_up")
+    if not locked.service_links.filter(service=service).exists():
+        raise InvalidDetails("service", "not_included")
+
+    use = TicketUse.objects.create(
+        gym=by.gym,
+        ticketbook=locked,
+        service=service,
+        service_name=service.name,
+        used_on=day,
+        recorded_by=by.person,
+    )
+    audit.record(
+        action="ticket.used",
+        summary=(
+            f"{locked.member.full_name} used one {service.name} visit "
+            f"from {locked.package_name} ({locked.visits_left} left)"
+        ),
+        gym=by.gym,
+        actor=by.person,
+        target=use,
+    )
+    return use
+
+
+@transaction.atomic
+def cancel_ticket_use(*, by: StaffAssignment, use: TicketUse, reason: str) -> TicketUse:
+    """
+    Put a visit back because it was taken by mistake. Front-desk roles.
+
+    The use is not deleted: it stays on record, marked cancelled, with who
+    cancelled it and why.
+    """
+    require_role(by, FRONT_DESK_ROLES)
+    _same_gym(by, use)
+    reason = _clean_text(reason)
+    if not reason:
+        raise InvalidDetails("reason", "required")
+    if use.cancelled_at is not None:
+        return use
+
+    use.cancelled_at = timezone.now()
+    use.cancelled_by = by.person
+    use.cancel_reason = reason
+    use.save(update_fields=["cancelled_at", "cancelled_by", "cancel_reason"])
+    audit.record(
+        action="ticket.use_cancelled",
+        summary=f"A {use.service_name} visit was put back: {reason}",
+        gym=by.gym,
+        actor=by.person,
+        target=use,
+        details={"reason": reason},
+    )
+    return use
 
 
 # --- Figures for the owner --------------------------------------------------
@@ -540,14 +837,14 @@ def memberships_valid_on(gym: Gym, day: date):
 
 
 # The states the member list can be narrowed to, for the desk.
-MEMBER_STATES = ("active", "soon", "lapsed", "never")
+MEMBER_STATES = ("active", "soon", "lapsed")
 
 
 def narrow_members(gym: Gym, members, state: str, today: date):
     """
     Narrow a list of members to one state: who may train now, whose membership
-    runs out within a week, who stopped in the last month, and who never
-    bought one. An unknown state changes nothing.
+    runs out within a week, and who stopped in the last month. An unknown
+    state changes nothing.
     """
     if state == "active":
         return members.filter(pk__in=members_with_valid_membership(gym, today).values("pk"))
@@ -557,9 +854,6 @@ def narrow_members(gym: Gym, members, state: str, today: date):
     if state == "lapsed":
         ids = lapsed(gym, today, 30).values("member_id")
         return members.filter(pk__in=ids)
-    if state == "never":
-        has_any = Membership.objects.for_gym(gym).filter(member=OuterRef("pk"))
-        return members.filter(~Exists(has_any))
     return members
 
 
@@ -958,3 +1252,208 @@ def gym_id_for_card(token: str) -> int | None:
     with connection.cursor() as cursor:
         cursor.execute("SELECT app_gym_for_card(%s)", [token])
         return cursor.fetchone()[0]
+
+
+# --- Signing up on your own phone -------------------------------------------
+
+SIGNUP_CODE_LENGTH = 4
+# How many people may sign up for one gym in an hour from the public page.
+# A form anybody can reach needs a ceiling, or one bored person fills the desk.
+MAX_SIGNUPS_PER_HOUR = 40
+
+
+class AlreadySignedUp(Exception):
+    """This phone already has a sign-up waiting at this gym."""
+
+    def __init__(self, signup):
+        self.signup = signup
+        super().__init__(f"{signup.full_name} already signed up; the code is {signup.code}.")
+
+
+def packages_on_sale(gym: Gym):
+    return Package.objects.for_gym(gym).filter(is_active=True).prefetch_related("included_services")
+
+
+def waiting_signups(gym: Gym):
+    return SignUp.objects.for_gym(gym).filter(status=SignUpStatus.WAITING).select_related("package")
+
+
+@transaction.atomic
+def create_signup(
+    gym: Gym,
+    *,
+    full_name: str,
+    phone: str,
+    package: Package,
+    gender: str = "",
+    date_of_birth=None,
+    emergency_contact_name: str = "",
+    emergency_contact_phone: str = "",
+    branch=None,
+    wants_messages: bool = False,
+) -> SignUp:
+    """
+    Somebody fills in the gym's own sign-up page. Nobody is signed in.
+
+    Nothing is a membership yet: this only puts them on the desk's list with a
+    short code. They pay at reception, and the receptionist turns it into a
+    membership. Raises AlreadyMember if the phone is already one of this gym's
+    members, and AlreadySignedUp if they filled the form in twice.
+    """
+    details = MemberDetails(
+        full_name=full_name,
+        gender=gender,
+        date_of_birth=date_of_birth,
+        emergency_contact_name=emergency_contact_name,
+        emergency_contact_phone=emergency_contact_phone,
+        branch=branch,
+    )
+    # The same checks as registering at the desk, minus the parts a person
+    # filling in a form on their own phone cannot answer (branch, notes).
+    values = _clean_member(gym, details)
+    values = {
+        field: value
+        for field, value in values.items()
+        if field
+        in (
+            "full_name",
+            "gender",
+            "date_of_birth",
+            "emergency_contact_name",
+            "emergency_contact_phone",
+            "branch",
+        )
+    }
+    try:
+        phone = normalize_phone(phone)
+    except InvalidPhoneNumber as error:
+        raise InvalidDetails("phone", "invalid") from error
+
+    if package.gym_id != gym.pk or not package.is_active:
+        raise InvalidDetails("package", "archived")
+
+    person = people_services.find_person_by_phone(phone)
+    if person is not None:
+        existing = Member.objects.for_gym(gym).filter(person=person).first()
+        if existing is not None:
+            raise AlreadyMember(existing)
+
+    waiting = waiting_signups(gym).filter(phone=phone).first()
+    if waiting is not None:
+        raise AlreadySignedUp(waiting)
+
+    hour_ago = timezone.now() - timedelta(hours=1)
+    if SignUp.objects.for_gym(gym).filter(created_at__gte=hour_ago).count() >= (
+        MAX_SIGNUPS_PER_HOUR
+    ):
+        raise InvalidDetails("gym", "too_many_signups")
+
+    signup = SignUp.objects.create(
+        gym=gym,
+        code=f"{secrets.randbelow(10**SIGNUP_CODE_LENGTH):0{SIGNUP_CODE_LENGTH}d}",
+        phone=phone,
+        package=package,
+        package_name=package.name,
+        price_rwf=package.price_rwf,
+        wants_messages=wants_messages,
+        **values,
+    )
+    audit.record(
+        action="signup.created",
+        summary=f"{signup.full_name} signed up on their phone for {package.name}",
+        gym=gym,
+        actor=None,
+        target=signup,
+    )
+    return signup
+
+
+@transaction.atomic
+def register_from_signup(*, by: StaffAssignment, signup: SignUp) -> Member:
+    """
+    Turn a sign-up into a member once they are at the desk. Front-desk roles.
+
+    Selling them the package and taking the money is the billing module's work;
+    this only creates the member and marks the sign-up handled.
+    """
+    require_role(by, FRONT_DESK_ROLES)
+    _same_gym(by, signup)
+    if signup.status != SignUpStatus.WAITING:
+        raise InvalidDetails("signup", "already_handled")
+
+    member = register_member(
+        by=by,
+        phone=signup.phone,
+        details=MemberDetails(
+            full_name=signup.full_name,
+            gender=signup.gender,
+            date_of_birth=signup.date_of_birth,
+            emergency_contact_name=signup.emergency_contact_name,
+            emergency_contact_phone=signup.emergency_contact_phone,
+            branch=signup.branch,
+        ),
+    )
+    signup.status = SignUpStatus.JOINED
+    signup.member = member
+    signup.handled_at, signup.handled_by = timezone.now(), by.person
+    signup.save(update_fields=["status", "member", "handled_at", "handled_by"])
+    return member
+
+
+@transaction.atomic
+def drop_signup(*, by: StaffAssignment, signup: SignUp) -> SignUp:
+    """Take a sign-up off the desk's list: they did not come. Front-desk roles."""
+    require_role(by, FRONT_DESK_ROLES)
+    _same_gym(by, signup)
+    if signup.status != SignUpStatus.WAITING:
+        return signup
+    signup.status = SignUpStatus.DROPPED
+    signup.handled_at, signup.handled_by = timezone.now(), by.person
+    signup.save(update_fields=["status", "handled_at", "handled_by"])
+    audit.record(
+        action="signup.dropped",
+        summary=f"{signup.full_name}'s sign-up was taken off the list",
+        gym=by.gym,
+        actor=by.person,
+        target=signup,
+    )
+    return signup
+
+
+@transaction.atomic
+def spend_ticket_at_tablet(
+    *, gym: Gym, ticketbook: Ticketbook, service: Service, used_on: date | None = None
+) -> TicketUse:
+    """
+    Take one visit out of a book when the member did it themselves at the
+    entrance tablet. No member of staff is involved, so there is no role to
+    check: the caller has already proved the tablet belongs to this gym.
+    """
+    if ticketbook.gym_id != gym.pk or service.gym_id != gym.pk:
+        raise PermissionDenied("That record belongs to a different gym.")
+    day = timezone.localdate() if used_on is None else used_on
+    locked = Ticketbook.objects.select_for_update().get(pk=ticketbook.pk)
+    if not locked.is_usable_on(day):
+        raise InvalidDetails("ticketbook", "used_up")
+    if not locked.service_links.filter(service=service).exists():
+        raise InvalidDetails("service", "not_included")
+
+    use = TicketUse.objects.create(
+        gym=gym,
+        ticketbook=locked,
+        service=service,
+        service_name=service.name,
+        used_on=day,
+        recorded_by=None,
+    )
+    audit.record(
+        action="ticket.used",
+        summary=(
+            f"{locked.member.full_name} used one {service.name} visit at the tablet "
+            f"from {locked.package_name} ({locked.visits_left} left)"
+        ),
+        gym=gym,
+        actor=None,
+        target=use,
+    )
+    return use

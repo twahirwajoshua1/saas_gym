@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% load i18n money phones %}
+{% block title %}{% translate "Thank you" %} · {{ gym.name }}{% endblock %}
+{% block body %}
+  <main class="plain" style="align-items:flex-start">
+    <div class="plain-card stack">
+      <div>
+        <p class="small muted">{{ gym.name }}</p>
+        <h1>{% blocktranslate with name=signup.full_name.split.0 %}Thank you, {{ name }}{% endblocktranslate %}</h1>
+      </div>
+      <div class="card stack">
+        <p style="margin:0">{% translate "Go to the reception and say your code:" %}</p>
+        <p style="font-size:44px;font-weight:700;letter-spacing:6px;margin:0;text-align:center">{{ signup.code }}</p>
+        <p class="small muted" style="margin:0;text-align:center">{{ signup.package_name }} · {{ signup.price_rwf|rwf }} {% translate "to pay at the desk" %}</p>
+      </div>
+      <p class="small muted">{% blocktranslate with phone=signup.phone|phone %}After you pay, the gym sends your member card to {{ phone }}. It holds the QR code you show at the entrance.{% endblocktranslate %}</p>
+    </div>
+  </main>
+{% endblock %}

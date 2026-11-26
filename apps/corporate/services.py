@@ -1138,6 +1138,11 @@ def cancel_activity(*, by: StaffAssignment, activity: VisitActivity, reason: str
         raise InvalidDetails("reason", "required")
     if hasattr(activity, "bill_line"):
         raise InvalidDetails("activity", "billed")
+    # Only on the day. A visit that was not corrected the same day is taken as
+    # right, and nobody can change it afterwards: that is what stops a quiet
+    # change to a month the company has already been shown.
+    if activity.visit.checked_in_on != timezone.localdate():
+        raise InvalidDetails("activity", "too_late")
     if activity.cancelled_at is None:
         activity.cancelled_at, activity.cancelled_by = timezone.now(), by.person
         activity.cancel_reason = reason[:200]
@@ -1709,3 +1714,149 @@ def gym_company_month(gym: Gym, month: date) -> list[dict]:
             }
         )
     return sorted(rows, key=lambda r: -r["amount_rwf"])
+
+
+# --- The monthly report a gym sends a company ---------------------------------
+
+# How many whole months a report may cover. A company pays for whole months, so
+# a report is always whole months too: half a month would never match a bill.
+REPORT_MONTHS = (1, 2, 3, 4, 5, 6, 12)
+
+
+def report_window(last_month: date, months: int) -> tuple[date, date]:
+    """
+    The first and last day covered by a report of `months` whole months ending
+    with the month `last_month` falls in.
+    """
+    if months not in REPORT_MONTHS:
+        raise InvalidDetails("months", "out_of_range")
+    end = last_month.replace(day=calendar.monthrange(last_month.year, last_month.month)[1])
+    year, month = last_month.year, last_month.month - (months - 1)
+    while month < 1:
+        year, month = year - 1, month + 12
+    return date(year, month, 1), end
+
+
+@dataclass(frozen=True)
+class ReportLine:
+    """One activity on one visit: a line of what the company is being billed for."""
+
+    when: datetime
+    company_name: str
+    employee_number: str
+    employee_name: str
+    department: str
+    branch_name: str
+    service_name: str
+    price_rwf: int
+    how: str
+    cancelled: bool
+    cancel_note: str
+
+    @property
+    def amount_rwf(self) -> int:
+        """Nothing is charged for a service that was taken off the same day."""
+        return 0 if self.cancelled else self.price_rwf
+
+
+def report_lines(
+    gym: Gym, *, start: date, end: date, company=None, service=None
+) -> list[ReportLine]:
+    """
+    Every service used by company staff between two days, in detail.
+
+    This is what the gym sends the company: not a total, but who came, from
+    which department, when, and what they used. A service taken off the same
+    day stays on the list, crossed out, so the company can see the correction.
+    """
+    activities = (
+        VisitActivity.objects.for_gym(gym)
+        .filter(visit__checked_in_on__range=(start, end))
+        .select_related("visit__employee__person", "visit__branch", "company", "service")
+        .order_by("-visit__checked_in_at", "service_name")
+    )
+    if company is not None:
+        activities = activities.filter(company=company)
+    if service is not None:
+        activities = activities.filter(service=service)
+
+    return [
+        ReportLine(
+            when=activity.visit.checked_in_at,
+            company_name=activity.company.name,
+            employee_number=activity.visit.employee.employee_number,
+            employee_name=activity.visit.employee.person.full_name,
+            department=activity.visit.employee.department,
+            branch_name=activity.visit.branch.name,
+            service_name=activity.service_name,
+            price_rwf=activity.price_rwf,
+            how=VisitMethod(activity.visit.method).label,
+            cancelled=activity.cancelled_at is not None,
+            cancel_note=activity.cancel_reason,
+        )
+        for activity in activities
+    ]
+
+
+def report_totals(lines: list[ReportLine]) -> list[tuple[str, int, int]]:
+    """Per service: how many times it was used and what that comes to."""
+    counted: dict[str, list[int]] = {}
+    for line in lines:
+        if line.cancelled:
+            continue
+        row = counted.setdefault(line.service_name, [0, 0])
+        row[0] += 1
+        row[1] += line.amount_rwf
+    return [(name, times, amount) for name, (times, amount) in sorted(counted.items())]
+
+
+def contract_end_dates(gym: Gym, company_ids) -> dict[int, date]:
+    """
+    For each company, the last day its running contract with this gym covers.
+    Used to say "EDCL staff, to 31 Dec 2026" next to an employee's name.
+    """
+    running = (
+        Contract.objects.for_gym(gym)
+        .filter(
+            company_id__in=set(company_ids),
+            status=ContractStatus.APPROVED,
+            ended_on__isnull=True,
+        )
+        .values_list("company_id", "end_date")
+        .order_by("end_date")
+    )
+    return {company_id: end_date for company_id, end_date in running}
+
+
+def agreed_price(gym: Gym, company, service, branch: Branch, on: date | None = None):
+    """
+    What a company agreed to pay for one service at one branch, or None when
+    its contract does not cover it. An employee pays for what is not covered.
+    """
+    day = on or timezone.localdate()
+    contract = running_contract(gym, company.pk, day)
+    if contract is None:
+        return None
+    price = ContractPrice.objects.filter(contract=contract, service=service, branch=branch).first()
+    return price.price_rwf if price else None
+
+
+def search_employees(gym: Gym, query: str = "", company=None):
+    """
+    Company staff this gym may see: people at a company it has a contract with.
+    Matches on name, staff number or phone number.
+    """
+    companies = companies_with_contracts(gym)
+    if company is not None:
+        companies = companies.filter(pk=company.pk)
+    people = Employee.objects.filter(company__in=companies, is_active=True).select_related(
+        "person", "company"
+    )
+    text = (query or "").strip()
+    if not text:
+        return people
+    digits = "".join(ch for ch in text if ch.isdigit())
+    matches = Q(person__full_name__icontains=text) | Q(employee_number__icontains=text)
+    if digits:
+        matches |= Q(person__phone__contains=digits)
+    return people.filter(matches)

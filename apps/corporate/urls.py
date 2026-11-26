@@ -23,6 +23,9 @@ urlpatterns = [
     path("gym/companies/desk/", views.desk, name="desk"),
     path("gym/companies/desk/<uuid:public_id>/", views.desk_check_in, name="desk_check_in"),
     path("gym/companies/visits/", views.visit_list, name="visit_list"),
+    path("gym/visits/<uuid:public_id>/change/", views.visit_change, name="visit_change"),
+    path("gym/reports/", views.reports, name="reports"),
+    path("gym/reports/download.<str:suffix>", views.report_download, name="report_download"),
     path(
         "gym/companies/activities/<uuid:public_id>/cancel/",
         views.activity_cancel,

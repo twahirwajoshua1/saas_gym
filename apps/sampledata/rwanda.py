@@ -253,6 +253,16 @@ SERVICES = {
     "Inkingi Fitness Network": [("Gym", 4000), ("Sauna", 6000), ("Swimming", 5000)],
 }
 
+# The kinds of massage a gym offers: (name, minutes, share of the base price
+# in thousandths, what to expect). The share keeps the prices sensible whatever
+# the gym's tier: a Swedish rub-down is cheaper than hot stones.
+MASSAGE_TYPES = [
+    ("Swedish", 30, 600, "A gentle all-over massage to loosen tired muscles."),
+    ("Deep tissue", 60, 1000, "Firm pressure on the knots. Say if it is too much."),
+    ("Sports recovery", 45, 900, "For after a hard session or a race."),
+    ("Hot stone", 60, 1250, "Warm stones along the back. Allow ten minutes to settle."),
+]
+
 # Invented employers with corporate wellness contracts. Any resemblance to a
 # real company is unintended. Contract prices are a share of the member price;
 # branches outside Kigali are cheaper.

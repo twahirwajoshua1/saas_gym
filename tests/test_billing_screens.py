@@ -11,7 +11,7 @@ from apps.billing.models import Invoice, Payment
 from apps.billing.services import PaymentInput
 from apps.gyms.models import Role
 from apps.members import services as member_services
-from apps.members.models import Membership
+from apps.members.models import Membership, PackageKind, Ticketbook
 from apps.members.services import MemberDetails
 from apps.modules import services as module_services
 from apps.modules.catalog import PAYMENTS_FINANCE
@@ -51,7 +51,6 @@ def sale_form(package, **changes):
         "pay_now": "full",
         "amount_rwf": "",
         "method": "cash",
-        "reference": "",
         "idempotency_key": str(uuid.uuid4()),
     }
     return {**data, **changes}
@@ -101,34 +100,29 @@ def test_selling_with_a_part_payment_by_mobile_money(alpha, member, monthly, sig
     no_amount = client.post(url, sale_form(monthly, pay_now="part"))
     assert "Enter how much was paid." in no_amount.content.decode()
 
-    no_reference = client.post(
-        url, sale_form(monthly, pay_now="part", amount_rwf="10,000", method="mtn_momo")
-    )
-    assert "Enter the transaction reference" in no_reference.content.decode()
     assert not Invoice.objects.exists()  # nothing was half-saved
 
     response = client.post(
         url,
-        sale_form(
-            monthly, pay_now="part", amount_rwf="10,000", method="mtn_momo", reference="TX778899"
-        ),
+        sale_form(monthly, pay_now="part", amount_rwf="10,000", method="mtn_momo"),
         follow=True,
     )
     page = response.content.decode()
-    assert "MTN Mobile Money" in page and "TX778899" in page
+    assert "MTN Mobile Money" in page
     assert "RWF 20,000" in page  # still to pay
 
 
-def test_selling_to_pay_later_returns_to_the_member_with_a_balance(alpha, member, monthly, sign_in):
+def test_a_part_payment_leaves_a_balance_on_the_members_page(alpha, member, monthly, sign_in):
     client = sign_in(alpha)
 
-    response = client.post(
-        reverse("billing:sell", args=[member.public_id]), sale_form(monthly, pay_now="later")
+    client.post(
+        reverse("billing:sell", args=[member.public_id]),
+        sale_form(monthly, pay_now="part", amount_rwf="10,000"),
     )
-    assert response.url == reverse("members:member_detail", args=[member.public_id])
-    assert not Payment.objects.exists()
 
-    member_page = client.get(response.url).content.decode()
+    member_page = client.get(
+        reverse("members:member_detail", args=[member.public_id])
+    ).content.decode()
     assert "Active" in member_page and "valid until" in member_page
 
     # The payments part of the member's page is fetched on its own by HTMX.
@@ -136,8 +130,21 @@ def test_selling_to_pay_later_returns_to_the_member_with_a_balance(alpha, member
         reverse("billing:member_account", args=[member.public_id]), headers={"HX-Request": "true"}
     ).content.decode()
     assert "<html" not in account
-    assert "Owes" in account and "RWF 30,000" in account
+    assert "Owes" in account and "RWF 20,000" in account
     assert "Record payment" in account
+
+
+def test_the_desk_cannot_sell_without_taking_money(alpha, member, monthly, sign_in):
+    """There is no "pay later" at the desk: a sale is paid in full or in part."""
+    client = sign_in(alpha)
+
+    response = client.post(
+        reverse("billing:sell", args=[member.public_id]), sale_form(monthly, pay_now="later")
+    )
+
+    assert response.status_code == 200  # the form came back, nothing was sold
+    assert not Payment.objects.exists()
+    assert not Invoice.objects.exists()
 
 
 def test_pressing_the_button_twice_sells_once(alpha, member, monthly, sign_in):
@@ -342,3 +349,61 @@ def test_a_waiting_notice_is_not_shown_to_the_next_person_on_the_same_computer(
     page = sign_in(trainer).get(reverse("gyms:home")).content.decode()
 
     assert "sold to Eric Mugisha" not in page
+
+
+# --- Packages counted in visits ---------------------------------------------
+
+
+def test_selling_a_package_of_visits_gives_the_member_a_book_not_a_membership(
+    alpha, member, sign_in
+):
+    swimming = member_services.create_service(by=alpha.assignment, name="Swimming", price_rwf=5000)
+    tickets = member_services.create_package(
+        by=alpha.assignment,
+        name="15 swimming tickets",
+        price_rwf=60000,
+        kind=PackageKind.COUNT,
+        services=[swimming],
+        visit_count=15,
+        duration_count=3,
+        duration_unit="month",
+    )
+    client = sign_in(alpha)
+
+    response = client.post(
+        reverse("billing:sell", args=[member.public_id]), sale_form(tickets), follow=True
+    )
+
+    page = response.content.decode()
+    assert "15 swimming tickets sold to Eric Mugisha." in page
+    assert not Membership.objects.exists()
+    book = Ticketbook.objects.get()
+    assert (book.visits_allowed, book.visits_left) == (15, 15)
+    # The invoice says what was bought, and the payment settles it in full.
+    line = Invoice.objects.get().lines.get()
+    assert line.ticketbook_id == book.pk
+    assert "15 visits" in line.description
+    assert Payment.objects.get().amount_rwf == 60000
+
+
+def test_pressing_sell_twice_on_a_package_of_visits_sells_one_book(alpha, member, sign_in):
+    swimming = member_services.create_service(by=alpha.assignment, name="Swimming", price_rwf=5000)
+    tickets = member_services.create_package(
+        by=alpha.assignment,
+        name="10 swims",
+        price_rwf=40000,
+        kind=PackageKind.COUNT,
+        services=[swimming],
+        visit_count=10,
+    )
+    client = sign_in(alpha)
+    form = sale_form(tickets)
+    url = reverse("billing:sell", args=[member.public_id])
+
+    first = client.post(url, form)
+    second = client.post(url, form)
+
+    assert first.url == second.url
+    assert Ticketbook.objects.count() == 1
+    assert Invoice.objects.count() == 1
+    assert Payment.objects.count() == 1

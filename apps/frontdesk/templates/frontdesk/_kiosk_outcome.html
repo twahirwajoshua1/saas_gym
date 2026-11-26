@@ -29,6 +29,19 @@
       <div class="row"><button type="submit" class="btn btn-primary btn-big">{% translate "Walk in" %}</button><button type="button" class="btn btn-ghost btn-big" data-close>{% translate "Cancel" %}</button></div>
     </form>
   </div>
+{% elif o.kind == "choose_member" %}
+  <div class="kiosk-layer" data-close-after="30000" style="background:#0b0f17">
+    <form class="stack-lg" style="padding:0 6vw;max-width:1000px;width:100%" hx-post="{% url 'frontdesk:kiosk_member_enter' o.member.public_id %}" hx-target="#kiosk-overlay">
+      <div class="kiosk-title" style="font-size:2.4rem">{% blocktranslate with name=o.member.full_name.split.0 %}Murakaza neza {{ name }}, what are you doing today?{% endblocktranslate %}</div>
+      {% if o.message %}<p class="notice notice-warn">{{ o.message }}</p>{% endif %}
+      <div class="kiosk-tiles">
+        {% for c in o.services %}
+          <label class="kiosk-choice"><input type="checkbox" name="service" value="{{ c.service.public_id }}"><span>{{ c.service.name }}{% if c.by_ticket %}<br><span style="font-size:.8rem;opacity:.75">{% blocktranslate with n=c.ticketbook.visits_left %}{{ n }} prepaid left{% endblocktranslate %}</span>{% endif %}</span></label>
+        {% endfor %}
+      </div>
+      <div class="row"><button type="submit" class="btn btn-primary btn-big">{% translate "That's me, thanks" %}</button><button type="button" class="btn btn-ghost btn-big" data-close>{% translate "Skip" %}</button></div>
+    </form>
+  </div>
 {% else %}
   <div class="kiosk-layer kiosk-stop" data-close-after="{% if o.kind == 'old_code' %}4000{% else %}5000{% endif %}">
     <div class="stack-lg" style="padding:0 6vw;max-width:1000px">

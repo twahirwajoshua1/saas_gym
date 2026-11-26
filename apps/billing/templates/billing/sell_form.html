@@ -1,9 +1,9 @@
 {% extends "layouts/gym.html" %}
 {% load i18n %}
-{% block title %}{% translate "Sell membership" %} · {{ member.full_name }}{% endblock %}
+{% block title %}{% translate "Sell a package" %} · {{ member.full_name }}{% endblock %}
 {% block content %}
   <a class="back-link" href="{% url 'members:member_detail' member.public_id %}">← {{ member.full_name }}</a>
-  <div class="page-head"><h1>{% translate "Sell membership" %}</h1></div>
+  <div class="page-head"><div><h1>{% translate "Sell a package" %}</h1><p class="muted">{{ member.full_name }}</p></div></div>
 
   {% if not has_packages %}
     <div class="card empty">
@@ -42,7 +42,6 @@
           {% include "components/field.html" with field=form.method %}
           {% include "components/field.html" with field=form.amount_rwf %}
         </div>
-        {% include "components/field.html" with field=form.reference %}
         <p class="muted small">{% translate "For mobile money, check the confirmation message before recording. The system does not verify payments with MTN or Airtel yet." %}</p>
 
         <div class="form-actions">

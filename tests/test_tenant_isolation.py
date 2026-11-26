@@ -203,7 +203,7 @@ def test_member_and_package_lists_show_nothing_from_another_gym(two_gyms_with_da
     alpha, _bravo, _member, _package = two_gyms_with_data
     client = sign_in(alpha)
 
-    assert "Bravo Secret Member" not in client.get(reverse("members:member_list")).content.decode()
+    assert "Bravo Secret Member" not in client.get(reverse("frontdesk:people")).content.decode()
     assert "Bravo VIP" not in client.get(reverse("members:package_list")).content.decode()
 
 
@@ -212,7 +212,7 @@ def test_searching_cannot_find_another_gyms_member(two_gyms_with_data, sign_in):
     client = sign_in(alpha)
 
     for query in ["Bravo", "0788222333", "222333"]:
-        page = client.get(reverse("members:member_list"), {"q": query}).content.decode()
+        page = client.get(reverse("frontdesk:people"), {"q": query}).content.decode()
         assert "Bravo Secret Member" not in page
 
 

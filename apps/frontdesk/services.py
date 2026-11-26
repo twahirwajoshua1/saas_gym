@@ -10,10 +10,11 @@ that the receptionist sees under "Needs you".
 import hashlib
 import secrets
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from urllib.parse import quote
 
 from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator
 from django.db import connection, transaction
 from django.utils import timezone
 
@@ -26,8 +27,9 @@ from apps.corporate.models import CorporateVisit, Employee, VisitMethod
 from apps.frontdesk.models import EntranceTablet, ProblemKind, ScanProblem
 from apps.gyms.models import Branch, Gym, StaffAssignment
 from apps.gyms.permissions import CHECK_IN_ROLES, MANAGER_ROLES, require_role
+from apps.massage import services as massage
 from apps.members import services as member_services
-from apps.members.models import Member
+from apps.members.models import Member, Membership
 from apps.members.services import InvalidDetails
 from apps.people.phones import InvalidPhoneNumber, normalize_phone
 
@@ -163,10 +165,11 @@ class Welcome:
 class Outcome:
     """The tablet's answer to a scan."""
 
-    kind: str  # "welcome", "choose", "stop", "old_code"
+    kind: str  # "welcome", "choose", "choose_member", "stop", "old_code"
     welcome: Welcome | None = None
     message: str = ""
     employee: Employee | None = None
+    member: Member | None = None
     services: list = field(default_factory=list)
     code: str = ""
 
@@ -259,8 +262,51 @@ def scan(tablet: EntranceTablet, text: str) -> Outcome:
         )
         _problem(tablet, kind, member=member)
         return Outcome(kind="stop", message=f"Sorry {_first_name(member.full_name)}. {words}")
-    _record, is_new = attendance.self_check_in(gym=tablet.gym, branch=tablet.branch, member=member)
-    return Outcome(kind="welcome", welcome=member_welcome(member, assessment, already=not is_new))
+    record, is_new = attendance.self_check_in(gym=tablet.gym, branch=tablet.branch, member=member)
+    welcome = member_welcome(member, assessment, already=not is_new)
+    if not is_new:
+        return Outcome(kind="welcome", welcome=welcome)
+
+    # What is their package good for today? One thing needs no asking; several
+    # do, because the gym has to know what was actually used.
+    choices = list(assessment.choices)
+    if len(choices) == 1:
+        attendance.record_self_activities(
+            gym=tablet.gym, check_in=record, services_chosen=[choices[0].service]
+        )
+        return Outcome(kind="welcome", welcome=welcome)
+    if len(choices) > 1:
+        return Outcome(kind="choose_member", member=member, services=choices, welcome=welcome)
+    return Outcome(kind="welcome", welcome=welcome)
+
+
+def member_enter(tablet: EntranceTablet, member: Member, service_public_ids) -> Outcome:
+    """A member ticked what they are doing on the tablet."""
+    assessment = attendance.assess(member)
+    if not assessment.allowed:
+        return Outcome(kind="stop", message="Please see reception.")
+    record = (
+        CheckIn.objects.for_gym(tablet.gym)
+        .filter(member=member, checked_in_on=timezone.localdate())
+        .first()
+    )
+    if record is None:
+        record, _made = attendance.self_check_in(
+            gym=tablet.gym, branch=tablet.branch, member=member
+        )
+    wanted = {str(value) for value in service_public_ids}
+    choices = list(assessment.choices)
+    chosen = [item.service for item in choices if str(item.service.public_id) in wanted]
+    if not chosen:
+        return Outcome(
+            kind="choose_member",
+            member=member,
+            services=choices,
+            welcome=member_welcome(member, assessment, already=True),
+            message="Choose at least one.",
+        )
+    attendance.record_self_activities(gym=tablet.gym, check_in=record, services_chosen=chosen)
+    return Outcome(kind="welcome", welcome=member_welcome(member, assessment, already=False))
 
 
 def _employee_allowed(tablet: EntranceTablet, employee: Employee) -> Outcome | None:
@@ -428,6 +474,9 @@ class Arrival:
     name: str
     detail: str
     via: str  # "Tablet", "Desk", "PIN"
+    # Set for a company visit, so the desk can open it and fix a wrong service
+    # on the same day. Member check-ins are not corrected this way.
+    visit_id: object = None
 
 
 VIA = {
@@ -447,6 +496,7 @@ def arrivals(gym: Gym, day: date, branch: Branch | None = None, limit: int = 12)
         CheckIn.objects.for_gym(gym)
         .filter(checked_in_on=day)
         .select_related("member", "membership")
+        .prefetch_related("activities")
     )
     company = (
         CorporateVisit.objects.for_gym(gym)
@@ -460,7 +510,16 @@ def arrivals(gym: Gym, day: date, branch: Branch | None = None, limit: int = 12)
         Arrival(
             at=c.checked_in_at,
             name=c.member.full_name,
-            detail=c.membership.package_name if c.membership_id else "",
+            detail=" · ".join(
+                part
+                for part in (
+                    c.membership.package_name if c.membership_id else "",
+                    " + ".join(
+                        a.service_name for a in c.activities.all() if a.cancelled_at is None
+                    ),
+                )
+                if part
+            ),
             via=VIA.get(c.method, "Desk"),
         )
         for c in members.order_by("-checked_in_at")[:limit]
@@ -472,6 +531,7 @@ def arrivals(gym: Gym, day: date, branch: Branch | None = None, limit: int = 12)
             detail=f"{v.company.name} · "
             + " + ".join(a.service_name for a in v.activities.all() if a.cancelled_at is None),
             via=VIA.get(v.method, "Desk"),
+            visit_id=v.public_id,
         )
         for v in company.order_by("-checked_in_at")[:limit]
     ]
@@ -564,3 +624,218 @@ def reminders(gym: Gym, today: date, limit: int = 6) -> list[Reminder]:
                 )
             )
     return out
+
+
+# --- The desk's list of everyone ---------------------------------------------
+
+# Who the list shows. "individuals" are the gym's own members; "staff" are
+# people whose company pays. A company's public_id narrows it to that company.
+EVERYONE = "everyone"
+INDIVIDUALS = "individuals"
+COMPANY_STAFF = "staff"
+
+
+@dataclass(frozen=True)
+class DeskPerson:
+    """
+    One line of the desk's list of people.
+
+    It is either a member of this gym, or a member of staff at a company that
+    has a contract with it. The two are shown side by side, because at the
+    desk they are both just somebody standing in front of you.
+    """
+
+    name: str
+    phone: str
+    member: Member | None = None
+    membership: Membership | None = None
+    is_active: bool = False
+    days_left: int = 0
+    employee: Employee | None = None
+    company_name: str = ""
+    covered_until: date | None = None
+
+    @property
+    def from_a_company(self) -> bool:
+        return self.employee is not None
+
+
+def _staff_of_companies(gym: Gym, query: str, group: str):
+    """Company employees this gym may see, narrowed to one company if asked."""
+    company = None
+    if group not in (EVERYONE, COMPANY_STAFF):
+        company = corporate.companies_with_contracts(gym).filter(public_id=group).first()
+        if company is None:
+            return Employee.objects.none()
+    return corporate.search_employees(gym, query, company=company)
+
+
+def people_page(
+    gym: Gym,
+    *,
+    query: str = "",
+    state: str = "",
+    group: str = EVERYONE,
+    page_number=None,
+    per_page: int = 25,
+):
+    """
+    One page of everyone the desk deals with: the gym's members and the staff
+    of its companies, together, in name order.
+
+    Narrowing by membership (active, ending soon, ended recently) leaves out
+    company staff, because their company's contract covers them, not a
+    membership of their own.
+    """
+    today = timezone.localdate()
+    members = member_services.search_members(gym, query)
+    if state in member_services.MEMBER_STATES:
+        members = member_services.narrow_members(gym, members, state, today)
+
+    show_members = group in (EVERYONE, INDIVIDUALS)
+    show_staff = group != INDIVIDUALS and not state
+
+    # Only the name and the key are read for everybody; the rest is read for
+    # the twenty-five people actually shown.
+    index: list[tuple[str, str, int]] = []
+    if show_members:
+        index += [(name, "member", pk) for pk, name in members.values_list("id", "full_name")]
+    if show_staff:
+        index += [
+            (name, "staff", pk)
+            for pk, name in _staff_of_companies(gym, query, group).values_list(
+                "id", "person__full_name"
+            )
+        ]
+    index.sort(key=lambda row: (row[0].lower(), row[1]))
+
+    page = Paginator(index, per_page).get_page(page_number)
+    return page, _fill_in(gym, list(page.object_list), today)
+
+
+def _fill_in(gym: Gym, index: list[tuple[str, str, int]], today: date) -> list[DeskPerson]:
+    """Read the full records for one page of the list."""
+    member_ids = [pk for _, kind, pk in index if kind == "member"]
+    staff_ids = [pk for _, kind, pk in index if kind == "staff"]
+
+    members = {
+        member.pk: member
+        for member in Member.objects.for_gym(gym)
+        .filter(pk__in=member_ids)
+        .select_related("person", "branch")
+    }
+    statuses = {
+        status.member.pk: status for status in member_services.status_for(members.values(), today)
+    }
+    employees = {
+        employee.pk: employee
+        for employee in Employee.objects.filter(pk__in=staff_ids).select_related(
+            "person", "company"
+        )
+    }
+    covered = corporate.contract_end_dates(gym, [e.company_id for e in employees.values()])
+
+    rows = []
+    for _name, kind, pk in index:
+        if kind == "member" and pk in members:
+            status = statuses[pk]
+            rows.append(
+                DeskPerson(
+                    name=status.member.full_name,
+                    phone=status.member.person.phone,
+                    member=status.member,
+                    membership=status.membership,
+                    is_active=status.is_active,
+                    days_left=status.days_left,
+                )
+            )
+        elif kind == "staff" and pk in employees:
+            employee = employees[pk]
+            rows.append(
+                DeskPerson(
+                    name=employee.person.full_name,
+                    phone=employee.person.phone,
+                    employee=employee,
+                    company_name=employee.company.name,
+                    covered_until=covered.get(employee.company_id),
+                )
+            )
+    return rows
+
+
+# --- Reminders for what starts in a few minutes ------------------------------
+
+
+@dataclass(frozen=True)
+class Soon:
+    """
+    Something about to start, with the message already written.
+
+    The system sends nothing by itself: the receptionist presses a button that
+    opens WhatsApp or a text message on the gym's own phone, with the words
+    ready. That is the honest version until a gym connects a message provider.
+    """
+
+    at: str
+    what: str
+    staff_name: str
+    staff_phone: str
+    client_name: str
+    client_phone: str
+    minutes_away: int
+
+    def _link(self, phone: str, text: str, *, sms: bool) -> str:
+        digits = "".join(ch for ch in phone if ch.isdigit())
+        if sms:
+            return f"sms:+{digits}?&body={quote(text)}"
+        return f"https://wa.me/{digits}?text={quote(text)}"
+
+    def _for_staff(self) -> str:
+        return (
+            f"Reminder: {self.what} with {self.client_name} at {self.at}, "
+            f"in {self.minutes_away} minutes."
+        )
+
+    def _for_client(self) -> str:
+        return (
+            f"Reminder: your {self.what} with {self.staff_name} is at {self.at}, "
+            f"in {self.minutes_away} minutes."
+        )
+
+    @property
+    def whatsapp_staff(self) -> str:
+        return self._link(self.staff_phone, self._for_staff(), sms=False)
+
+    @property
+    def sms_staff(self) -> str:
+        return self._link(self.staff_phone, self._for_staff(), sms=True)
+
+    @property
+    def whatsapp_client(self) -> str:
+        return self._link(self.client_phone, self._for_client(), sms=False)
+
+    @property
+    def sms_client(self) -> str:
+        return self._link(self.client_phone, self._for_client(), sms=True)
+
+
+def starting_soon(gym: Gym, *, within_minutes: int | None = None) -> list[Soon]:
+    """Massages and one-to-one sessions about to start, soonest first."""
+    now = timezone.localtime()
+    rows = []
+    for booking in massage.starting_soon(gym, within_minutes=within_minutes):
+        away = (
+            datetime.combine(booking.held_on, booking.starts_at) - now.replace(tzinfo=None)
+        ).total_seconds() // 60
+        rows.append(
+            Soon(
+                at=f"{booking.starts_at:%H:%M}",
+                what=booking.type_name,
+                staff_name=booking.masseuse.staff.person.full_name,
+                staff_phone=booking.masseuse.staff.person.phone,
+                client_name=booking.person.full_name,
+                client_phone=booking.person.phone,
+                minutes_away=max(int(away), 0),
+            )
+        )
+    return rows

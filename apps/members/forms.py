@@ -12,28 +12,93 @@ from django.utils.translation import gettext_lazy as _
 
 from apps.core.amounts import parse_rwf
 from apps.gyms.models import Branch
-from apps.members.models import DurationUnit, Gender
+from apps.members.models import DurationUnit, Gender, Package, PackageKind, Service
 
 
 class PackageForm(forms.Form):
-    name = forms.CharField(label=_("Name"), max_length=80, help_text=_("For example: Monthly"))
-    price_rwf = forms.CharField(
-        label=_("Price (RWF)"),
-        max_length=15,
-        help_text=_("Whole francs, for example 30000"),
-        widget=forms.TextInput(attrs={"inputmode": "numeric"}),
+    """
+    What the gym sells: which services are included, a rule, and a price.
+
+    The rule is either a length of time (a membership) or a number of visits
+    (a ticketbook). The form only checks the shape of what was typed; which
+    parts go together is decided in services.py.
+    """
+
+    name = forms.CharField(
+        label=_("Name"), max_length=80, help_text=_("For example: Gym + swimming, monthly")
     )
-    duration_count = forms.IntegerField(label=_("Lasts for"), min_value=1, max_value=999)
+    services = forms.ModelMultipleChoiceField(
+        label=_("What is included"),
+        queryset=Service.objects.none(),
+        to_field_name="public_id",
+        widget=forms.CheckboxSelectMultiple,
+        help_text=_("Tick every service the buyer may use."),
+    )
+    kind = forms.ChoiceField(
+        label=_("How it works"),
+        choices=[
+            (PackageKind.TIME, _("For a length of time, used as often as they like")),
+            (PackageKind.COUNT, _("A number of visits")),
+        ],
+        initial=PackageKind.TIME,
+        required=False,
+        widget=forms.RadioSelect,
+    )
+    visit_count = forms.IntegerField(
+        label=_("How many visits"),
+        min_value=1,
+        max_value=999,
+        required=False,
+        help_text=_("Only for a number of visits, for example 15."),
+    )
+    duration_count = forms.IntegerField(
+        label=_("Lasts for"), min_value=1, max_value=999, required=False
+    )
     duration_unit = forms.ChoiceField(
         label=_("Unit"),
         choices=[
+            ("", _("never runs out")),
             (DurationUnit.DAY, _("day(s)")),
             (DurationUnit.WEEK, _("week(s)")),
             (DurationUnit.MONTH, _("month(s)")),
             (DurationUnit.YEAR, _("year(s)")),
         ],
         initial=DurationUnit.MONTH,
+        required=False,
     )
+    price_rwf = forms.CharField(
+        label=_("Price (RWF)"),
+        max_length=15,
+        help_text=_("Whole francs, for example 30000"),
+        widget=forms.TextInput(attrs={"inputmode": "numeric"}),
+    )
+
+    field_order = [
+        "name",
+        "services",
+        "kind",
+        "visit_count",
+        "duration_count",
+        "duration_unit",
+        "price_rwf",
+    ]
+
+    def __init__(self, *args, gym=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if gym is None:
+            return
+        on_sale = Service.objects.for_gym(gym).filter(is_active=True)
+        self.fields["services"].queryset = on_sale
+        # A gym that has not listed its services yet has nothing to tick.
+        self.fields["services"].required = on_sale.exists()
+
+    def clean_kind(self):
+        return self.cleaned_data["kind"] or PackageKind.TIME
+
+    def clean_services(self):
+        # Nothing ticked, because the gym lists no services: the package
+        # includes whatever the gym sells.
+        return list(self.cleaned_data["services"]) or None
 
     def clean_price_rwf(self):
         # People type prices as "30,000", "30 000" or "30000". All mean the same.
@@ -53,7 +118,7 @@ class MemberForm(forms.Form):
     )
     branch = forms.ModelChoiceField(
         label=_("Signed up at"),
-        help_text=_("Only where they registered. They may train at any branch."),
+        help_text=_("Only where they registered."),
         queryset=Branch.objects.none(),
         to_field_name="public_id",
     )
@@ -128,3 +193,78 @@ class ServiceForm(forms.Form):
         if amount is None:
             raise forms.ValidationError(_("Enter the price as a whole number of francs."))
         return amount
+
+
+class JoinForm(forms.Form):
+    """
+    The gym's own sign-up page, filled in by the person on their phone.
+
+    Two agreements, kept apart on purpose: one is needed to run the
+    membership, the other is a choice about being sent greetings and offers.
+    """
+
+    full_name = forms.CharField(label=_("Full name"), max_length=150)
+    phone = forms.CharField(
+        label=_("Phone number"),
+        max_length=20,
+        help_text=_("For example 0788 123 456"),
+        widget=forms.TextInput(attrs={"inputmode": "tel", "autocomplete": "tel"}),
+    )
+    gender = forms.ChoiceField(
+        label=_("Gender"),
+        choices=[("", _("Prefer not to say"))] + list(Gender.choices),
+        required=False,
+    )
+    date_of_birth = forms.DateField(
+        label=_("Date of birth"),
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+    emergency_contact_name = forms.CharField(
+        label=_("Emergency contact: name"), max_length=150, required=False
+    )
+    emergency_contact_phone = forms.CharField(
+        label=_("Emergency contact: phone"), max_length=20, required=False
+    )
+    branch = forms.ModelChoiceField(
+        label=_("Which one will you use?"),
+        queryset=Branch.objects.none(),
+        to_field_name="public_id",
+        required=False,
+        empty_label=None,
+    )
+    package = forms.ModelChoiceField(
+        label=_("Choose a package"),
+        queryset=Package.objects.none(),
+        to_field_name="public_id",
+        widget=forms.RadioSelect,
+        empty_label=None,
+    )
+    agrees = forms.BooleanField(
+        label=_(
+            "I agree that my details are only kept by this gym, and only used for my membership."
+        ),
+        required=True,
+    )
+    wants_messages = forms.BooleanField(
+        label=_("Send me birthday greetings and offers on WhatsApp or SMS."),
+        required=False,
+    )
+
+    def __init__(self, *args, packages=None, branches=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if packages is not None:
+            self.fields["package"].queryset = packages
+        if branches is not None:
+            self.fields["branch"].queryset = branches
+            # One place to train is not a question worth asking.
+            many = len(branches) > 1
+            self.fields["branch"].required = many
+            if not many:
+                del self.fields["branch"]
+
+    def clean_date_of_birth(self):
+        born = self.cleaned_data["date_of_birth"]
+        if born and born > timezone.localdate():
+            raise forms.ValidationError(_("The date of birth cannot be in the future."))
+        return born

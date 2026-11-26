@@ -1,10 +1,10 @@
 {% extends "layouts/gym.html" %}
 {% load i18n icons %}
-{% block title %}{% translate "Classes" %} · {{ gym.name }}{% endblock %}
+{% block title %}{% translate "Sessions" %} · {{ gym.name }}{% endblock %}
 {% block content %}
   <div class="page-head">
     <div>
-      <h1>{% translate "Classes" %}</h1>
+      <h1>{% translate "Sessions" %}</h1>
       <p class="sub">{% if branch %}{{ branch.name }} · {% endif %}{% blocktranslate with a=week_start|date:"j M" b=week_start|date:"Y" %}Week of {{ a }} {{ b }}{% endblocktranslate %}</p>
     </div>
     <div class="actions">
@@ -15,6 +15,7 @@
       {% endif %}
     </div>
   </div>
+  {% include "components/session_tabs.html" with tab="group" %}
 
   <div class="row" style="margin-bottom:16px">
     <a class="btn btn-small" href="?week={{ previous|date:'Y-m-d' }}">← {% translate "Previous week" %}</a>

@@ -1,14 +1,17 @@
 {% extends "layouts/gym.html" %}
 {% load i18n icons money static %}
-{% block title %}{% translate "Desk" %} · {{ gym.name }}{% endblock %}
+{% block title %}{% translate "Home" %} · {{ gym.name }}{% endblock %}
 {% block scripts %}<script src="{% static 'js/scanner.js' %}" defer></script>{% endblock %}
 {% block content %}
   <div class="page-head">
     <div>
-      <h1>{% translate "Desk" %}</h1>
+      <h1>{% translate "Home" %}</h1>
       <p class="sub">{% if branch %}{{ branch.name }} · {% endif %}{{ today|date:"l j F" }}</p>
     </div>
     <div class="actions">
+      {% if role_is_front_desk %}
+        <a class="btn btn-primary" href="{% url 'members:member_register' %}">{% translate "+ Register member" %}</a>
+      {% endif %}
       {% if tablets %}
         {% for t in tablets %}<span class="badge {% if t.is_connected %}badge-on{% else %}badge-off{% endif %}">{{ t.name }}{% if not t.is_connected %}: {% translate "not connected" %}{% endif %}</span>{% endfor %}
       {% endif %}

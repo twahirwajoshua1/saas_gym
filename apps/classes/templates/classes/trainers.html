@@ -2,11 +2,11 @@
 {% load i18n %}
 {% block title %}{% translate "Trainers" %} · {{ gym.name }}{% endblock %}
 {% block content %}
-  <a class="back-link" href="{% url 'classes:timetable' %}">← {% translate "Classes" %}</a>
   <div class="page-head">
-    <div><h1>{% translate "Trainers" %}</h1>
-      <p class="sub">{% translate "What members see, and how members rate them." %}</p></div>
+    <div><h1>{% translate "Sessions" %}</h1>
+      <p class="sub">{% translate "Trainers: what members see, and how members rate them." %}</p></div>
   </div>
+  {% include "components/session_tabs.html" with tab="personal" %}
   <div class="card stack">
     {% if people %}
       <ul class="item-list">

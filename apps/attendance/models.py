@@ -4,7 +4,7 @@ from django.db import models
 from django.utils import timezone
 
 from apps.gyms.models import Branch, GymOwnedModel
-from apps.members.models import Member, Membership
+from apps.members.models import Member, Membership, Service, TicketUse
 from apps.people.models import Person
 
 
@@ -27,7 +27,11 @@ class CheckIn(GymOwnedModel):
     branch = models.ForeignKey(Branch, on_delete=models.PROTECT, related_name="+")
 
     # The membership that made the visit allowed.
-    membership = models.ForeignKey(Membership, on_delete=models.PROTECT, related_name="+")
+    # The membership that let them in. Empty when they came in on a book of
+    # prepaid visits instead, for example 15 swimming tickets.
+    membership = models.ForeignKey(
+        Membership, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
 
     checked_in_at = models.DateTimeField(default=timezone.now)
     # The local calendar day, kept separately so "one per day" can be enforced.
@@ -94,3 +98,46 @@ class GuestVisit(GymOwnedModel):
 
     class Meta:
         ordering = ["-came_on", "-id"]
+
+
+class CheckInActivity(GymOwnedModel):
+    """
+    What a member said they were going to do on a visit.
+
+    A package says which services it includes, so a member who paid for
+    swimming only cannot tick the gym. Where the service comes out of a book
+    of prepaid visits, the visit taken is recorded too, so the count is never
+    guessed at.
+
+    Nothing is deleted: a service ticked by mistake is taken off with a reason,
+    the same way as for a company visit.
+    """
+
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    check_in = models.ForeignKey(CheckIn, on_delete=models.PROTECT, related_name="activities")
+    service = models.ForeignKey(Service, on_delete=models.PROTECT, related_name="+")
+    service_name = models.CharField(max_length=80)
+
+    # Set when the visit came out of a book of prepaid visits.
+    ticket_use = models.ForeignKey(
+        TicketUse, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancelled_by = models.ForeignKey(
+        Person, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    cancel_reason = models.CharField(max_length=200, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["service_name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["check_in", "service"], name="one_row_per_service_per_check_in"
+            ),
+        ]
+
+    def __str__(self):
+        return self.service_name

@@ -1,0 +1,74 @@
+{% extends "layouts/gym.html" %}
+{% load i18n money %}
+{% block title %}{% translate "Massage types" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'gyms:settings' %}">← {% translate "Settings" %}</a>
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Massage types" %}</h1>
+      <p class="muted">{% translate "The type decides how long a massage takes and what it costs. Each one is also a service, so a company can agree its own price for it in the contract." %}</p>
+    </div>
+    <div class="actions"><a class="btn btn-primary" href="{% url 'massage:type_new' %}">{% translate "Add a massage" %}</a></div>
+  </div>
+
+  <div class="card stack">
+    {% if types %}
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr><th>{% translate "Name" %}</th><th>{% translate "How long" %}</th><th class="num">{% translate "At the door" %}</th><th>{% translate "Offered" %}</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for one in types %}
+              <tr>
+                <td class="strong">{{ one.name }}</td>
+                <td>{% blocktranslate with n=one.minutes %}{{ n }} min{% endblocktranslate %}</td>
+                <td class="num">{{ one.price_rwf|rwf }}</td>
+                <td>{% if one.is_active %}<span class="badge badge-on">{% translate "Yes" %}</span>{% else %}<span class="badge badge-off">{% translate "Stopped" %}</span>{% endif %}</td>
+                <td class="item-actions">
+                  <a class="btn btn-small" href="{% url 'massage:type_edit' one.public_id %}">{% translate "Edit" %}</a>
+                  <form method="post" action="{% url 'massage:type_set_active' one.public_id %}" class="inline-form">
+                    {% csrf_token %}<input type="hidden" name="active" value="{% if one.is_active %}no{% else %}yes{% endif %}">
+                    <button type="submit" class="btn btn-small">{% if one.is_active %}{% translate "Stop offering" %}{% else %}{% translate "Offer again" %}{% endif %}</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty">
+        <p><strong>{% translate "No massages yet" %}</strong></p>
+        <p class="muted">{% translate "Add the kinds you offer, each with its own length and price." %}</p>
+        <a class="btn btn-primary" href="{% url 'massage:type_new' %}">{% translate "Add a massage" %}</a>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="card stack">
+    <div class="card-head">
+      <div><h2>{% translate "Rules" %}</h2><p class="sub">{% translate "How late a booking may be called off, and the break between massages." %}</p></div>
+      <a class="btn btn-small" href="{% url 'massage:rules' %}">{% translate "Change" %}</a>
+    </div>
+    <p class="small muted" style="margin:0">
+      {% blocktranslate with c=rules.cut_off_minutes g=rules.gap_minutes r=rules.reminder_minutes %}Free to call off until {{ c }} minutes before · {{ g }} minutes between massages · the desk is reminded {{ r }} minutes before{% endblocktranslate %}
+    </p>
+  </div>
+
+  <div class="card stack">
+    <div class="card-head">
+      <div><h2>{% translate "Who gives massages" %}</h2><p class="sub">{% translate "Staff marked as masseuses, with the hours people can book them." %}</p></div>
+      <a class="btn btn-small" href="{% url 'classes:trainers' %}">{% translate "Staff" %}</a>
+    </div>
+    {% if masseuses %}
+      <ul class="item-list">
+        {% for one in masseuses %}
+          <li><div class="item-main"><strong>{{ one.staff.person.full_name }}</strong><span class="small muted">{{ one.headline }}</span></div></li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">{% translate "Nobody yet. Mark a trainer as a masseuse on their page, then set their hours." %}</p>
+    {% endif %}
+  </div>
+{% endblock %}

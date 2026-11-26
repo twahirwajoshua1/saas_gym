@@ -31,7 +31,11 @@ data can be exported. See "What is not built yet" below.
 | `apps/dashboard/` | The owner's figures and the renewals list (reads from the other modules) |
 | `apps/attendance/` | Attendance and Access: checking members in |
 | `apps/billing/` | Payments and Finance: invoices, payments, receipts and the ledger |
-| `apps/members/` | Gym Operations: members, packages and memberships |
+| `apps/members/` | Gym Operations: members, packages, memberships and prepaid visits |
+| `apps/classes/` | Training and Classes: the timetable, trainers and one-to-one sessions |
+| `apps/massage/` | Massage: the kinds a gym offers, who gives them and the bookings |
+| `apps/corporate/` | Corporate Wellness: companies, contracts, visits, bills and reports |
+| `apps/frontdesk/` | The desk's Home page, the Members list and the entrance tablets |
 | `apps/gyms/` | Gyms (the tenants), branches, staff roles and the tenant isolation helper |
 | `templates/` | Page layouts and form pieces shared by all modules |
 | `static/` | The stylesheet (`css/app.css`) and third-party JavaScript (`vendor/`) |

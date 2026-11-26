@@ -95,6 +95,17 @@
         <form method="post" action="{% url 'attendance:check_in' result.member.public_id %}" class="grow">
           {% csrf_token %}
           {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+          {% if result.choices %}
+            <fieldset class="choices" style="margin-bottom:10px">
+              <legend class="small strong">{% translate "What are they doing today?" %}</legend>
+              {% for choice in result.choices %}
+                <label class="option">
+                  <input type="checkbox" name="services" value="{{ choice.service.public_id }}" {% if forloop.first and result.choices|length == 1 %}checked{% endif %}>
+                  <span>{{ choice.service.name }}{% if choice.by_ticket %} <span class="small muted">· {% blocktranslate with n=choice.ticketbook.visits_left %}{{ n }} prepaid visits left{% endblocktranslate %}</span>{% endif %}</span>
+                </label>
+              {% endfor %}
+            </fieldset>
+          {% endif %}
           <button type="submit" class="btn btn-primary btn-big btn-block">{% translate "Check in" %}</button>
         </form>
       {% endif %}

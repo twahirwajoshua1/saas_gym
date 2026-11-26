@@ -1,0 +1,40 @@
+{% extends "layouts/gym.html" %}
+{% load i18n money phones %}
+{% block title %}{% translate "Record payment" %} · {{ signup.full_name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'frontdesk:desk' %}">← {% translate "Home" %}</a>
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Record payment" %}</h1>
+      <p class="muted">{% blocktranslate with c=signup.code %}Code {{ c }}{% endblocktranslate %}</p>
+    </div>
+  </div>
+
+  <div class="card stack">
+    <h2>{{ signup.full_name }}</h2>
+    <dl class="facts">
+      <div><dt>{% translate "Phone" %}</dt><dd>{{ signup.phone|phone }}</dd></div>
+      {% if signup.date_of_birth %}<div><dt>{% translate "Date of birth" %}</dt><dd>{{ signup.date_of_birth|date:"j M Y" }}</dd></div>{% endif %}
+      {% if signup.emergency_contact_name %}<div><dt>{% translate "Emergency contact" %}</dt><dd>{{ signup.emergency_contact_name }} · {{ signup.emergency_contact_phone|phone }}</dd></div>{% endif %}
+      <div><dt>{% translate "Package" %}</dt><dd>{{ signup.package_name }} · {{ signup.price_rwf|rwf }}</dd></div>
+      <div><dt>{% translate "Greetings and offers" %}</dt><dd>{% if signup.wants_messages %}{% translate "Yes, they agreed" %}{% else %}{% translate "No" %}{% endif %}</dd></div>
+    </dl>
+    <p class="small muted">{% translate "Saving this registers them as a member, sells the package and records the money, all at once." %}</p>
+
+    <form method="post" class="form" novalidate>
+      {% csrf_token %}
+      {{ form.idempotency_key }}
+      {% for error in form.non_field_errors %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endfor %}
+      <fieldset class="choices">
+        <legend>{% translate "Payment" %}</legend>
+        {% for radio in form.pay_now %}<label class="option">{{ radio.tag }} <span>{{ radio.choice_label }}</span></label>{% endfor %}
+      </fieldset>
+      {% include "components/field.html" with field=form.amount_rwf %}
+      {% include "components/field.html" with field=form.method %}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{% translate "Take the money and start the membership" %}</button>
+        <a class="btn" href="{% url 'frontdesk:desk' %}">{% translate "Cancel" %}</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

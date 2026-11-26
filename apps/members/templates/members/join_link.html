@@ -1,0 +1,54 @@
+{% extends "layouts/gym.html" %}
+{% load i18n money %}
+{% block title %}{% translate "Sign-up link" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'gyms:settings' %}">← {% translate "Settings" %}</a>
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Sign-up link and poster" %}</h1>
+      <p class="muted">{% translate "Print this and put it at the door. Somebody scans it, fills in their details on their own phone, and comes to the desk with a code to pay." %}</p>
+    </div>
+  </div>
+
+  <div class="card stack">
+    <div class="qr-box" role="img" aria-label="{% translate 'QR code for the sign-up page' %}">{{ qr|safe }}</div>
+    <p class="small muted" style="text-align:center">{% translate "Anybody may use this link. It does not belong to one person." %}</p>
+    <label class="small strong" for="join-link">{% translate "The link" %}</label>
+    <input id="join-link" type="text" value="{{ link }}" readonly onclick="this.select()">
+  </div>
+
+  <div class="card stack">
+    <div class="card-head">
+      <div>
+        <h2>{% translate "What they will be offered" %}</h2>
+        <p class="sub">{% translate "Everything you have on sale shows on the page. Stop offering a package and it disappears from it." %}</p>
+      </div>
+      <a class="btn btn-small" href="{% url 'members:package_list' %}">{% translate "Change" %}</a>
+    </div>
+    {% if packages %}
+      <ul class="item-list">
+        {% for package in packages %}
+          <li>
+            <div class="item-main">
+              <strong>{{ package.name }}</strong>
+              <span class="small muted">{{ package.price_rwf|rwf }} · {{ package.rule_label }}</span>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">{% translate "Nothing is on sale yet, so the page has nothing to offer. Add a package first." %}</p>
+    {% endif %}
+  </div>
+
+  <div class="card stack">
+    <h2>{% translate "What happens next" %}</h2>
+    <ol class="numbered">
+      <li>{% translate "They fill in their name, phone, date of birth and an emergency contact, and pick a package." %}</li>
+      <li>{% translate "They get a four-digit code, and nothing else happens yet: no membership, no money." %}</li>
+      <li>{% translate "They appear on your Home page under \"Needs you\", waiting to pay." %}</li>
+      <li>{% translate "You take the money and press Record payment. That registers them and starts the membership." %}</li>
+    </ol>
+    <p class="small muted">{% translate "The system cannot take money by itself yet. When mobile money is connected, step 4 happens on their phone instead." %}</p>
+  </div>
+{% endblock %}

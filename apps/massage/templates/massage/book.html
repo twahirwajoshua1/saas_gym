@@ -1,0 +1,84 @@
+{% extends "layouts/gym.html" %}
+{% load i18n money %}
+{% block title %}{% translate "Book a massage" %} · {{ person.full_name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'massage:diary' %}">← {% translate "Massage" %}</a>
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Book a massage" %}</h1>
+      <p class="muted">{{ person.full_name }}{% if employee %} · {{ employee.company.name }} {% translate "pays" %}{% endif %}</p>
+    </div>
+  </div>
+
+  {% if wanted and nearest %}
+    <section class="card card-attention stack">
+      <p class="strong" style="margin:0">{% blocktranslate with t=wanted|time:"H:i" %}{{ t }} has gone.{% endblocktranslate %}</p>
+      <p style="margin:0">
+        {% translate "The closest free times are" %}
+        {% for slot in nearest %}
+          <a class="btn btn-small" href="?{{ who_query }}&type={{ chosen_type.public_id }}&day={{ day|date:'Y-m-d' }}">{{ slot.at|time:"H:i" }}</a>
+        {% endfor %}
+      </p>
+    </section>
+  {% endif %}
+
+  {% if not types %}
+    <div class="card empty">
+      <p><strong>{% translate "No massages are offered yet" %}</strong></p>
+      <p class="muted">{% translate "The owner adds them in Settings, with a length and a price." %}</p>
+    </div>
+  {% else %}
+    <section class="card stack">
+      <form method="get">
+        {% if member %}<input type="hidden" name="member" value="{{ member.public_id }}">{% endif %}
+        {% if employee %}<input type="hidden" name="employee" value="{{ employee.public_id }}">{% endif %}
+        <div class="field">
+          <span class="small strong">{% translate "Type of massage" %}</span>
+          {% for one in types %}
+            <label class="option">
+              <input type="radio" name="type" value="{{ one.public_id }}" {% if one == chosen_type %}checked{% endif %} onchange="this.form.submit()">
+              <span>{{ one.name }} · {% blocktranslate with n=one.minutes %}{{ n }} min{% endblocktranslate %} · <b>{{ one.price_rwf|rwf }}</b></span>
+            </label>
+          {% endfor %}
+        </div>
+        <div class="field">
+          <span class="small strong">{% translate "Day" %}</span>
+          <div class="chips">
+            {% for one in days %}
+              <button type="submit" name="day" value="{{ one|date:'Y-m-d' }}" class="btn btn-small {% if one == day %}btn-primary{% endif %}">{% if one == today %}{% translate "Today" %}, {% endif %}{{ one|date:"D j" }}</button>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="field">
+          <span class="small strong">{% translate "Masseuse" %}</span>
+          <div class="chips">
+            <button type="submit" name="masseuse" value="" class="btn btn-small {% if not chosen_masseuse %}btn-primary{% endif %}">{% translate "No preference" %}</button>
+            {% for one in masseuses %}
+              <button type="submit" name="masseuse" value="{{ one.public_id }}" class="btn btn-small {% if one == chosen_masseuse %}btn-primary{% endif %}">{{ one.staff.person.full_name }}</button>
+            {% endfor %}
+          </div>
+        </div>
+      </form>
+
+      <form method="post">
+        {% csrf_token %}
+        {% if member %}<input type="hidden" name="member" value="{{ member.public_id }}">{% endif %}
+        {% if employee %}<input type="hidden" name="employee" value="{{ employee.public_id }}">{% endif %}
+        <div class="field">
+          <span class="small strong">{% blocktranslate with d=day|date:"l j F" t=chosen_type.name %}Free times on {{ d }} · {{ t }}{% endblocktranslate %}</span>
+          {% if slots %}
+            <div class="chips">
+              {% for slot in slots %}
+                <button type="submit" name="at" value="{{ slot.at|time:'H:i' }}" class="btn btn-small">{{ slot.at|time:"H:i" }}</button>
+              {% endfor %}
+            </div>
+            <p class="small muted">{% translate "Booked times are not shown. With no preference, a time appears while at least one masseuse is free." %}</p>
+          {% else %}
+            <p class="muted">{% translate "Nothing free on this day. Try another day or another masseuse." %}</p>
+          {% endif %}
+        </div>
+      </form>
+      <p class="small muted">{% blocktranslate with n=rules.cut_off_minutes %}Calling off is free until {{ n }} minutes before. After that the full price is charged, even if nobody comes.{% endblocktranslate %}</p>
+    </section>
+  {% endif %}
+{% endblock %}

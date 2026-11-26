@@ -24,7 +24,6 @@
     <p class="receipt-amount amount">{{ payment.amount_rwf|rwf }}</p>
     <dl>
       <dt>{% translate "Paid by" %}</dt><dd>{{ payment.get_method_display }}</dd>
-      {% if payment.reference %}<dt>{% translate "Reference" %}</dt><dd>{{ payment.reference }}</dd>{% endif %}
       <dt>{% translate "For" %}</dt><dd>{% for line in invoice.lines.all %}{{ line.description }}{% endfor %}</dd>
       <dt>{% translate "Invoice" %}</dt><dd>{{ invoice.display_number }} · <span class="amount">{{ invoice.total_rwf|rwf }}</span></dd>
     </dl>

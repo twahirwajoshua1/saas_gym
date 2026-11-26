@@ -9,9 +9,40 @@
   </div>
 
   <div class="stack">
-      {% if problems %}
+      {% if problems or signups or massage_requests %}
         <section class="card card-attention stack">
-          <div class="card-head"><div><h2>{% translate "Needs you" %}</h2><p class="sub">{% translate "Only problems appear here. Deal with them and press Done." %}</p></div></div>
+          <div class="card-head"><div><h2>{% translate "Needs you" %}</h2><p class="sub">{% translate "People waiting to pay, and anything the tablet could not let through." %}</p></div></div>
+          {% for s in signups %}
+            <div class="problem">
+              <span class="avatar">{{ s.full_name|initials }}</span>
+              <div class="grow">
+                <div class="row"><span class="strong">{{ s.full_name }}</span>
+                  <span class="badge badge-warn">{% translate "Waiting for payment" %}</span></div>
+                <div class="small muted">{% blocktranslate with t=s.created_at|time:"H:i" p=s.package_name a=s.price_rwf|rwf c=s.code %}Signed up on their phone at {{ t }} · {{ p }} · {{ a }} · code {{ c }}{% endblocktranslate %}</div>
+              </div>
+              <div class="row">
+                <a class="btn btn-small btn-primary" href="{% url 'frontdesk:signup_accept' s.public_id %}">{% translate "Record payment" %}</a>
+                <form method="post" action="{% url 'frontdesk:signup_drop' s.public_id %}" class="inline-form">{% csrf_token %}<button type="submit" class="btn btn-small">{% translate "Not coming" %}</button></form>
+              </div>
+            </div>
+          {% endfor %}
+          {% for m in massage_requests %}
+            <div class="problem">
+              <span class="avatar">{{ m.person.full_name|initials }}</span>
+              <div class="grow">
+                <div class="row"><span class="strong">{{ m.person.full_name }}{% if m.paid_by %} · {{ m.paid_by }}{% endif %}</span>
+                  <span class="badge badge-warn">{% translate "Massage request" %}</span></div>
+                <div class="small muted">{{ m.type_name }} · {{ m.held_on|date:"D j M" }} {{ m.starts_at|time:"H:i" }}</div>
+              </div>
+              <div class="row">
+                <form method="post" action="{% url 'massage:answer' m.public_id %}" class="inline-form">
+                  {% csrf_token %}<input type="hidden" name="decision" value="accept">
+                  <button type="submit" class="btn btn-small btn-primary">{% translate "Accept" %}</button>
+                </form>
+                <a class="btn btn-small" href="{% url 'massage:diary' %}?day={{ m.held_on|date:'Y-m-d' }}">{% translate "Suggest another time" %}</a>
+              </div>
+            </div>
+          {% endfor %}
           {% for p in problems %}
             <div class="problem">
               <span class="avatar">{% if p.member %}{{ p.member.full_name|initials }}{% elif p.employee %}{{ p.employee.full_name|initials }}{% else %}?{% endif %}</span>
@@ -30,13 +61,34 @@
         </section>
       {% endif %}
 
+      {% if starting_soon %}
+        <section class="card stack">
+          <div class="card-head"><div><h2>{% translate "Starting soon" %}</h2>
+            <p class="sub">{% translate "Press a button to send the reminder from this gym's phone. The message is already written; nothing is sent by itself." %}</p></div></div>
+          <ul class="item-list">
+            {% for one in starting_soon %}
+              <li>
+                <div class="item-main">
+                  <strong>{{ one.at }} · {{ one.what }}</strong>
+                  <span class="small muted">{{ one.staff_name }} · {% blocktranslate with c=one.client_name n=one.minutes_away %}client {{ c }} · in {{ n }} minutes{% endblocktranslate %}</span>
+                </div>
+                <div class="item-actions">
+                  <a class="btn btn-small btn-primary" href="{{ one.whatsapp_staff }}" target="_blank" rel="noopener">{% blocktranslate with name=one.staff_name %}WhatsApp {{ name }}{% endblocktranslate %}</a>
+                  <a class="btn btn-small" href="{{ one.whatsapp_client }}" target="_blank" rel="noopener">{% blocktranslate with name=one.client_name %}WhatsApp {{ name }}{% endblocktranslate %}</a>
+                  <a class="btn btn-small" href="{{ one.sms_client }}">{% translate "SMS" %}</a>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+
       <section class="card stack">
-        <div class="card-head"><div><h2>{% translate "Checked in today" %}</h2><p class="sub">{% translate "Members and company staff together, newest first." %}</p></div>
-          {% if corporate_on %}<a class="small strong" href="{% url 'corporate:visit_list' %}">{% translate "Company visits" %}</a>{% endif %}</div>
+        <div class="card-head"><div><h2>{% translate "Checked in today" %}</h2><p class="sub">{% translate "Members and company staff together, newest first. Everybody picks what they are doing when they check in." %}</p></div></div>
         {% if arrivals %}
           <ul class="feed">
             {% for a in arrivals %}
-              <li><span class="time">{{ a.at|time:"H:i" }}</span><span class="tick">{% icon "check" 14 %}</span><div class="grow"><span class="strong">{{ a.name }}</span> <span class="small muted">· {{ a.detail }}</span></div><span class="tag">{{ a.via }}</span></li>
+              <li><span class="time">{{ a.at|time:"H:i" }}</span><span class="tick">{% icon "check" 14 %}</span><div class="grow"><span class="strong">{{ a.name }}</span> <span class="small muted">· {{ a.detail }}</span>{% if a.visit_id and role_is_front_desk %} <a class="small strong" href="{% url 'corporate:visit_change' a.visit_id %}">{% translate "Change" %}</a>{% endif %}</div><span class="tag">{{ a.via }}</span></li>
             {% endfor %}
           </ul>
         {% else %}

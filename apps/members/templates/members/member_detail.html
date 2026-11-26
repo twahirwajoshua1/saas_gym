@@ -2,7 +2,7 @@
 {% load i18n phones %}
 {% block title %}{{ member.full_name }} · {{ gym.name }}{% endblock %}
 {% block content %}
-  <a class="back-link" href="{% url 'members:member_list' %}">← {% translate "Members" %}</a>
+  <a class="back-link" href="{% url 'frontdesk:people' %}">← {% translate "Members" %}</a>
   <div class="page-head">
     <div>
       <h1>{{ member.full_name }}</h1>
@@ -22,8 +22,8 @@
     <div class="card-head">
       <h2>{% translate "Membership" %}</h2>
       {% if 'payments_finance' in modules_on %}
-        <a class="btn btn-primary btn-small" href="{% url 'billing:sell' member.public_id %}">{% if memberships %}{% translate "Renew or sell another" %}{% else %}{% translate "Sell membership" %}{% endif %}</a>
-        <a class="btn btn-small" href="{% url 'billing:sell_sessions' member.public_id %}">{% translate "Sell a session" %}</a>
+        <a class="btn btn-primary btn-small" href="{% url 'billing:sell' member.public_id %}">{% if memberships %}{% translate "Renew membership" %}{% else %}{% translate "Sell membership" %}{% endif %}</a>
+        <a class="btn btn-small" href="{% url 'billing:sell_sessions' member.public_id %}">{% translate "Pay at the door" %}</a>
       {% endif %}
     </div>
     {% if current_freeze %}
@@ -79,7 +79,7 @@
   <div class="card stack">
     <h2>{% translate "Details" %}</h2>
     <dl class="detail-list">
-      <div><dt>{% translate "Signed up at" %}</dt><dd>{{ member.branch.name }} <span class="muted small">· {% translate "may train at any branch" %}</span></dd></div>
+      <div><dt>{% translate "Signed up at" %}</dt><dd>{{ member.branch.name }}</dd></div>
       <div><dt>{% translate "Joined" %}</dt><dd>{{ member.joined_on|date:"j M Y" }}</dd></div>
       <div><dt>{% translate "Gender" %}</dt><dd>{{ member.get_gender_display|default:"—" }}</dd></div>
       <div><dt>{% translate "Date of birth" %}</dt><dd>{{ member.date_of_birth|date:"j M Y"|default:"—" }}</dd></div>

@@ -8,20 +8,36 @@ wrong (for example InvalidDetails("phone", "invalid")).
 
 from dataclasses import replace
 
+import segno
 from django.contrib import messages
-from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
+from apps.core import tenant_db
+from apps.gyms.models import Branch, Gym
 from apps.gyms.permissions import FRONT_DESK_ROLES, MANAGER_ROLES, OWNER_ONLY
 from apps.gyms.session import desk_branch
 from apps.gyms.tenancy import gym_required
 from apps.members import services
-from apps.members.forms import ExtendForm, FreezeForm, MemberForm, PackageForm, ServiceForm
-from apps.members.models import Member, Membership, MembershipFreeze, Package, Service
+from apps.members.forms import (
+    ExtendForm,
+    FreezeForm,
+    JoinForm,
+    MemberForm,
+    PackageForm,
+    ServiceForm,
+)
+from apps.members.models import (
+    Member,
+    Membership,
+    MembershipFreeze,
+    Package,
+    Service,
+    SignUp,
+)
 
 PAGE_SIZE = 25
 
@@ -32,6 +48,12 @@ def _error_message(error: services.InvalidDetails) -> str:
         ("name", "duplicate"): _("Another package already has this name."),
         ("price_rwf", "out_of_range"): _("Enter a price above zero."),
         ("duration_count", "out_of_range"): _("Enter how long it lasts, from 1 to 999."),
+        ("duration_unit", "invalid"): _("Choose how long it lasts."),
+        ("services", "required"): _("Tick at least one service."),
+        ("services", "unknown"): _("Tick services this gym sells."),
+        ("services", "archived"): _("One of these services is no longer sold."),
+        ("visit_count", "out_of_range"): _("Enter how many visits, from 1 to 999."),
+        ("kind", "invalid"): _("Choose how the package works."),
         ("full_name", "required"): _("Enter the member's name."),
         ("phone", "invalid"): _("Enter a valid phone number, for example 0788 123 456."),
         ("branch", "required"): _("Choose a branch."),
@@ -62,29 +84,6 @@ def _show_error(form, error: services.InvalidDetails) -> None:
 
 
 # --- Members ----------------------------------------------------------------
-
-
-@gym_required(*FRONT_DESK_ROLES)
-def member_list(request):
-    query = request.GET.get("q", "")
-    state = request.GET.get("show", "")
-    today = timezone.localdate()
-    members = services.search_members(request.gym, query)
-    if state in services.MEMBER_STATES:
-        members = services.narrow_members(request.gym, members, state, today)
-    page = Paginator(members, PAGE_SIZE).get_page(request.GET.get("page"))
-    context = {
-        "page": page,
-        "query": query,
-        "state": state if state in services.MEMBER_STATES else "",
-        "rows": services.status_for(page.object_list, today),
-        "today": today,
-    }
-
-    # When the search box asks (via HTMX), send back only the results part.
-    if request.headers.get("HX-Request"):
-        return render(request, "members/_member_results.html", context)
-    return render(request, "members/member_list.html", context)
 
 
 def _member_details(form) -> services.MemberDetails:
@@ -197,7 +196,7 @@ def package_list(request):
 
 @gym_required(*OWNER_ONLY)
 def package_create(request):
-    form = PackageForm(request.POST or None)
+    form = PackageForm(request.POST or None, gym=request.gym)
     if request.method == "POST" and form.is_valid():
         try:
             package = services.create_package(by=request.assignment, **form.cleaned_data)
@@ -219,10 +218,13 @@ def package_edit(request, public_id):
     initial = {
         "name": package.name,
         "price_rwf": package.price_rwf,
+        "kind": package.kind,
+        "services": package.included_services.all(),
+        "visit_count": package.visit_count,
         "duration_count": package.duration_count,
         "duration_unit": package.duration_unit,
     }
-    form = PackageForm(request.POST or None, initial=initial)
+    form = PackageForm(request.POST or None, initial=initial, gym=request.gym)
     if request.method == "POST" and form.is_valid():
         try:
             services.update_package(by=request.assignment, package=package, **form.cleaned_data)
@@ -368,3 +370,82 @@ def freeze_end(request, public_id):
     else:
         messages.success(request, _("The freeze was ended. The member can come in."))
     return redirect("members:member_detail", public_id=freeze.membership.member.public_id)
+
+
+# --- Signing up on your own phone -------------------------------------------
+
+
+def _gym_for_join(public_id):
+    """
+    The gym behind a sign-up link. Nobody is signed in, so the database is
+    told which gym this page is for before anything is read or written.
+    """
+    gym = get_object_or_404(Gym, public_id=public_id, is_active=True)
+    tenant_db.set_current_gym(gym.pk)
+    return gym
+
+
+def join(request, public_id):
+    """The gym's own sign-up page, reached by a QR poster. No sign-in."""
+    gym = _gym_for_join(public_id)
+    packages = services.packages_on_sale(gym)
+    branches = Branch.objects.for_gym(gym).filter(is_active=True)
+    form = JoinForm(request.POST or None, packages=packages, branches=branches)
+    already = None
+
+    if request.method == "POST" and form.is_valid():
+        data = dict(form.cleaned_data)
+        data.pop("agrees")
+        try:
+            signup = services.create_signup(gym, **data)
+        except services.AlreadyMember as problem:
+            already = problem.member
+        except services.AlreadySignedUp as problem:
+            return redirect(
+                "members:joined", gym_id=gym.public_id, public_id=problem.signup.public_id
+            )
+        except services.InvalidDetails as error:
+            _show_error(form, error)
+        else:
+            return redirect("members:joined", gym_id=gym.public_id, public_id=signup.public_id)
+
+    return render(
+        request,
+        "members/join.html",
+        {"gym": gym, "form": form, "packages": packages, "already": already},
+    )
+
+
+def joined(request, gym_id, public_id):
+    """
+    What to do next: go to the desk and say this code.
+
+    The link carries the gym as well as the sign-up, because nobody is signed
+    in: the database has to be told which gym this page is for before the
+    sign-up can be read at all.
+    """
+    gym = _gym_for_join(gym_id)
+    signup = get_object_or_404(SignUp.objects.for_gym(gym), public_id=public_id)
+    return render(request, "members/joined.html", {"gym": gym, "signup": signup})
+
+
+@gym_required(*MANAGER_ROLES)
+def join_link(request):
+    """
+    The link people open on their own phone to join this gym.
+
+    It goes on a poster at the door, usually as a QR code. The link carries
+    the gym, not a person, so it can be shown to anybody.
+    """
+    where = request.build_absolute_uri(reverse("members:join", args=[request.gym.public_id]))
+    return render(
+        request,
+        "members/join_link.html",
+        {
+            "link": where,
+            "qr": segno.make(where, error="m").svg_inline(
+                scale=5, dark="#0b1220", light="#ffffff", omitsize=True
+            ),
+            "packages": services.packages_on_sale(request.gym),
+        },
+    )

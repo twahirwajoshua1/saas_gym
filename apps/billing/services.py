@@ -31,20 +31,12 @@ from apps.billing.models import (
 from apps.gyms.models import Gym, StaffAssignment
 from apps.gyms.permissions import FRONT_DESK_ROLES, OWNER_ONLY, require_role
 from apps.members import services as member_services
-from apps.members.models import Member, Membership, Package, Service
+from apps.members.models import Member, Membership, Package, Service, Ticketbook
 from apps.members.services import InvalidDetails
 from apps.modules import services as module_services
 from apps.modules.catalog import PAYMENTS_FINANCE
 
 MOBILE_MONEY = (PaymentMethod.MTN_MOMO, PaymentMethod.AIRTEL_MONEY)
-
-# Methods where the provider gives a transaction reference that must be kept.
-METHODS_NEEDING_REFERENCE = {
-    PaymentMethod.MTN_MOMO,
-    PaymentMethod.AIRTEL_MONEY,
-    PaymentMethod.BANK_TRANSFER,
-    PaymentMethod.CARD,
-}
 
 
 class AlreadyReversed(Exception):
@@ -62,9 +54,19 @@ class PaymentInput:
 
 @dataclass(frozen=True)
 class Sale:
-    membership: Membership
+    """
+    One package sold. A package for a length of time gives a membership; a
+    package counted in visits gives a ticketbook. Exactly one of the two is set.
+    """
+
     invoice: Invoice
     payment: Payment | None
+    membership: Membership | None = None
+    ticketbook: Ticketbook | None = None
+
+    @property
+    def package_name(self) -> str:
+        return (self.membership or self.ticketbook).package_name
 
 
 # --- Shared checks ----------------------------------------------------------
@@ -180,9 +182,11 @@ def _create_payment(
     if amount > owed:
         raise InvalidDetails("amount_rwf", "more_than_owed")
 
+    # The transaction reference is no longer typed in at the desk: the number is
+    # long, nobody reads it off a phone correctly, and a wrong one is worse than
+    # none. The field is kept so that payments recorded before this change keep
+    # theirs, and so a provider can fill it in when mobile money is connected.
     reference = " ".join((payment.reference or "").split())
-    if payment.method in METHODS_NEEDING_REFERENCE and not reference:
-        raise InvalidDetails("reference", "required")
 
     saved = Payment.objects.create(
         gym=by.gym,
@@ -295,6 +299,110 @@ def sell_membership(
             by=by, invoice=invoice, payment=payment, idempotency_key=idempotency_key
         )
     return Sale(membership=membership, invoice=invoice, payment=saved_payment)
+
+
+@transaction.atomic
+def sell_ticketbook(
+    *,
+    by: StaffAssignment,
+    member: Member,
+    package: Package,
+    idempotency_key,
+    payment: PaymentInput | None = None,
+) -> Sale:
+    """
+    Sell a package counted in visits, for example 15 swimming tickets: create
+    the ticketbook and its invoice, and record a payment if one is given.
+
+    If the same form arrives twice, the first sale is returned and nothing new
+    is recorded.
+    """
+    require_role(by, FRONT_DESK_ROLES)
+    _require_payments(by.gym)
+    _same_gym(by, member)
+    _same_gym(by, package)
+    _lock_billing(by.gym)
+
+    earlier = Invoice.objects.for_gym(by.gym).filter(idempotency_key=idempotency_key).first()
+    if earlier is not None:
+        line = earlier.lines.select_related("ticketbook").first()
+        first_payment = (
+            Payment.objects.for_gym(by.gym).filter(idempotency_key=idempotency_key).first()
+        )
+        return Sale(ticketbook=line.ticketbook, invoice=earlier, payment=first_payment)
+
+    book = member_services.create_ticketbook(by=by, member=member, package=package)
+    invoice = Invoice.objects.create(
+        gym=by.gym,
+        number=_lock_and_next_number(by.gym, "invoice"),
+        member=member,
+        total_rwf=book.price_rwf,
+        idempotency_key=idempotency_key,
+        created_by=by.person,
+    )
+    InvoiceLine.objects.create(
+        gym=by.gym,
+        invoice=invoice,
+        description=f"{book.package_name}: {book.visits_allowed} visits, {book.expiry_label}",
+        amount_rwf=book.price_rwf,
+        ticketbook=book,
+    )
+    LedgerEntry.objects.create(
+        gym=by.gym,
+        member=member,
+        kind=LedgerKind.INVOICE_ISSUED,
+        amount_rwf=invoice.total_rwf,
+        invoice=invoice,
+        created_by=by.person,
+    )
+    audit.record(
+        action="invoice.issued",
+        summary=(
+            f"{invoice.display_number} for RWF {invoice.total_rwf:,} issued to {member.full_name}"
+        ),
+        gym=by.gym,
+        actor=by.person,
+        target=invoice,
+        details={"ticketbook": book.public_id, "total_rwf": invoice.total_rwf},
+    )
+
+    saved_payment = None
+    if payment is not None:
+        saved_payment = _create_payment(
+            by=by, invoice=invoice, payment=payment, idempotency_key=idempotency_key
+        )
+    return Sale(ticketbook=book, invoice=invoice, payment=saved_payment)
+
+
+def sell_package(
+    *,
+    by: StaffAssignment,
+    member: Member,
+    package: Package,
+    start_date: date,
+    idempotency_key,
+    payment: PaymentInput | None = None,
+) -> Sale:
+    """
+    Sell any package. Which kind it is decides what the member gets: a
+    membership for a length of time, or a book of prepaid visits.
+    """
+    if package.is_count:
+        return sell_ticketbook(
+            by=by,
+            member=member,
+            package=package,
+            idempotency_key=idempotency_key,
+            payment=payment,
+        )
+    return sell_membership(
+        by=by,
+        member=member,
+        package=package,
+        start_date=start_date,
+        idempotency_key=idempotency_key,
+        payment=payment,
+    )
 
 
 @dataclass(frozen=True)

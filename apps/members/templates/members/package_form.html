@@ -12,13 +12,17 @@
         <p class="notice notice-error" role="alert">{{ error }}</p>
       {% endfor %}
       {% include "components/field.html" with field=form.name %}
-      {% include "components/field.html" with field=form.price_rwf %}
+      {% include "components/field.html" with field=form.services %}
+      {% include "components/field.html" with field=form.kind %}
+      {% include "components/field.html" with field=form.visit_count %}
       <div class="form-row">
         {% include "components/field.html" with field=form.duration_count %}
         {% include "components/field.html" with field=form.duration_unit %}
       </div>
+      <p class="help muted small">{% translate "For a length of time, this is how long the membership lasts. For a number of visits, it is how long until unused visits run out: leave it as \"never runs out\" to keep them for good." %}</p>
+      {% include "components/field.html" with field=form.price_rwf %}
       {% if package %}
-        <p class="help muted small">{% translate "Changing the price affects future sales only." %}</p>
+        <p class="help muted small">{% translate "Changing a package affects future sales only. Nobody who already bought one is affected." %}</p>
       {% endif %}
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">{% if package %}{% translate "Save changes" %}{% else %}{% translate "Add package" %}{% endif %}</button>

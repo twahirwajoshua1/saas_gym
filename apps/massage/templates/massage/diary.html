@@ -1,0 +1,111 @@
+{% extends "layouts/gym.html" %}
+{% load i18n money %}
+{% block title %}{% translate "Massage" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Sessions" %}</h1>
+      <p class="muted">{% if branch %}{{ branch.name }}{% endif %}</p>
+    </div>
+    <div class="actions">
+      <a class="btn btn-primary" href="{% url 'massage:find_person' %}">{% translate "+ Book for someone" %}</a>
+    </div>
+  </div>
+  {% include "components/session_tabs.html" with tab="massage" %}
+
+  {% if waiting %}
+    <section class="card card-attention stack">
+      <div class="card-head">
+        <div>
+          <h2>{% blocktranslate count n=waiting|length %}Request waiting ({{ n }}){% plural %}Requests waiting ({{ n }}){% endblocktranslate %}</h2>
+          <p class="sub">{% translate "Nothing is booked until you accept. If the time has gone, decline and offer another." %}</p>
+        </div>
+      </div>
+      <ul class="item-list">
+        {% for booking in waiting %}
+          <li>
+            <div class="item-main">
+              <strong>{{ booking.person.full_name }}</strong>
+              <span class="small muted">{% if booking.paid_by %}{{ booking.paid_by }} · {% endif %}{{ booking.type_name }} · {{ booking.held_on|date:"D j M" }} {{ booking.starts_at|time:"H:i" }} · {% blocktranslate with n=booking.minutes %}{{ n }} min{% endblocktranslate %}</span>
+            </div>
+            <div class="item-actions">
+              <form method="post" action="{% url 'massage:answer' booking.public_id %}" class="inline-form">
+                {% csrf_token %}<input type="hidden" name="decision" value="accept">
+                <button type="submit" class="btn btn-small btn-primary">{% translate "Accept" %}</button>
+              </form>
+              <a class="btn btn-small" href="{% url 'massage:book' %}?{% if booking.member %}member={{ booking.member.public_id }}{% else %}employee={{ booking.employee.public_id }}{% endif %}&type={{ booking.massage_type.public_id }}&day={{ booking.held_on|date:'Y-m-d' }}&at={{ booking.starts_at|time:'H:i' }}">{% translate "Suggest another time" %}</a>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  <section class="card stack">
+    <div class="card-head">
+      <div>
+        <h2>{% translate "Massage diary" %}</h2>
+        <p class="sub">{% translate "Who is booked and who is free. The grey hours are outside a masseuse's working time; the owner sets those." %}</p>
+      </div>
+    </div>
+    <div class="chips">
+      {% for one in days %}
+        <a class="btn btn-small {% if one == day %}btn-primary{% endif %}" href="?day={{ one|date:'Y-m-d' }}">{% if one == today %}{% translate "Today" %}, {% endif %}{{ one|date:"D j" }}</a>
+      {% endfor %}
+    </div>
+
+    {% if not branch %}
+      <p class="muted">{% translate "Choose a branch at the top of the page to see its diary." %}</p>
+    {% elif not masseuses %}
+      <div class="empty">
+        <p><strong>{% translate "Nobody gives massages here yet" %}</strong></p>
+        <p class="muted">{% translate "The owner marks a trainer as a masseuse and sets their working hours." %}</p>
+      </div>
+    {% elif grid %}
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th style="width:80px">{% translate "Time" %}</th>
+              {% for masseuse in masseuses %}<th>{{ masseuse.staff.person.full_name }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in grid %}
+              <tr>
+                <td class="strong">{{ row.at|time:"H:i" }}</td>
+                {% for booking in row.cells %}
+                  <td>
+                    {% if booking %}
+                      <strong>{{ booking.person.full_name }}</strong><br>
+                      <span class="small muted">{{ booking.type_name }}{% if booking.paid_by %} · {{ booking.paid_by }}{% endif %}{% if booking.waiting %} · {% translate "waiting for you" %}{% endif %}</span>
+                      {% if booking.status == 'accepted' %}
+                        <div class="row" style="margin-top:6px">
+                          <form method="post" action="{% url 'massage:mark_done' booking.public_id %}" class="inline-form">
+                            {% csrf_token %}<button type="submit" class="btn btn-small">{% translate "Done" %}</button>
+                          </form>
+                          <a class="btn btn-small" href="{% url 'massage:cancel' booking.public_id %}">{% translate "Call off" %}</a>
+                        </div>
+                      {% elif booking.status == 'no_show' %}
+                        <span class="badge badge-warn">{% translate "Did not come · charged" %}</span>
+                      {% elif booking.status == 'done' %}
+                        <span class="badge badge-ok">{% translate "Done" %}</span>
+                      {% endif %}
+                    {% else %}
+                      <span class="muted small">{% translate "Free" %}</span>
+                    {% endif %}
+                  </td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty">
+        <p><strong>{% translate "Nothing booked on this day" %}</strong></p>
+        <a class="btn btn-primary" href="{% url 'massage:find_person' %}">{% translate "Book for someone" %}</a>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

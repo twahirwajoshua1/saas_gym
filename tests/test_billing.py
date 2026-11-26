@@ -192,9 +192,6 @@ def test_everything_is_recorded_in_the_audit_log(alpha, member, monthly):
         (PaymentInput(method="cash", amount_rwf=30001), "amount_rwf", "more_than_owed"),
         (PaymentInput(method="cash", amount_rwf=100.5), "amount_rwf", "out_of_range"),
         (PaymentInput(method="bitcoin"), "method", "invalid"),
-        (PaymentInput(method="mtn_momo"), "reference", "required"),
-        (PaymentInput(method="airtel_money", reference="   "), "reference", "required"),
-        (PaymentInput(method="bank_transfer"), "reference", "required"),
     ],
 )
 def test_a_wrong_payment_cancels_the_whole_sale(alpha, member, monthly, payment, field, reason):

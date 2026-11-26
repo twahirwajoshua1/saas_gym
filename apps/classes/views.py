@@ -293,6 +293,7 @@ def trainer_edit(request, staff_id=None, public_id=None):
             "headline": trainer.headline,
             "about": trainer.about,
             "takes_personal_sessions": trainer.takes_personal_sessions,
+            "gives_massages": trainer.gives_massages,
             "is_listed": trainer.is_listed,
         }
         if trainer

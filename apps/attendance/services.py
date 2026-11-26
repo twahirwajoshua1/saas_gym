@@ -13,7 +13,7 @@ from django.db import transaction
 from django.db.models import Exists, Max, OuterRef, Subquery
 from django.utils import timezone
 
-from apps.attendance.models import CheckIn, CheckInMethod, GuestRule, GuestVisit
+from apps.attendance.models import CheckIn, CheckInActivity, CheckInMethod, GuestRule, GuestVisit
 from apps.audit import services as audit
 from apps.billing import services as billing_services
 from apps.gyms.models import Branch, Gym, StaffAssignment
@@ -53,6 +53,8 @@ class Assessment:
     expiring_soon: bool = False
     owes_rwf: int = 0
     already_today: CheckIn | None = None
+    # What their package lets them do today, so the desk can tick it off.
+    choices: tuple = ()
 
 
 class NotAllowedIn(Exception):
@@ -107,6 +109,22 @@ def assess(member: Member, on: date | None = None) -> Assessment:
             expiring_soon=current.is_renewable and days_left <= EXPIRING_SOON_DAYS,
             owes_rwf=owes,
             already_today=already,
+            choices=tuple(member_services.allowed_services(member, today)),
+        )
+
+    # Somebody may have bought a book of visits instead of a membership, for
+    # example 15 swimming tickets. Those let them in too, while visits remain.
+    books = member_services.usable_ticketbooks(member, today)
+    if books:
+        already = (
+            CheckIn.objects.for_gym(member.gym).filter(member=member, checked_in_on=today).first()
+        )
+        return Assessment(
+            member=member,
+            allowed=True,
+            owes_rwf=owes,
+            already_today=already,
+            choices=tuple(member_services.allowed_services(member, today)),
         )
 
     live = member_services.memberships_for(member).filter(cancelled_at__isnull=True)
@@ -434,3 +452,147 @@ def guests_today(gym: Gym, today: date, branch: Branch | None = None):
     """Friends brought in today, for the desk."""
     visits = GuestVisit.objects.for_gym(gym).filter(came_on=today).select_related("host", "branch")
     return visits.filter(branch=branch) if branch else visits
+
+
+# --- What a member did on a visit -------------------------------------------
+
+
+def choices_for(member: Member, day: date | None = None):
+    """
+    What this member may tick when they come in, and what pays for each one.
+
+    A package lists the services it includes, so somebody who bought swimming
+    only is not offered the gym. Anything not on this list is paid for at the
+    desk like any walk-in.
+    """
+    return member_services.allowed_services(member, day)
+
+
+@transaction.atomic
+def record_activities(
+    *, by: StaffAssignment, check_in: CheckIn, services_chosen
+) -> list[CheckInActivity]:
+    """
+    Write down what a member said they were doing. Check-in roles.
+
+    Only services their package covers are accepted. Where a service comes out
+    of a book of prepaid visits, one visit is taken from the book now, so the
+    count cannot drift from what was actually used.
+    """
+    require_role(by, CHECK_IN_ROLES)
+    if check_in.gym_id != by.gym_id:
+        raise PermissionDenied("That check-in belongs to a different gym.")
+
+    allowed = {
+        item.service.pk: item for item in choices_for(check_in.member, check_in.checked_in_on)
+    }
+    already = set(check_in.activities.values_list("service_id", flat=True))
+    written = []
+    for service in services_chosen:
+        if service.pk in already:
+            continue
+        item = allowed.get(service.pk)
+        if item is None:
+            raise member_services.InvalidDetails("services", "not_included")
+        use = None
+        if item.by_ticket:
+            use = member_services.spend_ticket(
+                by=by,
+                ticketbook=item.ticketbook,
+                service=service,
+                used_on=check_in.checked_in_on,
+            )
+        written.append(
+            CheckInActivity.objects.create(
+                gym=by.gym,
+                check_in=check_in,
+                service=service,
+                service_name=service.name,
+                ticket_use=use,
+            )
+        )
+    return written
+
+
+@transaction.atomic
+def cancel_activity(
+    *, by: StaffAssignment, activity: CheckInActivity, reason: str
+) -> CheckInActivity:
+    """
+    Take a service off a member's visit because it was ticked by mistake.
+    Check-in roles, and only on the day, like a company visit.
+
+    A prepaid visit that was spent goes back to the member. Nothing is deleted.
+    """
+    require_role(by, CHECK_IN_ROLES)
+    if activity.gym_id != by.gym_id:
+        raise PermissionDenied("That record belongs to a different gym.")
+    reason = " ".join((reason or "").split())
+    if not reason:
+        raise member_services.InvalidDetails("reason", "required")
+    if activity.check_in.checked_in_on != timezone.localdate():
+        raise member_services.InvalidDetails("activity", "too_late")
+    if activity.cancelled_at is not None:
+        return activity
+
+    if activity.ticket_use_id is not None:
+        member_services.cancel_ticket_use(by=by, use=activity.ticket_use, reason=reason)
+    activity.cancelled_at = timezone.now()
+    activity.cancelled_by = by.person
+    activity.cancel_reason = reason[:200]
+    activity.save(update_fields=["cancelled_at", "cancelled_by", "cancel_reason"])
+    return activity
+
+
+def activities_of(check_in: CheckIn) -> list[str]:
+    """The services still standing on a visit, for showing in a list."""
+    return [
+        activity.service_name
+        for activity in check_in.activities.all()
+        if activity.cancelled_at is None
+    ]
+
+
+@transaction.atomic
+def record_self_activities(
+    *, gym: Gym, check_in: CheckIn, services_chosen
+) -> list[CheckInActivity]:
+    """
+    What a member ticked for themselves at the entrance tablet.
+
+    There is no member of staff behind this, so the rules are checked here
+    rather than against a role: the check-in must belong to this gym, and only
+    services the member's own package covers are accepted.
+    """
+    if check_in.gym_id != gym.pk:
+        raise PermissionDenied("That check-in belongs to a different gym.")
+
+    allowed = {
+        item.service.pk: item for item in choices_for(check_in.member, check_in.checked_in_on)
+    }
+    already = set(check_in.activities.values_list("service_id", flat=True))
+    written = []
+    for service in services_chosen:
+        if service.pk in already:
+            continue
+        item = allowed.get(service.pk)
+        if item is None:
+            raise member_services.InvalidDetails("services", "not_included")
+        use = None
+        if item.by_ticket:
+            use = member_services.spend_ticket_at_tablet(
+                gym=gym,
+                ticketbook=item.ticketbook,
+                service=service,
+                used_on=check_in.checked_in_on,
+            )
+        written.append(
+            CheckInActivity.objects.create(
+                gym=gym,
+                check_in=check_in,
+                service=service,
+                service_name=service.name,
+                ticket_use=use,
+            )
+        )
+    return written

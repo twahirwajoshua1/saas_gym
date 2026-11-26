@@ -12,13 +12,22 @@ from apps.members.models import Package, Service
 
 class PackageChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, package):
-        return f"{package.name} · RWF {package.price_rwf:,} · {package.duration_label}"
+        included = ", ".join(service.name for service in package.included_services.all())
+        included = f" · {included}" if included else ""
+        return f"{package.name} · RWF {package.price_rwf:,} · {package.rule_label}{included}"
 
 
 class PayNow:
     FULL = "full"
     PART = "part"
-    LATER = "later"
+
+
+# Every sale is paid for, in full or in part. There is no "pay later" at the
+# desk: a membership starts when the money is in.
+PAY_CHOICES = [
+    (PayNow.FULL, _("Paid in full now")),
+    (PayNow.PART, _("Part payment now")),
+]
 
 
 class _PaymentFields(forms.Form):
@@ -31,12 +40,6 @@ class _PaymentFields(forms.Form):
         widget=forms.TextInput(attrs={"inputmode": "numeric"}),
     )
     method = forms.ChoiceField(label=_("Paid by"), choices=PaymentMethod.choices)
-    reference = forms.CharField(
-        label=_("Transaction reference"),
-        max_length=60,
-        required=False,
-        help_text=_("Needed for mobile money, bank and card payments."),
-    )
     # A one-time code, so the same form arriving twice is recorded once.
     idempotency_key = forms.UUIDField(widget=forms.HiddenInput, initial=uuid.uuid4)
 
@@ -59,19 +62,17 @@ class SellMembershipForm(_PaymentFields):
         empty_label=None,
     )
     start_date = forms.DateField(
-        label=_("Starts on"), widget=forms.DateInput(attrs={"type": "date"})
+        label=_("Starts on"),
+        widget=forms.DateInput(attrs={"type": "date"}),
+        help_text=_("For a membership. A book of visits starts today."),
     )
     pay_now = forms.ChoiceField(
         label=_("Payment"),
         widget=forms.RadioSelect,
         initial=PayNow.FULL,
-        choices=[
-            (PayNow.FULL, _("Paid in full now")),
-            (PayNow.PART, _("Part payment now")),
-            (PayNow.LATER, _("Nothing paid yet")),
-        ],
+        choices=PAY_CHOICES,
     )
-    field_order = ["package", "start_date", "pay_now", "amount_rwf", "method", "reference"]
+    field_order = ["package", "start_date", "pay_now", "amount_rwf", "method"]
 
     def __init__(self, *args, gym, **kwargs):
         super().__init__(*args, **kwargs)
@@ -87,7 +88,7 @@ class SellMembershipForm(_PaymentFields):
 
 
 class PaymentForm(_PaymentFields):
-    field_order = ["amount_rwf", "method", "reference"]
+    field_order = ["amount_rwf", "method"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -121,15 +122,31 @@ class SellSessionsForm(_PaymentFields):
         label=_("Payment"),
         widget=forms.RadioSelect,
         initial=PayNow.FULL,
-        choices=[
-            (PayNow.FULL, _("Paid in full now")),
-            (PayNow.PART, _("Part payment now")),
-            (PayNow.LATER, _("Nothing paid yet")),
-        ],
+        choices=PAY_CHOICES,
     )
-    field_order = ["service", "quantity", "pay_now", "amount_rwf", "method", "reference"]
+    field_order = ["service", "quantity", "pay_now", "amount_rwf", "method"]
 
     def __init__(self, *args, gym, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["service"].queryset = Service.objects.for_gym(gym).filter(is_active=True)
         self.fields["amount_rwf"].help_text = _("Only for a part payment.")
+
+
+class SignUpPaymentForm(_PaymentFields):
+    """Taking the money from somebody who signed up on their own phone."""
+
+    pay_now = forms.ChoiceField(
+        label=_("Payment"), widget=forms.RadioSelect, initial=PayNow.FULL, choices=PAY_CHOICES
+    )
+    field_order = ["pay_now", "amount_rwf", "method"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["amount_rwf"].help_text = _("Only for a part payment.")
+
+    def clean(self):
+        data = super().clean()
+        if data.get("pay_now") == PayNow.PART and data.get("amount_rwf") is None:
+            if "amount_rwf" not in self.errors:
+                self.add_error("amount_rwf", _("Enter how much was paid."))
+        return data

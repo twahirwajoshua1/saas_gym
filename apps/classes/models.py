@@ -37,6 +37,8 @@ class TrainerProfile(GymOwnedModel):
 
     # Whether members may book a one-to-one session with this trainer.
     takes_personal_sessions = models.BooleanField(default=True)
+    # Masseuses are staff with a profile too: this says they give massages.
+    gives_massages = models.BooleanField(default=False)
     is_listed = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)

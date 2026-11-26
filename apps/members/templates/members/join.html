@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load i18n money %}
+{% block title %}{% translate "Join" %} · {{ gym.name }}{% endblock %}
+{% block body %}
+  <main class="plain" style="align-items:flex-start">
+    <div class="plain-card stack">
+      <div>
+        <p class="small muted">{{ gym.name }}</p>
+        <h1>{% translate "Join the gym" %}</h1>
+      </div>
+
+      {% if already %}
+        <div class="notice notice-error" role="alert">
+          <p><strong>{% translate "You are already a member here." %}</strong></p>
+          <p class="small">{% translate "Go to reception and they will help you." %}</p>
+        </div>
+      {% endif %}
+
+      {% if not packages %}
+        <p class="muted">{% translate "This gym has nothing on sale right now. Please ask at reception." %}</p>
+      {% else %}
+        <form method="post" class="form" novalidate>
+          {% csrf_token %}
+          {% for error in form.non_field_errors %}<p class="notice notice-error" role="alert">{{ error }}</p>{% endfor %}
+          {% include "components/field.html" with field=form.full_name %}
+          {% include "components/field.html" with field=form.phone %}
+          {% include "components/field.html" with field=form.gender %}
+          {% include "components/field.html" with field=form.date_of_birth %}
+          {% include "components/field.html" with field=form.emergency_contact_name %}
+          {% include "components/field.html" with field=form.emergency_contact_phone %}
+          {% if form.branch %}{% include "components/field.html" with field=form.branch %}{% endif %}
+
+          <fieldset class="choices">
+            <legend>{% translate "Choose a package" %}</legend>
+            {% for radio in form.package %}
+              <label class="option">{{ radio.tag }} <span>{{ radio.choice_label }}</span></label>
+            {% endfor %}
+            {% for error in form.package.errors %}<p class="form-error" role="alert">{{ error }}</p>{% endfor %}
+          </fieldset>
+
+          <div class="card" style="background:var(--sunken)">
+            <p class="strong" style="margin:0">{% translate "How you pay" %}</p>
+            <p class="small" style="margin:4px 0 0">{% translate "Pay at the reception. Your membership starts when the receptionist confirms your payment." %}</p>
+          </div>
+
+          <label class="option">{{ form.agrees }} <span class="small">{{ form.agrees.label }}</span></label>
+          {% for error in form.agrees.errors %}<p class="form-error" role="alert">{{ error }}</p>{% endfor %}
+          <label class="option">{{ form.wants_messages }} <span class="small">{{ form.wants_messages.label }}</span></label>
+
+          <button type="submit" class="btn btn-primary" style="width:100%">{% translate "Send my sign-up" %}</button>
+        </form>
+      {% endif %}
+    </div>
+  </main>
+{% endblock %}

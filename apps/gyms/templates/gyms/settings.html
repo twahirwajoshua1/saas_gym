@@ -4,7 +4,11 @@
 {% block content %}
   <div class="page-head"><div><h1>{% translate "Settings" %}</h1><p class="sub">{% translate "Things you set up once and change rarely." %}</p></div></div>
   <div class="card-grid">
-    <a class="card card-link" href="{% url 'members:package_list' %}">{% icon "tag" 22 %}<strong>{% translate "Packages & services" %}</strong><span class="small muted">{% translate "Memberships and single sessions, with their prices." %}</span></a>
+    <a class="card card-link" href="{% url 'members:package_list' %}">{% icon "tag" 22 %}<strong>{% translate "Packages and services" %}</strong><span class="small muted">{% translate "What you sell: what each package includes, its rule and its price." %}</span></a>
+    {% if 'training_classes' in modules_on %}
+      <a class="card card-link" href="{% url 'massage:type_list' %}">{% icon "cal" 22 %}<strong>{% translate "Massage types" %}</strong><span class="small muted">{% translate "Each kind with its length and price, and the rules for calling off." %}</span></a>
+    {% endif %}
+    <a class="card card-link" href="{% url 'members:join_link' %}">{% icon "plus" 22 %}<strong>{% translate "Sign-up link and poster" %}</strong><span class="small muted">{% translate "The link people open on their phone to join the gym themselves." %}</span></a>
     <a class="card card-link" href="{% url 'gyms:branch_list' %}">{% icon "pin" 22 %}<strong>{% translate "Branches" %}</strong><span class="small muted">{% translate "Your locations and their opening details." %}</span></a>
     {% if role_is_owner %}
       <a class="card card-link" href="{% url 'team:staff_list' %}">{% icon "users" 22 %}<strong>{% translate "Staff" %}</strong><span class="small muted">{% translate "Who works here, their role, and resetting passwords." %}</span></a>

@@ -1,0 +1,98 @@
+{% extends "layouts/gym.html" %}
+{% load i18n money %}
+{% block title %}{% translate "Reports" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>{% translate "Reports" %}</h1>
+      <p class="muted">{% translate "Every visit by company staff, in detail, by company, activity and month. This is what you send the company: not a total, but who came and what they used." %}</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <form method="get" class="form form-filters">
+      <div class="filter-row">
+        {% include "components/field.html" with field=form.company %}
+        {% include "components/field.html" with field=form.service %}
+        {% include "components/field.html" with field=form.months %}
+        {% include "components/field.html" with field=form.last_month %}
+        <div class="form-actions" style="margin:0">
+          <button type="submit" class="btn">{% translate "Show" %}</button>
+          <a class="btn btn-primary" href="{% url 'corporate:report_download' 'pdf' %}?{{ query }}">{% translate "Download PDF" %}</a>
+          <a class="btn" href="{% url 'corporate:report_download' 'xlsx' %}?{{ query }}">{% translate "Download Excel" %}</a>
+        </div>
+      </div>
+      <p class="help muted small">{% translate "Whole months only, the same as the bills. A company never pays half a month." %}</p>
+    </form>
+  </div>
+
+  <section class="card stack">
+    <div class="card-head">
+      <div>
+        <h2>{{ heading }}</h2>
+        <p class="sub">{% blocktranslate count n=lines|length %}{{ n }} line{% plural %}{{ n }} lines{% endblocktranslate %} · {{ start|date:"j M Y" }} – {{ end|date:"j M Y" }}</p>
+      </div>
+    </div>
+
+    {% if totals %}
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr><th>{% translate "Activity" %}</th><th class="num">{% translate "Times used" %}</th><th class="num">{% translate "Amount (RWF)" %}</th></tr>
+          </thead>
+          <tbody>
+            {% for name, times, amount in totals %}
+              <tr><td class="strong">{{ name }}</td><td class="num">{{ times }}</td><td class="num">{{ amount|thousands }}</td></tr>
+            {% endfor %}
+            <tr class="total"><td>{% translate "Total" %}</td><td class="num">{{ total_times }}</td><td class="num">{{ total_amount|thousands }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="card stack">
+    <div class="card-head"><div><h2>{% translate "Every visit" %}</h2><p class="sub">{% translate "Newest first. A service taken off the same day stays on the list, crossed out, so the company can see the correction." %}</p></div></div>
+    {% if lines %}
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>{% translate "Date and time" %}</th>
+              <th>{% translate "Company" %}</th>
+              <th>{% translate "Staff no." %}</th>
+              <th>{% translate "Employee" %}</th>
+              <th>{% translate "Department" %}</th>
+              <th>{% translate "Activity" %}</th>
+              <th>{% translate "How" %}</th>
+              <th class="num">{% translate "RWF" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for line in lines %}
+              <tr>
+                <td>{{ line.when|date:"j M, H:i" }}</td>
+                <td>{{ line.company_name }}</td>
+                <td>{{ line.employee_number }}</td>
+                <td class="strong">{{ line.employee_name }}</td>
+                <td class="muted">{{ line.department|default:"—" }}</td>
+                <td>{% if line.cancelled %}<span class="strike">{{ line.service_name }}</span>{% else %}{{ line.service_name }}{% endif %}</td>
+                <td class="small muted">
+                  {% if line.cancelled %}
+                    {% translate "Taken off the same day" %}{% if line.cancel_note %}: {{ line.cancel_note }}{% endif %}
+                  {% else %}{{ line.how }}{% endif %}
+                </td>
+                <td class="num">{% if line.cancelled %}—{% else %}{{ line.amount_rwf|thousands }}{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty">
+        <p><strong>{% translate "Nothing in these months" %}</strong></p>
+        <p class="muted">{% translate "No company staff used the gym in the period you chose." %}</p>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

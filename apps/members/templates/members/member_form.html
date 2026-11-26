@@ -6,7 +6,7 @@
     <a class="back-link" href="{% url 'members:member_detail' member.public_id %}">← {{ member.full_name }}</a>
     <div class="page-head"><h1>{% translate "Edit member" %}</h1></div>
   {% else %}
-    <a class="back-link" href="{% url 'members:member_list' %}">← {% translate "Members" %}</a>
+    <a class="back-link" href="{% url 'frontdesk:people' %}">← {% translate "Members" %}</a>
     <div class="page-head"><h1>{% translate "Register member" %}</h1></div>
   {% endif %}
 
@@ -51,7 +51,7 @@
 
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">{% if member %}{% translate "Save changes" %}{% else %}{% translate "Register member" %}{% endif %}</button>
-        <a class="btn" href="{% if member %}{% url 'members:member_detail' member.public_id %}{% else %}{% url 'members:member_list' %}{% endif %}">{% translate "Cancel" %}</a>
+        <a class="btn" href="{% if member %}{% url 'members:member_detail' member.public_id %}{% else %}{% url 'frontdesk:people' %}{% endif %}">{% translate "Cancel" %}</a>
       </div>
     </form>
   </div>

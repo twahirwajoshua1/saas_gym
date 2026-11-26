@@ -1,60 +1,11 @@
 {% extends "layouts/gym.html" %}
 {% load i18n money %}
-{% block title %}{% translate "Packages and services" %} · {{ gym.name }}
-  <div class="card stack" id="services">
-    <div class="card-head">
-      <div>
-        <h2>{% translate "Services (single sessions)" %}</h2>
-        <p class="muted small">{% translate "Paid per use, for example Gym, Sauna, Massage, Swimming or Aerobics. Company contracts are priced per service." %}</p>
-      </div>
-      {% if role_is_owner %}<a class="btn btn-small btn-primary" href="{% url 'members:service_create' %}">{% translate "Add service" %}</a>{% endif %}
-    </div>
-    {% if active_services %}
-      <ul class="item-list">
-        {% for service in active_services %}
-          <li>
-            <div class="item-main">
-              <strong>{{ service.name }}</strong>
-              <span class="muted small">{{ service.price_rwf|rwf }} {% translate "per session" %}</span>
-            </div>
-            {% if role_is_owner %}
-              <div class="item-actions">
-                <a class="btn btn-small" href="{% url 'members:service_edit' service.public_id %}">{% translate "Edit" %}</a>
-                <form method="post" action="{% url 'members:service_set_active' service.public_id %}" class="inline-form">
-                  {% csrf_token %}<input type="hidden" name="active" value="no">
-                  <button type="submit" class="btn btn-small">{% translate "Archive" %}</button>
-                </form>
-              </div>
-            {% endif %}
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p class="muted">{% translate "No services yet." %}</p>
-    {% endif %}
-    {% if archived_services %}
-      <h3 class="small muted">{% translate "Archived" %}</h3>
-      <ul class="item-list">
-        {% for service in archived_services %}
-          <li>
-            <div class="item-main"><strong>{{ service.name }}</strong><span class="muted small">{{ service.price_rwf|rwf }}</span></div>
-            {% if role_is_owner %}
-              <form method="post" action="{% url 'members:service_set_active' service.public_id %}" class="inline-form">
-                {% csrf_token %}<input type="hidden" name="active" value="yes">
-                <button type="submit" class="btn btn-small">{% translate "Restore" %}</button>
-              </form>
-            {% endif %}
-          </li>
-        {% endfor %}
-      </ul>
-    {% endif %}
-  </div>
-{% endblock %}
+{% block title %}{% translate "Packages and services" %} · {{ gym.name }}{% endblock %}
 {% block content %}
   <div class="page-head">
     <div>
       <h1>{% translate "Packages and services" %}</h1>
-      <p class="muted">{% translate "What the gym sells: memberships, and single sessions such as sauna or massage." %}</p>
+      <p class="muted">{% translate "What the gym sells. A package is three things: which services it includes, a rule, and a price." %}</p>
     </div>
     {% if role_is_owner %}
       <div class="actions">
@@ -63,28 +14,43 @@
     {% endif %}
   </div>
 
-  <div class="card">
+  <div class="card stack">
     {% if active_packages %}
-      <ul class="item-list">
-        {% for package in active_packages %}
-          <li>
-            <div class="item-main">
-              <strong>{{ package.name }}</strong>
-              <span class="muted small">{{ package.price_rwf|rwf }} · {{ package.duration_label }}</span>
-            </div>
-            {% if role_is_owner %}
-              <div class="item-actions">
-                <a class="btn btn-small" href="{% url 'members:package_edit' package.public_id %}">{% translate "Edit" %}</a>
-                <form method="post" action="{% url 'members:package_set_active' package.public_id %}" class="inline-form">
-                  {% csrf_token %}
-                  <input type="hidden" name="active" value="no">
-                  <button type="submit" class="btn btn-small">{% translate "Archive" %}</button>
-                </form>
-              </div>
-            {% endif %}
-          </li>
-        {% endfor %}
-      </ul>
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>{% translate "Name" %}</th>
+              <th>{% translate "What is included" %}</th>
+              <th>{% translate "Rule" %}</th>
+              <th class="num">{% translate "Price" %}</th>
+              {% if role_is_owner %}<th></th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for package in active_packages %}
+              <tr>
+                <td class="strong">{{ package.name }}</td>
+                <td class="muted">
+                  {% for service in package.included_services.all %}{{ service.name }}{% if not forloop.last %}, {% endif %}{% empty %}{% translate "Everything the gym sells" %}{% endfor %}
+                </td>
+                <td class="muted">{{ package.rule_label }}</td>
+                <td class="num">{{ package.price_rwf|rwf }}</td>
+                {% if role_is_owner %}
+                  <td class="item-actions">
+                    <a class="btn btn-small" href="{% url 'members:package_edit' package.public_id %}">{% translate "Edit" %}</a>
+                    <form method="post" action="{% url 'members:package_set_active' package.public_id %}" class="inline-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="active" value="no">
+                      <button type="submit" class="btn btn-small">{% translate "Archive" %}</button>
+                    </form>
+                  </td>
+                {% endif %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     {% else %}
       <div class="empty">
         <p><strong>{% translate "No packages yet" %}</strong></p>
@@ -102,14 +68,14 @@
     <div class="card stack">
       <div>
         <h2>{% translate "Archived" %}</h2>
-        <p class="muted small">{% translate "No longer sold. Kept so that past sales keep their history." %}</p>
+        <p class="muted small">{% translate "No longer sold. Nobody who already bought one is affected." %}</p>
       </div>
       <ul class="item-list">
         {% for package in archived_packages %}
           <li>
             <div class="item-main">
               <strong>{{ package.name }}</strong>
-              <span class="muted small">{{ package.price_rwf|rwf }} · {{ package.duration_label }}</span>
+              <span class="muted small">{{ package.price_rwf|rwf }} · {{ package.rule_label }}</span>
             </div>
             {% if role_is_owner %}
               <form method="post" action="{% url 'members:package_set_active' package.public_id %}" class="inline-form">
@@ -127,8 +93,8 @@
   <div class="card stack" id="services">
     <div class="card-head">
       <div>
-        <h2>{% translate "Services (single sessions)" %}</h2>
-        <p class="muted small">{% translate "Paid per use, for example Gym, Sauna, Massage, Swimming or Aerobics. Company contracts are priced per service." %}</p>
+        <h2>{% translate "Services" %}</h2>
+        <p class="muted small">{% translate "What the gym offers, for example Gym, Sauna, Swimming or Aerobics. Packages are built from these, they are sold singly at the door, and company contracts are priced per service." %}</p>
       </div>
       {% if role_is_owner %}<a class="btn btn-small btn-primary" href="{% url 'members:service_create' %}">{% translate "Add service" %}</a>{% endif %}
     </div>
@@ -138,7 +104,7 @@
           <li>
             <div class="item-main">
               <strong>{{ service.name }}</strong>
-              <span class="muted small">{{ service.price_rwf|rwf }} {% translate "per session" %}</span>
+              <span class="muted small">{{ service.price_rwf|rwf }} {% translate "at the door" %}</span>
             </div>
             {% if role_is_owner %}
               <div class="item-actions">

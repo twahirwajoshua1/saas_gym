@@ -1,0 +1,92 @@
+{% extends "layouts/gym.html" %}
+{% load i18n %}
+{% block title %}{% translate "My day" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>{% translate "My day" %}</h1>
+      <p class="muted">{{ profile.staff.person.full_name }} · {{ day|date:"l j F" }}</p>
+    </div>
+  </div>
+
+  {% if next_one %}
+    <section class="card card-attention stack">
+      <p class="small muted" style="margin:0">{% translate "Next" %}</p>
+      <h2 style="margin:0">{{ next_one.starts_at|time:"H:i" }} · {{ next_one.person.full_name }} · {{ next_one.type_name }}</h2>
+      <p style="margin:0">
+        {% if next_one.paid_by %}{% blocktranslate with c=next_one.paid_by %}{{ c }} pays.{% endblocktranslate %}{% endif %}
+        {% if next_one.note %}<br><span class="strong">{% translate "My note:" %}</span> {{ next_one.note }}{% endif %}
+      </p>
+    </section>
+  {% endif %}
+
+  <div class="kpis">
+    <div class="card stat">
+      <span class="stat-label">{% translate "Done this month" %}</span>
+      <span class="stat-value">{{ done_this_month }}</span>
+      <span class="stat-foot">{% translate "massages" %}</span>
+    </div>
+  </div>
+
+  <section class="card stack">
+    <div class="card-head">
+      <div>
+        <h2>{% translate "Today" %}</h2>
+        <p class="sub">{% translate "In time order. Only you can see your notes: not the desk, not the owner, not the company." %}</p>
+      </div>
+    </div>
+    {% if bookings %}
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>{% translate "Time" %}</th>
+              <th>{% translate "Client" %}</th>
+              <th>{% translate "Type" %}</th>
+              <th>{% translate "My note" %}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for booking in bookings %}
+              <tr>
+                <td class="strong">{{ booking.starts_at|time:"H:i" }}</td>
+                <td>{{ booking.person.full_name }}{% if booking.paid_by %}<br><span class="small muted">{{ booking.paid_by }}</span>{% endif %}</td>
+                <td>{{ booking.type_name }}</td>
+                <td class="muted">{% if booking.note %}{{ booking.note }}{% else %}—{% endif %}</td>
+                <td>
+                  <details class="quiet">
+                    <summary class="small strong">{% if booking.note %}{% translate "Change my note" %}{% else %}{% translate "Write a note" %}{% endif %}</summary>
+                    <form method="post" action="{% url 'massage:note' booking.public_id %}" class="form">
+                      {% csrf_token %}
+                      <textarea name="note" rows="2" maxlength="300">{{ booking.note }}</textarea>
+                      <div class="form-actions"><button type="submit" class="btn btn-small btn-primary">{% translate "Save" %}</button></div>
+                    </form>
+                  </details>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">{% translate "Nothing booked today." %}</p>
+    {% endif %}
+  </section>
+
+  <section class="card stack">
+    <div class="card-head">
+      <div>
+        <h2>{% translate "My hours" %}</h2>
+        <p class="sub">{% translate "People can only be booked with you inside these hours. Ask the manager to change them." %}</p>
+      </div>
+    </div>
+    {% if hours %}
+      <p class="small muted" style="margin:0">
+        {% for row in hours %}{{ row.weekday_name }} {{ row.starts_at|time:"H:i" }}–{{ row.ends_at|time:"H:i" }}{% if not forloop.last %} · {% endif %}{% endfor %}
+      </p>
+    {% else %}
+      <p class="muted">{% translate "No hours set yet, so nobody can book you." %}</p>
+    {% endif %}
+  </section>
+{% endblock %}

@@ -15,7 +15,7 @@ from apps.gyms.models import Branch
 from apps.gyms.permissions import CHECK_IN_ROLES, FRONT_DESK_ROLES, MANAGER_ROLES
 from apps.gyms.tenancy import gym_required
 from apps.members import services as member_services
-from apps.members.models import Member
+from apps.members.models import Member, Service
 from apps.modules.catalog import ATTENDANCE_ACCESS
 from apps.modules.decorators import module_required
 
@@ -85,10 +85,17 @@ def set_branch(request):
 @require_POST
 def check_in(request, public_id):
     member = get_object_or_404(Member.objects.for_gym(request.gym), public_id=public_id)
+    wanted = request.POST.getlist("services")
     try:
         record, is_new = services.check_in(
             by=request.assignment, member=member, branch=_desk_branch(request)
         )
+        if wanted:
+            services.record_activities(
+                by=request.assignment,
+                check_in=record,
+                services_chosen=Service.objects.for_gym(request.gym).filter(public_id__in=wanted),
+            )
     except services.NotAllowedIn:
         messages.error(
             request,

@@ -62,6 +62,7 @@ def save_trainer(
     headline: str = "",
     about: str = "",
     takes_personal_sessions: bool = True,
+    gives_massages: bool = False,
     is_listed: bool = True,
 ) -> TrainerProfile:
     """
@@ -80,6 +81,7 @@ def save_trainer(
             "headline": headline.strip(),
             "about": about.strip(),
             "takes_personal_sessions": takes_personal_sessions,
+            "gives_massages": gives_massages,
             "is_listed": is_listed,
         },
     )

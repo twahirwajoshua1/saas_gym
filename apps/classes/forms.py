@@ -80,6 +80,11 @@ class TrainerForm(forms.Form):
     takes_personal_sessions = forms.BooleanField(
         label=_("Members may book one-to-one sessions"), required=False, initial=True
     )
+    gives_massages = forms.BooleanField(
+        label=_("Gives massages"),
+        required=False,
+        help_text=_("Massages are booked in their own diary, under Sessions."),
+    )
     is_listed = forms.BooleanField(
         label=_("Show this trainer to members"), required=False, initial=True
     )
