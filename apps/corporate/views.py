@@ -133,7 +133,7 @@ def gym_home(request):
         {
             "contracts": contracts,
             "today": today,
-            "visits_today": services.visits_for_gym(request.gym, today, today),
+            "today_companies": services.today_by_company(request.gym, today),
             "warnings": services.open_flags_for_gym(request.gym) if is_manager else [],
             "bills": [b for b in services.bills_for_gym(request.gym) if b.owed_rwf > 0]
             if is_manager
@@ -219,13 +219,34 @@ def contract_new(request):
     branches, rows = _price_grid(request.gym, posted=posted)
     values = {
         "company_code": "",
+        "contract_number": "",
         "start_date": f"{timezone.localdate():%Y-%m-%d}",
         "end_date": "",
         "payment_days": "30",
+        "new_name": "",
+        "new_tin": "",
+        "new_officer_name": "",
+        "new_officer_phone": "",
     }
-    found, error = None, ""
+    found, error, new_login = None, "", None
     if posted is not None:
         values = {key: posted.get(key, "") for key in values}
+        # A gym that has just signed a paper contract puts the company on the
+        # platform itself, rather than waiting for a code it cannot get.
+        if posted.get("action") == "register":
+            try:
+                made = services.register_company_for_contract(
+                    by=request.assignment,
+                    name=values["new_name"],
+                    tin=values["new_tin"],
+                    officer_name=values["new_officer_name"],
+                    officer_phone=values["new_officer_phone"],
+                )
+            except InvalidDetails as problem:
+                error = error_text(problem)
+            else:
+                values["company_code"] = made.company.code
+                new_login = made
         found = services.company_for_code(values["company_code"])
         if posted.get("action") == "fill":
             percent = _reduction(posted)
@@ -239,7 +260,10 @@ def contract_new(request):
             try:
                 terms = _read_terms(request, rows)
                 contract = services.propose_contract(
-                    by=request.assignment, company_code=values["company_code"], terms=terms
+                    by=request.assignment,
+                    company_code=values["company_code"],
+                    terms=terms,
+                    contract_number=values["contract_number"],
                 )
             except InvalidDetails as problem:
                 error = error_text(problem)
@@ -258,6 +282,7 @@ def contract_new(request):
             "error": error,
             "branches": branches,
             "rows": rows,
+            "new_login": new_login,
         },
     )
 

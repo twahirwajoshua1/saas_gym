@@ -14,6 +14,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
+from django.utils.translation import ngettext
 from django.views.decorators.http import require_POST
 
 from apps.core import tenant_db
@@ -182,16 +183,78 @@ def member_edit(request, public_id):
 def package_list(request):
     packages = Package.objects.for_gym(request.gym)
     all_services = services.services_for(request.gym, active_only=False)
+    grid = services.price_grid(request.gym)
+    from_grid = {cell.package.pk for row in grid for cell in row.cells if cell.package} | {
+        bundle.pk for row in grid for bundle in row.bundles
+    }
     return render(
         request,
         "members/package_list.html",
         {
-            "active_packages": [p for p in packages if p.is_active],
+            "grid": grid,
+            "lengths": [label for _key, _count, _unit, label in services.GRID_LENGTHS],
+            # The grid already shows these, so the list below it holds only
+            # what the grid cannot express: bundles across several services.
+            "active_packages": [p for p in packages if p.is_active and p.pk not in from_grid],
             "archived_packages": [p for p in packages if not p.is_active],
             "active_services": [s for s in all_services if s.is_active],
             "archived_services": [s for s in all_services if not s.is_active],
         },
     )
+
+
+def _read_grid(posted, grid) -> dict[tuple[int, str], int | None]:
+    """What the owner typed into each box. An empty box means "stop selling"."""
+    prices: dict[tuple[int, str], int | None] = {}
+    for row in grid:
+        for cell in row.cells:
+            typed = (posted.get(cell.field_name) or "").replace(",", "").replace(" ", "").strip()
+            if not typed:
+                prices[(row.service.pk, cell.key)] = None
+            elif typed.isdigit():
+                prices[(row.service.pk, cell.key)] = int(typed)
+    return prices
+
+
+@gym_required(*OWNER_ONLY)
+@require_POST
+def price_grid_save(request):
+    """Save every box in one go, so setting a season of prices is one visit."""
+    grid = services.price_grid(request.gym)
+    try:
+        changed = services.save_price_grid(
+            by=request.assignment, prices=_read_grid(request.POST, grid)
+        )
+    except services.InvalidDetails as error:
+        messages.error(request, _("Check the prices: %(field)s.") % {"field": error.field})
+    else:
+        if changed:
+            messages.success(
+                request,
+                ngettext("%(n)s price saved.", "%(n)s prices saved.", changed) % {"n": changed},
+            )
+        else:
+            messages.info(request, _("Nothing changed."))
+    return redirect("members:package_list")
+
+
+@gym_required(*OWNER_ONLY)
+@require_POST
+def ticket_bundle_add(request, public_id):
+    """Add one ticket bundle to one service: so many visits, at one price."""
+    service = get_object_or_404(
+        Service.objects.for_gym(request.gym), public_id=public_id, is_active=True
+    )
+    visits = (request.POST.get("visits") or "").strip()
+    price = (request.POST.get("price_rwf") or "").replace(",", "").strip()
+    if not (visits.isdigit() and price.isdigit() and int(visits) > 0):
+        messages.error(request, _("Enter how many tickets and what they cost."))
+        return redirect("members:package_list")
+    services.add_ticket_bundle(
+        by=request.assignment, service=service, visits=int(visits), price_rwf=int(price)
+    )
+    messages.success(request, _("Added."))
+    return redirect("members:package_list")
 
 
 @gym_required(*OWNER_ONLY)

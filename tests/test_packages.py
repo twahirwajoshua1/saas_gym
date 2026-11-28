@@ -238,3 +238,186 @@ def test_archiving_needs_a_post(alpha, sign_in):
 
     url = reverse("members:package_set_active", args=[package.public_id])
     assert client.get(url).status_code == 405
+
+
+# --- The price grid -----------------------------------------------------------
+
+
+@pytest.fixture
+def swimming(alpha):
+    return services.create_service(by=alpha.assignment, name="Swimming", price_rwf=6000)
+
+
+@pytest.fixture
+def sauna(alpha):
+    return services.create_service(by=alpha.assignment, name="Sauna", price_rwf=7000)
+
+
+def test_a_price_typed_into_a_box_becomes_something_the_gym_sells(alpha, swimming):
+    services.save_price_grid(by=alpha.assignment, prices={(swimming.pk, "month"): 42000})
+
+    package = Package.objects.for_gym(alpha.gym).get()
+    assert package.price_rwf == 42000
+    assert package.duration_count == 1
+    assert package.duration_unit == "month"
+    assert list(package.included_services.all()) == [swimming]
+
+
+def test_the_grid_names_the_package_so_the_owner_does_not_have_to(alpha, swimming):
+    services.save_price_grid(by=alpha.assignment, prices={(swimming.pk, "quarter"): 110000})
+
+    assert Package.objects.for_gym(alpha.gym).get().name == "Swimming, quarterly"
+
+
+def test_every_length_can_be_priced_at_once(alpha, swimming):
+    changed = services.save_price_grid(
+        by=alpha.assignment,
+        prices={
+            (swimming.pk, "day"): 6000,
+            (swimming.pk, "month"): 42000,
+            (swimming.pk, "quarter"): 110000,
+            (swimming.pk, "year"): 400000,
+        },
+    )
+
+    assert changed == 4
+    assert Package.objects.for_gym(alpha.gym).count() == 4
+
+
+def test_changing_a_box_changes_the_price_rather_than_adding_a_second_package(alpha, swimming):
+    services.save_price_grid(by=alpha.assignment, prices={(swimming.pk, "month"): 42000})
+
+    services.save_price_grid(by=alpha.assignment, prices={(swimming.pk, "month"): 45000})
+
+    package = Package.objects.for_gym(alpha.gym).get()
+    assert package.price_rwf == 45000
+
+
+def test_emptying_a_box_stops_selling_it_without_deleting_anything(alpha, swimming):
+    """
+    Everybody who already bought it keeps what they bought, so the package is
+    archived, never removed.
+    """
+    services.save_price_grid(by=alpha.assignment, prices={(swimming.pk, "month"): 42000})
+
+    services.save_price_grid(by=alpha.assignment, prices={(swimming.pk, "month"): None})
+
+    package = Package.objects.for_gym(alpha.gym).get()
+    assert package.is_active is False
+
+
+def test_the_grid_shows_back_what_was_saved(alpha, swimming, sauna):
+    services.save_price_grid(
+        by=alpha.assignment,
+        prices={(swimming.pk, "month"): 42000, (sauna.pk, "day"): 7000},
+    )
+
+    grid = {
+        row.name: {cell.key: cell.price_rwf for cell in row.cells}
+        for row in services.price_grid(alpha.gym)
+    }
+
+    assert grid["Swimming"]["month"] == 42000
+    assert grid["Swimming"]["day"] is None
+    assert grid["Sauna"]["day"] == 7000
+
+
+def test_the_grid_leaves_a_package_covering_several_services_alone(alpha, swimming, sauna):
+    """
+    A bundle is the builder's, not the grid's. The grid must never archive it
+    just because no box points at it.
+    """
+    bundle = services.create_package(
+        by=alpha.assignment,
+        name="Swim + sauna, monthly",
+        price_rwf=80000,
+        services=[swimming, sauna],
+        duration_count=1,
+        duration_unit="month",
+    )
+
+    services.save_price_grid(by=alpha.assignment, prices={(swimming.pk, "month"): None})
+
+    bundle.refresh_from_db()
+    assert bundle.is_active is True
+
+
+def test_the_grid_leaves_ticket_bundles_alone(alpha, swimming):
+    tickets = services.add_ticket_bundle(
+        by=alpha.assignment, service=swimming, visits=15, price_rwf=72000
+    )
+
+    services.save_price_grid(by=alpha.assignment, prices={(swimming.pk, "month"): None})
+
+    tickets.refresh_from_db()
+    assert tickets.is_active is True
+
+
+def test_only_the_owner_sets_prices(alpha, add_staff, swimming):
+    desk = add_staff(alpha.gym, "0788000066", Role.RECEPTIONIST)
+
+    with pytest.raises(PermissionDenied):
+        services.save_price_grid(by=desk.assignment, prices={(swimming.pk, "month"): 42000})
+
+
+def test_another_gyms_service_cannot_be_priced_here(alpha, bravo):
+    theirs = services.create_service(by=bravo.assignment, name="Swimming", price_rwf=6000)
+
+    services.save_price_grid(by=alpha.assignment, prices={(theirs.pk, "month"): 42000})
+
+    assert not Package.objects.for_gym(alpha.gym).exists()
+
+
+# --- Ticket bundles -----------------------------------------------------------
+
+
+def test_two_bundle_sizes_are_two_different_things_to_sell(alpha, swimming):
+    """Twenty tickets is usually cheaper per visit, so it has its own price."""
+    small = services.add_ticket_bundle(
+        by=alpha.assignment, service=swimming, visits=5, price_rwf=28000
+    )
+    large = services.add_ticket_bundle(
+        by=alpha.assignment, service=swimming, visits=20, price_rwf=96000
+    )
+
+    assert small.visit_count == 5 and large.visit_count == 20
+    assert large.price_rwf / 20 < small.price_rwf / 5
+
+
+def test_a_bundle_is_named_for_what_it_is(alpha, swimming):
+    bundle = services.add_ticket_bundle(
+        by=alpha.assignment, service=swimming, visits=15, price_rwf=72000
+    )
+
+    assert bundle.name == "15 swimming tickets"
+    assert bundle.is_count
+
+
+def test_the_same_bundle_twice_does_not_clash_on_its_name(alpha, swimming):
+    first = services.add_ticket_bundle(
+        by=alpha.assignment, service=swimming, visits=15, price_rwf=72000
+    )
+    second = services.add_ticket_bundle(
+        by=alpha.assignment, service=swimming, visits=15, price_rwf=70000
+    )
+
+    assert first.name != second.name
+
+
+def test_only_the_owner_adds_a_bundle(alpha, add_staff, swimming):
+    desk = add_staff(alpha.gym, "0788000067", Role.RECEPTIONIST)
+
+    with pytest.raises(PermissionDenied):
+        services.add_ticket_bundle(by=desk.assignment, service=swimming, visits=5, price_rwf=28000)
+
+
+def test_the_grid_is_on_the_page_and_saves_from_it(alpha, sign_in, swimming):
+    client = sign_in(alpha)
+
+    page = client.get(reverse("members:package_list")).content.decode()
+    assert "Save prices" in page
+    assert f"price-{swimming.pk}-month" in page
+
+    client.post(reverse("members:price_grid_save"), {f"price-{swimming.pk}-month": "42,000"})
+
+    assert Package.objects.for_gym(alpha.gym).get().price_rwf == 42000

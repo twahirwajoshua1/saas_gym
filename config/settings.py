@@ -110,6 +110,8 @@ TEMPLATES = [
                 "apps.gyms.context.current_gym",
                 # Which applications the gym has switched on, for menus.
                 "apps.modules.context.enabled_modules",
+                # Whether a trainer gives massages, for the menu.
+                "apps.classes.context.trainer_work",
             ],
         },
     },

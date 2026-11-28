@@ -36,7 +36,11 @@ def choose(request):
 
 @tenancy.gym_required()
 def home(request):
-    # The desk's people (receptionist, sales, trainer) start at the Desk.
+    # Everybody starts where their own work is. The desk's people start at the
+    # Desk; a trainer starts at their own day, never at the receptionist's
+    # page, which shows arrivals and follow-ups that are none of their job.
+    if request.assignment.role == Role.TRAINER:
+        return redirect("massage:my_day")
     if request.assignment.role not in (Role.OWNER, Role.BRANCH_MANAGER):
         return redirect("frontdesk:desk")
     return render(

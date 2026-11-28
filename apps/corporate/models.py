@@ -119,6 +119,10 @@ class ContractStatus(models.TextChoices):
 class Contract(GymOwnedModel):
     public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="contracts")
+    # The reference on the paper contract the two sides signed, if there is
+    # one. Free text: a Rwandan company numbers its contracts how it likes,
+    # and the gym needs to be able to quote it back on a bill.
+    contract_number = models.CharField(max_length=60, blank=True)
     start_date = models.DateField()
     end_date = models.DateField()
     # How many days the company has to pay each bill.

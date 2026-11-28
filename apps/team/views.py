@@ -1,11 +1,13 @@
 """Screens for managing the gym's staff. Owner only."""
 
+import uuid
+
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
-from apps.gyms.models import StaffAssignment
+from apps.gyms.models import Branch, Role, StaffAssignment
 from apps.gyms.permissions import OWNER_ONLY
 from apps.gyms.tenancy import gym_required
 from apps.team import services
@@ -34,12 +36,37 @@ def _get_assignment(request, public_id) -> StaffAssignment:
     return get_object_or_404(assignments, person__public_id=public_id)
 
 
+def _looks_like_id(value: str) -> bool:
+    """A filter in the address bar is somebody's typing, not an identifier."""
+    try:
+        uuid.UUID(value)
+    except (ValueError, AttributeError, TypeError):
+        return False
+    return True
+
+
 @gym_required(*OWNER_ONLY)
 def staff_list(request):
-    rows = services.staff_of(request.gym)
+    branches = Branch.objects.for_gym(request.gym).filter(is_active=True).order_by("name")
+    wanted = request.GET.get("branch", "")
+    branch = branches.filter(public_id=wanted).first() if _looks_like_id(wanted) else None
+    role = request.GET.get("role", "")
+    role = role if role in dict(Role.choices) else ""
+    rows = services.staff_of(request.gym, branch=branch, role=role)
     for row in rows:
         row.can_reset = services.can_reset_password(request.assignment, row.assignment)
-    return render(request, "team/staff_list.html", {"rows": rows})
+    return render(
+        request,
+        "team/staff_list.html",
+        {
+            "rows": rows,
+            "branches": branches,
+            "branch": branch,
+            "roles": Role.choices,
+            "role": role,
+            "filtered": branch is not None or bool(role),
+        },
+    )
 
 
 @gym_required(*OWNER_ONLY)

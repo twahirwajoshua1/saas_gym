@@ -21,57 +21,8 @@
     </div>
   {% endif %}
 
-  <div class="card stack">
-    <div class="card-head">
-      <h2>{% translate "Today" %}</h2>
-      <a class="btn btn-small" href="{% url 'corporate:visit_list' %}">{% translate "All visits" %}</a>
-    </div>
-    {% if visits_today %}
-      <ul class="item-list">
-        {% for visit in visits_today %}
-          <li>
-            <div class="item-main">
-              <strong>{{ visit.employee.full_name }}</strong>
-              <span class="muted small">{{ visit.company.name }} · {{ visit.checked_in_at|time:"H:i" }} ·
-                {% for a in visit.activities.all %}{% if not a.cancelled_at %}{{ a.service_name }}{% if not forloop.last %}, {% endif %}{% endif %}{% endfor %}</span>
-            </div>
-            {% if visit.confirmed_at %}<span class="badge badge-on">{% translate "Confirmed" %}</span>{% else %}<span class="badge badge-off">{% translate "Not confirmed yet" %}</span>{% endif %}
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p class="muted">{% translate "No company employees today yet." %}</p>
-    {% endif %}
-  </div>
-
+  {# What is owed comes first: a bill nobody chases is the money a gym loses. #}
   {% if is_manager %}
-    <div class="card stack">
-      <div class="card-head">
-        <h2>{% translate "Contracts" %}</h2>
-      </div>
-      {% if contracts %}
-        <ul class="item-list">
-          {% for contract in contracts %}
-            <li>
-              <div class="item-main">
-                <a href="{% url 'corporate:contract_detail' contract.public_id %}"><strong>{{ contract.company.name }}</strong></a>
-                <span class="muted small">{{ contract.start_date|date:"j M Y" }} – {{ contract.last_day|date:"j M Y" }} · {% blocktranslate with d=contract.payment_days %}pays within {{ d }} days{% endblocktranslate %}</span>
-              </div>
-              {% if contract.status == "approved" %}
-                {% if contract.last_day < today %}<span class="badge badge-off">{% translate "Ended" %}</span>{% else %}<span class="badge badge-on">{% translate "Running" %}</span>{% endif %}
-              {% elif contract.status == "proposed" %}<span class="badge badge-warn">{% translate "Waiting for approval" %}</span>
-              {% else %}<span class="badge badge-danger">{% translate "Declined" %}</span>{% endif %}
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <div class="empty">
-          <p><strong>{% translate "No company contracts yet" %}</strong></p>
-          <p class="muted">{% translate "Ask the company's logistics officer for their company code, then create a contract with your prices." %}</p>
-        </div>
-      {% endif %}
-    </div>
-
     <div class="card stack">
       <div class="card-head">
         <h2>{% translate "Bills not fully paid" %}</h2>
@@ -93,5 +44,64 @@
         <p class="muted">{% translate "Nothing owed." %}</p>
       {% endif %}
     </div>
+
+    <div class="card stack">
+      <div class="card-head">
+        <h2>{% translate "Contracts" %}</h2>
+      </div>
+      {% if contracts %}
+        <ul class="item-list">
+          {% for contract in contracts %}
+            <li>
+              <div class="item-main">
+                <a href="{% url 'corporate:contract_detail' contract.public_id %}"><strong>{{ contract.company.name }}</strong></a>
+                <span class="muted small">{% if contract.contract_number %}{{ contract.contract_number }} · {% endif %}{{ contract.start_date|date:"j M Y" }} – {{ contract.last_day|date:"j M Y" }} · {% blocktranslate with d=contract.payment_days %}pays within {{ d }} days{% endblocktranslate %}</span>
+              </div>
+              {% if contract.status == "approved" %}
+                {% if contract.last_day < today %}<span class="badge badge-off">{% translate "Ended" %}</span>{% else %}<span class="badge badge-on">{% translate "Running" %}</span>{% endif %}
+              {% elif contract.status == "proposed" %}<span class="badge badge-warn">{% translate "Waiting for approval" %}</span>
+              {% else %}<span class="badge badge-danger">{% translate "Declined" %}</span>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="empty">
+          <p><strong>{% translate "No company contracts yet" %}</strong></p>
+          <p class="muted">{% translate "Start a contract with the company's name. If they are already on the platform, their code links the two." %}</p>
+        </div>
+      {% endif %}
+    </div>
   {% endif %}
+
+  <div class="card stack">
+    <div class="card-head">
+      <h2>{% translate "Today" %}</h2>
+      <a class="btn btn-small" href="{% url 'corporate:visit_list' %}">{% translate "All visits" %}</a>
+    </div>
+    {% if today_companies %}
+      {# One line per company, not per person: a gym talks to the company, #}
+      {# not to each employee. Open one to see what they came for. #}
+      <ul class="item-list">
+        {% for row in today_companies %}
+          <li>
+            <details style="width:100%">
+              <summary style="cursor:pointer;display:flex;justify-content:space-between;gap:12px;align-items:center">
+                <span><strong>{{ row.name }}</strong></span>
+                <span class="muted small">{% blocktranslate count n=row.people %}{{ n }} today{% plural %}{{ n }} today{% endblocktranslate %}</span>
+              </summary>
+              <ul class="small" style="margin:8px 0 0 0;padding-left:18px">
+                {% for name, count in row.services %}
+                  <li class="muted">{{ name }} · {{ count }}</li>
+                {% empty %}
+                  <li class="muted">{% translate "Nothing picked yet." %}</li>
+                {% endfor %}
+              </ul>
+            </details>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">{% translate "No company employees today yet." %}</p>
+    {% endif %}
+  </div>
 {% endblock %}

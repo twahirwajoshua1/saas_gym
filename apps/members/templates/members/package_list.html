@@ -5,7 +5,7 @@
   <div class="page-head">
     <div>
       <h1>{% translate "Packages and services" %}</h1>
-      <p class="muted">{% translate "What the gym sells. A package is three things: which services it includes, a rule, and a price." %}</p>
+      <p class="muted">{% translate "What the gym sells. Set the price of each service in the grid; build anything that covers several services underneath." %}</p>
     </div>
     {% if role_is_owner %}
       <div class="actions">
@@ -14,7 +14,87 @@
     {% endif %}
   </div>
 
+
+  {% if role_is_owner and grid %}
+    <form method="post" action="{% url 'members:price_grid_save' %}" class="card stack">
+      {% csrf_token %}
+      <div class="card-head">
+        <div>
+          <h2>{% translate "Prices" %}</h2>
+          <p class="sub">{% translate "One row for each thing you sell. Fill in the lengths you offer and leave the rest empty. Emptying a box stops that package being sold; nobody who already bought it loses anything." %}</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>{% translate "Service" %}</th>
+              {% for label in lengths %}<th class="num">{{ label }}</th>{% endfor %}
+              <th>{% translate "Tickets" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in grid %}
+              <tr>
+                <td class="strong">{{ row.name }}</td>
+                {% for cell in row.cells %}
+                  <td class="num">
+                    <input name="{{ cell.field_name }}" value="{% if cell.price_rwf %}{{ cell.price_rwf }}{% endif %}"
+                           inputmode="numeric" size="8" placeholder="—" style="text-align:right;width:84px"
+                           aria-label="{{ row.name }} · {{ cell.label }}">
+                  </td>
+                {% endfor %}
+                <td class="muted small">
+                  {% for bundle in row.bundles %}
+                    {% blocktranslate with n=bundle.visit_count price=bundle.price_rwf|rwf %}{{ n }} for {{ price }}{% endblocktranslate %}{% if not forloop.last %}<br>{% endif %}
+                  {% empty %}—{% endfor %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{% translate "Save prices" %}</button>
+      </div>
+      <p class="help muted small">{% translate "Whole francs, no decimals. A price saved here becomes a package the desk can sell straight away." %}</p>
+    </form>
+
+    <div class="card stack">
+      <div class="card-head">
+        <div>
+          <h2>{% translate "Ticket bundles" %}</h2>
+          <p class="sub">{% translate "A fixed number of visits at one price. Five and twenty are separate, because twenty is usually cheaper per visit." %}</p>
+        </div>
+      </div>
+      <ul class="item-list">
+        {% for row in grid %}
+          <li>
+            <div class="item-main">
+              <strong>{{ row.name }}</strong>
+              <span class="muted small">
+                {% for bundle in row.bundles %}{% blocktranslate with n=bundle.visit_count price=bundle.price_rwf|rwf %}{{ n }} tickets · {{ price }}{% endblocktranslate %}{% if not forloop.last %} · {% endif %}{% empty %}{% translate "No tickets sold for this yet." %}{% endfor %}
+              </span>
+            </div>
+            <form method="post" action="{% url 'members:ticket_bundle_add' row.service.public_id %}" class="inline-form">
+              {% csrf_token %}
+              <input name="visits" inputmode="numeric" size="3" placeholder="{% translate 'How many' %}" aria-label="{% translate 'How many tickets' %}" style="width:92px">
+              <input name="price_rwf" inputmode="numeric" size="8" placeholder="{% translate 'Price' %}" aria-label="{% translate 'Price for the bundle' %}" style="width:96px">
+              <button type="submit" class="btn btn-small">{% translate "Add" %}</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
   <div class="card stack">
+    <div class="card-head">
+      <div>
+        <h2>{% translate "Packages across several services" %}</h2>
+        <p class="sub">{% translate "What the grid cannot say in one box: a bundle covering more than one service." %}</p>
+      </div>
+    </div>
     {% if active_packages %}
       <div class="table-wrap">
         <table class="data">
@@ -53,12 +133,12 @@
       </div>
     {% else %}
       <div class="empty">
-        <p><strong>{% translate "No packages yet" %}</strong></p>
+        <p><strong>{% translate "Nothing covering several services" %}</strong></p>
         {% if role_is_owner %}
-          <p class="muted">{% translate "Add what you sell, for example a daily pass or a monthly membership." %}</p>
+          <p class="muted">{% translate "Gym plus sauna plus swimming at one price, for example. Single services are priced in the grid above." %}</p>
           <a class="btn btn-primary" href="{% url 'members:package_create' %}">{% translate "Add package" %}</a>
         {% else %}
-          <p class="muted">{% translate "The gym owner has not added any packages yet." %}</p>
+          <p class="muted">{% translate "The gym owner has not added any yet." %}</p>
         {% endif %}
       </div>
     {% endif %}

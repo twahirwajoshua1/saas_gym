@@ -7,8 +7,10 @@ alone, so it is never put in a page anybody else can open.
 """
 
 from datetime import date, datetime, timedelta
+from functools import wraps
 
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -17,10 +19,11 @@ from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from apps.classes.models import TrainerProfile
+from apps.core import messaging
 from apps.corporate import services as corporate
 from apps.corporate.models import Employee
 from apps.gyms import session
-from apps.gyms.models import Branch
+from apps.gyms.models import Branch, Role
 from apps.gyms.permissions import CHECK_IN_ROLES, FRONT_DESK_ROLES, OWNER_ONLY
 from apps.gyms.tenancy import gym_required
 from apps.massage import services
@@ -61,6 +64,31 @@ def massage_page(*roles):
     return decorator
 
 
+def masseuse_only(view):
+    """
+    Shuts a trainer who only takes classes out of every massage page.
+
+    The desk and managers keep their way in: they book massages for people and
+    answer requests. It is the class-only trainer who has no business here,
+    and who could otherwise reach the diary by typing the address.
+    """
+
+    @wraps(view)
+    def guard(request, *args, **kwargs):
+        if request.assignment.role == Role.TRAINER:
+            profile = (
+                TrainerProfile.objects.for_gym(request.gym)
+                .filter(staff=request.assignment)
+                .only("gives_massages")
+                .first()
+            )
+            if profile is None or not profile.gives_massages:
+                raise PermissionDenied("You do not give massages.")
+        return view(request, *args, **kwargs)
+
+    return guard
+
+
 def _branch(request) -> Branch | None:
     return session.desk_branch(request)
 
@@ -77,6 +105,7 @@ def _days_ahead(start: date, count: int = 6) -> list[date]:
 
 
 @massage_page(*CHECK_IN_ROLES)
+@masseuse_only
 def diary(request):
     branch = _branch(request)
     today = timezone.localdate()
@@ -124,6 +153,7 @@ def diary(request):
 
 
 @massage_page(*FRONT_DESK_ROLES)
+@masseuse_only
 def find_person(request):
     """Who is the massage for? The gym's own members and its companies' staff."""
     query = request.GET.get("q", "")
@@ -159,6 +189,7 @@ def _who(request):
 
 
 @massage_page(*FRONT_DESK_ROLES)
+@masseuse_only
 def book(request):
     person, member, employee = _who(request)
     branch = _branch(request)
@@ -288,6 +319,7 @@ def _diary_url() -> str:
 
 
 @massage_page(*FRONT_DESK_ROLES)
+@masseuse_only
 def cancel(request, public_id):
     booking = _booking(request, public_id)
     form = ReasonForm(request.POST or None)
@@ -339,6 +371,9 @@ def my_day(request):
     profile = TrainerProfile.objects.for_gym(request.gym).filter(staff=request.assignment).first()
     if profile is None:
         raise Http404
+    # A trainer who only takes classes has no day of massages to look at.
+    if not profile.gives_massages:
+        return redirect("classes:timetable")
     day = _day(request)
     bookings = list(services.day_for(profile, day))
     now = timezone.localtime()
@@ -360,6 +395,16 @@ def my_day(request):
             "hours": profile.hours.select_related("branch").order_by("weekday", "starts_at"),
             "done_this_month": services.count_for(request.gym, profile, since=since),
             "note_form": NoteForm(),
+            "lapsed": [
+                (
+                    client,
+                    messaging.whatsapp_url(
+                        client.phone, services.come_back_message(request.gym, client)
+                    ),
+                )
+                for client in services.lapsed_clients(profile)
+            ],
+            "lapsed_weeks": services.LAPSED_WEEKS,
         },
     )
 
@@ -385,6 +430,7 @@ def _my_day_url() -> str:
 
 
 @massage_page(*OWNER_ONLY)
+@masseuse_only
 def type_list(request):
     return render(
         request,
@@ -398,6 +444,7 @@ def type_list(request):
 
 
 @massage_page(*OWNER_ONLY)
+@masseuse_only
 def type_new(request):
     form = MassageTypeForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
@@ -414,6 +461,7 @@ def type_new(request):
 
 
 @massage_page(*OWNER_ONLY)
+@masseuse_only
 def type_edit(request, public_id):
     massage_type = get_object_or_404(
         MassageType.objects.for_gym(request.gym).select_related("service"), public_id=public_id
@@ -455,6 +503,7 @@ def type_set_active(request, public_id):
 
 
 @massage_page(*OWNER_ONLY)
+@masseuse_only
 def rules(request):
     current = services.rules_for(request.gym)
     form = MassageRuleForm(

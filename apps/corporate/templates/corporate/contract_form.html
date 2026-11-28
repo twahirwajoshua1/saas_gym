@@ -22,10 +22,40 @@
           </div>
           <p class="help muted small">{% translate "The company's logistics officer finds it on their Gyms and contracts page." %}</p>
         </div>
+
+        {% if not found %}
+          <details class="stack" {% if values.new_name %}open{% endif %}>
+            <summary class="strong">{% translate "The company is not here yet" %}</summary>
+            <p class="muted small">{% translate "You have signed with them but they have no code. Put them on the platform now. Their officer gets a login, so they can approve this contract and add their staff." %}</p>
+            <div class="form-row">
+              <div class="field"><label for="new_name">{% translate "Company name" %}</label><input id="new_name" name="new_name" value="{{ values.new_name }}" autocomplete="off"></div>
+              <div class="field"><label for="new_tin">{% translate "TIN" %}</label><input id="new_tin" name="new_tin" value="{{ values.new_tin }}" inputmode="numeric" autocomplete="off"></div>
+            </div>
+            <div class="form-row">
+              <div class="field"><label for="new_officer_name">{% translate "Who signed for them" %}</label><input id="new_officer_name" name="new_officer_name" value="{{ values.new_officer_name }}" autocomplete="off"></div>
+              <div class="field"><label for="new_officer_phone">{% translate "Their phone number" %}</label><input id="new_officer_phone" name="new_officer_phone" value="{{ values.new_officer_phone }}" inputmode="tel" autocomplete="off"></div>
+            </div>
+            <div class="form-actions"><button type="submit" name="action" value="register" class="btn">{% translate "Add the company" %}</button></div>
+          </details>
+        {% endif %}
         {% if found %}<p class="notice notice-success">{% translate "Company:" %} <strong>{{ found.1 }}</strong></p>{% endif %}
+        {% if new_login %}
+          <div class="notice notice-info">
+            <p><strong>{% blocktranslate with name=new_login.company.name code=new_login.company.code %}{{ name }} added. Their code is {{ code }}.{% endblocktranslate %}</strong></p>
+            {% if new_login.temporary_password %}
+              <p>{% blocktranslate with who=new_login.officer.person.full_name password=new_login.temporary_password %}Give {{ who }} this password once: <strong>{{ password }}</strong>. It is shown here and nowhere else.{% endblocktranslate %}</p>
+            {% endif %}
+          </div>
+        {% endif %}
       {% endif %}
 
       {% if found %}
+        <div class="field">
+          <label for="contract_number">{% translate "Contract number" %} <span class="optional">({% translate "optional" %})</span></label>
+          <input id="contract_number" name="contract_number" value="{{ values.contract_number }}" autocomplete="off">
+          <p class="help muted small">{% translate "The reference on the paper you both signed, so you can quote it on a bill." %}</p>
+        </div>
+
         <div class="form-row">
           <div class="field"><label for="start_date">{% translate "Starts on" %}</label><input id="start_date" type="date" name="start_date" value="{{ values.start_date }}" required></div>
           <div class="field"><label for="end_date">{% translate "Ends on" %}</label><input id="end_date" type="date" name="end_date" value="{{ values.end_date }}" required></div>

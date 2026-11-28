@@ -597,3 +597,184 @@ def test_branch_rule_for_multi_branch_gyms(alpha, officer, employee):
         corp.check_in_employee(
             by=alpha.assignment, employee=employee, service_ids=[gym_service.id], phone_code_ok=True
         )
+
+
+# --- Today, counted by company ------------------------------------------------
+
+
+def another_employee(officer, name, phone, number):
+    return corp.add_employee(
+        by=officer,
+        details=EmployeeDetails(
+            full_name=name, phone=phone, employee_number=number, department="Finance"
+        ),
+    )
+
+
+def test_today_is_counted_by_company_not_listed_by_person(alpha, officer, employee):
+    """
+    A gym with five companies does not want fifty names on its home page. It
+    wants to know who sent how many, and what they came for.
+    """
+    _, gym_service, _ = make_contract(alpha, officer)
+    ruth = another_employee(officer, "Ruth Nkurunziza", "0788111333", "BK-002")
+    for who in (employee, ruth):
+        corp.check_in_employee(
+            by=alpha.assignment, employee=who, service_ids=[gym_service.id], phone_code_ok=True
+        )
+
+    rows = corp.today_by_company(alpha.gym)
+
+    assert len(rows) == 1
+    assert rows[0].name == officer.company.name
+    assert rows[0].people == 2
+
+
+def test_a_company_shows_what_its_people_came_for(alpha, officer, employee):
+    _, gym_service, sauna = make_contract(alpha, officer)
+    ruth = another_employee(officer, "Ruth Nkurunziza", "0788111333", "BK-002")
+    corp.check_in_employee(
+        by=alpha.assignment, employee=employee, service_ids=[gym_service.id], phone_code_ok=True
+    )
+    corp.check_in_employee(
+        by=alpha.assignment,
+        employee=ruth,
+        service_ids=[gym_service.id, sauna.id],
+        phone_code_ok=True,
+    )
+
+    counted = dict(corp.today_by_company(alpha.gym)[0].services)
+
+    assert counted == {"Gym": 2, "Sauna": 1}
+
+
+def test_an_activity_called_off_is_not_counted(alpha, officer, employee):
+    """Somebody who changed their mind at the desk did not use the sauna."""
+    _, gym_service, sauna = make_contract(alpha, officer)
+    result = corp.check_in_employee(
+        by=alpha.assignment,
+        employee=employee,
+        service_ids=[gym_service.id, sauna.id],
+        phone_code_ok=True,
+    )
+    called_off = next(a for a in result.added if a.service_name == "Sauna")
+    corp.cancel_activity(by=alpha.assignment, activity=called_off, reason="changed their mind")
+
+    counted = dict(corp.today_by_company(alpha.gym)[0].services)
+
+    assert counted == {"Gym": 1}
+
+
+def test_another_gyms_day_is_not_counted_here(alpha, bravo, officer, employee):
+    _, gym_service, _ = make_contract(bravo, officer)
+    corp.check_in_employee(
+        by=bravo.assignment, employee=employee, service_ids=[gym_service.id], phone_code_ok=True
+    )
+
+    assert corp.today_by_company(alpha.gym) == []
+    assert len(corp.today_by_company(bravo.gym)) == 1
+
+
+# --- Starting a contract with a company that is not here yet ------------------
+
+
+def test_a_gym_can_put_a_company_on_the_platform_to_write_its_contract(alpha):
+    """
+    A gym signs a paper contract with WASAC. WASAC has no code, because WASAC
+    has never heard of the platform. The gym must still be able to type the
+    contract in.
+    """
+    made = corp.register_company_for_contract(
+        by=alpha.assignment,
+        name="WASAC",
+        tin="100000123",
+        officer_name="Diane Mukamana",
+        officer_phone="0788900077",
+    )
+
+    assert made.company.name == "WASAC"
+    assert made.company.code
+    # Somebody at the company has to approve the contract and add their staff,
+    # so they get a way in.
+    assert made.officer.person.full_name == "Diane Mukamana"
+    assert made.temporary_password
+
+
+def test_the_company_added_this_way_can_approve_the_contract(alpha):
+    made = corp.register_company_for_contract(
+        by=alpha.assignment,
+        name="WASAC",
+        tin="100000123",
+        officer_name="Diane Mukamana",
+        officer_phone="0788900077",
+    )
+    gym_service, sauna = add_services(alpha)
+    branch = Branch.objects.for_gym(alpha.gym).first()
+    today = timezone.localdate()
+    contract = corp.propose_contract(
+        by=alpha.assignment,
+        company_code=made.company.code,
+        terms=ContractTerms(
+            start_date=today,
+            end_date=today + timedelta(days=365),
+            payment_days=30,
+            prices={(gym_service.id, branch.id): 2500},
+        ),
+    )
+
+    corp.decide_contract(by=made.officer, contract=contract, approve=True)
+
+    contract.refresh_from_db()
+    assert contract.status == "approved"
+
+
+def test_a_receptionist_cannot_put_a_company_on_the_platform(alpha, add_staff):
+    desk = add_staff(alpha.gym, "0788000055", Role.RECEPTIONIST)
+
+    with pytest.raises(PermissionDenied):
+        corp.register_company_for_contract(
+            by=desk.assignment,
+            name="WASAC",
+            tin="100000123",
+            officer_name="Diane Mukamana",
+            officer_phone="0788900077",
+        )
+
+
+def test_a_company_with_no_name_is_refused(alpha):
+    with pytest.raises(InvalidDetails) as raised:
+        corp.register_company_for_contract(
+            by=alpha.assignment,
+            name="  ",
+            tin="100000123",
+            officer_name="Diane Mukamana",
+            officer_phone="0788900077",
+        )
+
+    assert raised.value.field == "name"
+
+
+def test_the_paper_contract_number_is_kept(alpha, officer):
+    gym_service, sauna = add_services(alpha)
+    branch = Branch.objects.for_gym(alpha.gym).first()
+    today = timezone.localdate()
+
+    contract = corp.propose_contract(
+        by=alpha.assignment,
+        company_code=officer.company.code,
+        terms=ContractTerms(
+            start_date=today,
+            end_date=today + timedelta(days=365),
+            payment_days=30,
+            prices={(gym_service.id, branch.id): 2500},
+        ),
+        contract_number="BK/GYM/2026/014",
+    )
+
+    assert contract.contract_number == "BK/GYM/2026/014"
+
+
+def test_a_contract_without_a_paper_number_is_still_fine(alpha, officer):
+    contract, _gym_service, _sauna = make_contract(alpha, officer)
+
+    assert contract.contract_number == ""

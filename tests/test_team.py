@@ -362,3 +362,63 @@ def test_branch_rules_in_the_services(alpha, add_staff, make_gym):
 
 def test_person_helper_still_finds_people(alpha):
     assert people.find_person_by_phone("0788000001") == alpha.person
+
+
+# --- Finding somebody on a long staff list ------------------------------------
+
+
+def test_the_staff_list_can_be_cut_to_one_branch(alpha, add_staff):
+    """
+    Somebody with no branch of their own works at every branch, so they show
+    whichever branch is asked for.
+    """
+    north = Branch.objects.for_gym(alpha.gym).first()
+    south = gyms.add_branch(gym=alpha.gym, name="Kicukiro")
+    add_staff(alpha.gym, "0788000021", Role.RECEPTIONIST, "North Desk", branch=north)
+    add_staff(alpha.gym, "0788000022", Role.RECEPTIONIST, "South Desk", branch=south)
+    add_staff(alpha.gym, "0788000023", Role.TRAINER, "Roaming Trainer")
+
+    names = [row.assignment.person.full_name for row in services.staff_of(alpha.gym, branch=north)]
+
+    assert "North Desk" in names
+    assert "Roaming Trainer" in names
+    assert "South Desk" not in names
+
+
+def test_the_staff_list_can_be_cut_to_one_role(alpha, add_staff):
+    add_staff(alpha.gym, "0788000024", Role.RECEPTIONIST, "Gisele Mugwaneza")
+    add_staff(alpha.gym, "0788000025", Role.TRAINER, "Kevin Bizimana")
+
+    names = [
+        row.assignment.person.full_name for row in services.staff_of(alpha.gym, role=Role.TRAINER)
+    ]
+
+    assert names == ["Kevin Bizimana"]
+
+
+def test_branch_and_role_narrow_together(alpha, add_staff):
+    north = Branch.objects.for_gym(alpha.gym).first()
+    south = gyms.add_branch(gym=alpha.gym, name="Kicukiro")
+    add_staff(alpha.gym, "0788000026", Role.RECEPTIONIST, "North Desk", branch=north)
+    add_staff(alpha.gym, "0788000027", Role.TRAINER, "North Trainer", branch=north)
+    add_staff(alpha.gym, "0788000028", Role.TRAINER, "South Trainer", branch=south)
+
+    rows = services.staff_of(alpha.gym, branch=north, role=Role.TRAINER)
+
+    assert [row.assignment.person.full_name for row in rows] == ["North Trainer"]
+
+
+def test_no_filter_still_shows_everybody(alpha, add_staff):
+    add_staff(alpha.gym, "0788000029", Role.RECEPTIONIST, "Gisele Mugwaneza")
+
+    assert len(services.staff_of(alpha.gym)) == 2  # the owner and the receptionist
+
+
+def test_the_filters_work_from_the_page(alpha, add_staff, sign_in):
+    add_staff(alpha.gym, "0788000030", Role.TRAINER, "Kevin Bizimana")
+    add_staff(alpha.gym, "0788000031", Role.RECEPTIONIST, "Gisele Mugwaneza")
+
+    page = sign_in(alpha).get(reverse("team:staff_list"), {"role": Role.TRAINER}).content.decode()
+
+    assert "Kevin Bizimana" in page
+    assert "Gisele Mugwaneza" not in page

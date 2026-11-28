@@ -2,5 +2,8 @@
 <div class="tabs" role="group" aria-label="{% translate 'Sessions' %}">
   <a href="{% url 'classes:timetable' %}" {% if tab == 'group' %}class="is-current" aria-current="true"{% endif %}>{% translate "Group sessions" %}</a>
   <a href="{% url 'classes:trainers' %}" {% if tab == 'personal' %}class="is-current" aria-current="true"{% endif %}>{% translate "Personal training" %}</a>
-  <a href="{% url 'massage:diary' %}" {% if tab == 'massage' %}class="is-current" aria-current="true"{% endif %}>{% translate "Massage" %}</a>
+  {# A trainer who only takes classes has no business in the massage diary. #}
+  {% if not role_is_trainer or gives_massages %}
+    <a href="{% url 'massage:diary' %}" {% if tab == 'massage' %}class="is-current" aria-current="true"{% endif %}>{% translate "Massage" %}</a>
+  {% endif %}
 </div>

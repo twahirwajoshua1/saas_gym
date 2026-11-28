@@ -30,3 +30,32 @@ class ModuleActivation(GymOwnedModel):
     def __str__(self):
         state = "on" if self.is_active else "off"
         return f"{self.gym.name}: {self.module} ({state})"
+
+
+class ModuleRequest(GymOwnedModel):
+    """
+    A gym asking for an application it does not have.
+
+    The applications page used to end at "contact the platform team", which is
+    a wall: the owner reads that a thing exists, wants it, and has nowhere to
+    press. This row is the press. The platform side reads them and sees who
+    wants what, instead of waiting for a phone call.
+
+    One standing ask per gym per application. Asking twice changes nothing,
+    and the gym can take the ask back.
+    """
+
+    module = models.CharField(max_length=40)
+    asked_by = models.ForeignKey(
+        "people.Person", on_delete=models.PROTECT, related_name="+", null=True
+    )
+    asked_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-asked_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["gym", "module"], name="one_request_per_module_per_gym")
+        ]
+
+    def __str__(self):
+        return f"{self.gym.name} wants {self.module}"

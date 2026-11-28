@@ -16,6 +16,12 @@ urlpatterns = [
     path("join-link/", views.join_link, name="join_link"),
     path("packages/", views.package_list, name="package_list"),
     path("packages/add/", views.package_create, name="package_create"),
+    path("packages/prices/", views.price_grid_save, name="price_grid_save"),
+    path(
+        "packages/tickets/<uuid:public_id>/add/",
+        views.ticket_bundle_add,
+        name="ticket_bundle_add",
+    ),
     path("packages/<uuid:public_id>/edit/", views.package_edit, name="package_edit"),
     path("packages/<uuid:public_id>/active/", views.package_set_active, name="package_set_active"),
     path("services/add/", views.service_create, name="service_create"),

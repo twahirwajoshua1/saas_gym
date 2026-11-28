@@ -288,3 +288,89 @@ def test_find_gym_by_id_and_when_names_clash(gym_a, owner_b):
     gym_services.create_gym(name="Alpha Fitness", owner=owner_b)
     with pytest.raises(gym_services.AmbiguousGym):
         gym_services.find_gym("Alpha Fitness")
+
+
+@pytest.fixture
+def alpha(make_gym):
+    return make_gym("Alpha Fitness", "0788000011", "Aline Uwase")
+
+
+@pytest.fixture
+def bravo(make_gym):
+    return make_gym("Bravo Fitness", "0788000012", "Bosco Kamanzi")
+
+
+# --- Asking for an application the gym does not have --------------------------
+
+
+def test_an_owner_can_ask_for_an_application(alpha):
+    """
+    The page used to end at "contact the platform team", which is a wall. The
+    ask is the press, and it puts the gym on a list somebody can act on.
+    """
+    asked = services.ask_for_module(by=alpha.assignment, code=catalog.CORPORATE_WELLNESS)
+
+    assert asked.module == catalog.CORPORATE_WELLNESS
+    assert asked.asked_by == alpha.person
+    assert services.requested_modules(alpha.gym).keys() == {catalog.CORPORATE_WELLNESS}
+
+
+def test_asking_switches_nothing_on(alpha):
+    """Only the platform side switches an application on. Asking is asking."""
+    services.ask_for_module(by=alpha.assignment, code=catalog.CORPORATE_WELLNESS)
+
+    assert not services.is_enabled(alpha.gym, catalog.CORPORATE_WELLNESS)
+
+
+def test_asking_twice_is_one_ask(alpha):
+    first = services.ask_for_module(by=alpha.assignment, code=catalog.CORPORATE_WELLNESS)
+    again = services.ask_for_module(by=alpha.assignment, code=catalog.CORPORATE_WELLNESS)
+
+    assert again.pk == first.pk
+    assert len(services.requested_modules(alpha.gym)) == 1
+
+
+def test_an_ask_can_be_taken_back(alpha):
+    services.ask_for_module(by=alpha.assignment, code=catalog.CORPORATE_WELLNESS)
+
+    services.withdraw_request(by=alpha.assignment, code=catalog.CORPORATE_WELLNESS)
+
+    assert services.requested_modules(alpha.gym) == {}
+
+
+def test_you_cannot_ask_for_what_you_already_have(alpha):
+    for code in (catalog.PAYMENTS_FINANCE, catalog.ATTENDANCE_ACCESS, catalog.CORPORATE_WELLNESS):
+        services.enable_module(gym=alpha.gym, code=code)
+
+    with pytest.raises(services.CannotAsk):
+        services.ask_for_module(by=alpha.assignment, code=catalog.CORPORATE_WELLNESS)
+
+
+def test_you_cannot_ask_for_what_every_gym_already_has(alpha):
+    with pytest.raises(services.CannotAsk):
+        services.ask_for_module(by=alpha.assignment, code=catalog.GYM_OPERATIONS)
+
+
+def test_a_receptionist_cannot_ask(alpha, add_staff):
+    desk = add_staff(alpha.gym, "0788000044", Role.RECEPTIONIST)
+
+    with pytest.raises(PermissionDenied):
+        services.ask_for_module(by=desk.assignment, code=catalog.CORPORATE_WELLNESS)
+
+
+def test_one_gyms_ask_is_not_another_gyms(alpha, bravo):
+    services.ask_for_module(by=alpha.assignment, code=catalog.CORPORATE_WELLNESS)
+
+    assert services.requested_modules(bravo.gym) == {}
+
+
+def test_the_button_is_on_the_page_and_works(alpha, sign_in):
+    client = sign_in(alpha)
+
+    page = client.get(reverse("modules:list")).content.decode()
+    assert "Ask for this" in page
+
+    client.post(reverse("modules:ask", args=[catalog.CORPORATE_WELLNESS]))
+
+    assert catalog.CORPORATE_WELLNESS in services.requested_modules(alpha.gym)
+    assert "Asked" in client.get(reverse("modules:list")).content.decode()

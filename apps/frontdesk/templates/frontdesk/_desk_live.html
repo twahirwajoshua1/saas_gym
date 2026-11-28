@@ -83,6 +83,8 @@
         </section>
       {% endif %}
 
+      {# Who came in and who to chase is the desk's work, not a trainer's. #}
+      {% if not role_is_trainer %}
       <section class="card stack">
         <div class="card-head"><div><h2>{% translate "Checked in today" %}</h2><p class="sub">{% translate "Members and company staff together, newest first. Everybody picks what they are doing when they check in." %}</p></div></div>
         {% if arrivals %}
@@ -95,8 +97,9 @@
           <p class="muted">{% translate "Nobody yet today." %}</p>
         {% endif %}
       </section>
+      {% endif %}
     </div>
-{% if reminders %}
+{% if reminders and not role_is_trainer %}
   <section class="card stack">
     <div class="card-head">
       <div><h2>{% translate "Reach out today" %}</h2>

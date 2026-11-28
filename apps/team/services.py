@@ -18,6 +18,7 @@ from dataclasses import dataclass
 
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
+from django.db.models import Q
 
 from apps.accounts import services as accounts
 from apps.accounts.models import User
@@ -50,13 +51,21 @@ class AddedStaff:
     reactivated: bool = False
 
 
-def staff_of(gym: Gym) -> list[StaffRow]:
-    """Everyone who works or worked at the gym, active first, then by name."""
-    assignments = list(
-        StaffAssignment.objects.for_gym(gym)
-        .select_related("person", "branch")
-        .order_by("-is_active", "person__full_name")
-    )
+def staff_of(gym: Gym, *, branch: Branch | None = None, role: str = "") -> list[StaffRow]:
+    """
+    Everyone who works or worked at the gym, active first, then by name.
+
+    A manager with four branches and thirty staff needs to narrow it down, so
+    the list can be cut to one branch or one role. Staff who work at every
+    branch (no branch of their own) show whichever branch is asked for: they
+    are at that branch too.
+    """
+    assignments = StaffAssignment.objects.for_gym(gym).select_related("person", "branch")
+    if branch is not None:
+        assignments = assignments.filter(Q(branch=branch) | Q(branch__isnull=True))
+    if role:
+        assignments = assignments.filter(role=role)
+    assignments = list(assignments.order_by("-is_active", "person__full_name"))
     users = {
         u.person_id: u
         for u in User.objects.filter(person_id__in=[a.person_id for a in assignments])

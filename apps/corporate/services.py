@@ -550,7 +550,36 @@ def _save_prices(contract: Contract, prices: dict) -> None:
 
 
 @transaction.atomic
-def propose_contract(*, by: StaffAssignment, company_code: str, terms: ContractTerms) -> Contract:
+def register_company_for_contract(
+    *, by: StaffAssignment, name: str, tin: str, officer_name: str, officer_phone: str
+) -> NewCompany:
+    """
+    Put a company on the platform because a gym has signed a contract with it.
+    Managers only.
+
+    Until now a gym could only write a contract with a company already here,
+    using a code from that company's own officer. That is backwards the day a
+    gym signs a paper contract with WASAC: the gym has the contract in its
+    hand and cannot type it in.
+
+    The gym still gives the officer's name and phone, because somebody at the
+    company has to approve the contract and add their staff. They get a
+    temporary password, which the gym hands over.
+    """
+    require_role(by, MANAGER_ROLES)
+    _require_module(by.gym)
+    return create_company(
+        name=name,
+        tin=tin,
+        officer_name=officer_name,
+        officer_phone=officer_phone,
+        actor=by.person,
+    )
+
+
+def propose_contract(
+    *, by: StaffAssignment, company_code: str, terms: ContractTerms, contract_number: str = ""
+) -> Contract:
     """The gym proposes a contract to a company. It starts once the company approves it."""
     require_role(by, MANAGER_ROLES)
     _require_module(by.gym)
@@ -561,6 +590,7 @@ def propose_contract(*, by: StaffAssignment, company_code: str, terms: ContractT
     contract = Contract.objects.create(
         gym=by.gym,
         company_id=found[0],
+        contract_number=_clean(contract_number),
         start_date=terms.start_date,
         end_date=terms.end_date,
         payment_days=terms.payment_days,
@@ -1860,3 +1890,54 @@ def search_employees(gym: Gym, query: str = "", company=None):
     if digits:
         matches |= Q(person__phone__contains=digits)
     return people.filter(matches)
+
+
+# --- Today, by company --------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CompanyToday:
+    """
+    One company's day at the gym, counted.
+
+    A gym that has five companies does not want fifty names on its home page.
+    It wants to know that WASAC sent four people and what they came for, which
+    is what it will talk to WASAC about.
+    """
+
+    company: Company
+    people: int
+    services: list[tuple[str, int]]
+
+    @property
+    def name(self) -> str:
+        return self.company.name
+
+
+def today_by_company(gym: Gym, day: date | None = None) -> list[CompanyToday]:
+    """
+    Today's company visits, one line per company, busiest first.
+
+    Cancelled activities are left out: somebody who changed their mind at the
+    desk did not use the sauna, and the company is not billed for it.
+    """
+    day = day or timezone.localdate()
+    visits = visits_for_gym(gym, day, day)
+    by_company: dict[int, list] = {}
+    for visit in visits:
+        by_company.setdefault(visit.company_id, []).append(visit)
+    rows = []
+    for group in by_company.values():
+        counted: dict[str, int] = {}
+        for visit in group:
+            for activity in visit.activities.all():
+                if activity.cancelled_at is None:
+                    counted[activity.service_name] = counted.get(activity.service_name, 0) + 1
+        rows.append(
+            CompanyToday(
+                company=group[0].company,
+                people=len(group),
+                services=sorted(counted.items(), key=lambda pair: (-pair[1], pair[0])),
+            )
+        )
+    return sorted(rows, key=lambda row: (-row.people, row.name))

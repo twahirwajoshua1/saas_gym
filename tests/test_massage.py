@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 import pytest
 import time_machine
 from django.core.exceptions import PermissionDenied
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.classes import services as classes
@@ -19,7 +20,7 @@ from apps.corporate import services as corp
 from apps.corporate.services import ContractTerms, EmployeeDetails
 from apps.gyms.models import Branch, Role
 from apps.massage import services
-from apps.massage.models import BookingStatus
+from apps.massage.models import BookingStatus, MassageBooking
 from apps.members import services as member_services
 from apps.members.models import Service
 from apps.members.services import InvalidDetails, MemberDetails
@@ -557,3 +558,187 @@ def test_the_masseuse_sees_her_own_day_and_nobody_elses(
     page = client.get("/gym/my-day/").content.decode()
 
     assert "My day" in page and "Grace Kamanzi" in page
+
+
+# --- The masseuse's own home --------------------------------------------------
+
+
+def done_massage(gym, branch, masseuse, deep_tissue, person_member, *, days_ago):
+    """A massage that actually happened, however long ago."""
+    held = timezone.localdate() - timedelta(days=days_ago)
+    return MassageBooking.objects.create(
+        gym=gym.gym,
+        branch=branch,
+        masseuse=masseuse,
+        person=person_member.person,
+        member=person_member,
+        massage_type=deep_tissue,
+        type_name=deep_tissue.name,
+        minutes=deep_tissue.minutes,
+        price_rwf=deep_tissue.price_rwf,
+        held_on=held,
+        starts_at=time(10, 0),
+        status=BookingStatus.DONE,
+    )
+
+
+def a_member(gym, name, phone):
+    return member_services.register_member(
+        by=gym.assignment, phone=phone, details=MemberDetails(full_name=name)
+    )
+
+
+def test_a_client_who_stopped_coming_is_shown_to_her_masseuse(gym, branch, claudine, deep_tissue):
+    grace = a_member(gym, "Grace Kamanzi", "0788111222")
+    done_massage(gym, branch, claudine, deep_tissue, grace, days_ago=70)
+
+    lapsed = services.lapsed_clients(claudine)
+
+    assert [client.full_name for client in lapsed] == ["Grace Kamanzi"]
+    assert lapsed[0].weeks_away == 10
+
+
+def test_a_client_seen_last_week_is_not_chased(gym, branch, claudine, deep_tissue):
+    grace = a_member(gym, "Grace Kamanzi", "0788111222")
+    done_massage(gym, branch, claudine, deep_tissue, grace, days_ago=7)
+
+    assert services.lapsed_clients(claudine) == []
+
+
+def test_a_client_with_a_massage_already_booked_is_left_alone(gym, branch, claudine, deep_tissue):
+    """She is about to see them. Chasing them would be embarrassing."""
+    grace = a_member(gym, "Grace Kamanzi", "0788111222")
+    done_massage(gym, branch, claudine, deep_tissue, grace, days_ago=70)
+    services.book(
+        by=gym.assignment,
+        massage_type=deep_tissue,
+        masseuse=claudine,
+        branch=branch,
+        day=tomorrow(),
+        at=time(10, 0),
+        person=grace.person,
+        member=grace,
+    )
+
+    assert services.lapsed_clients(claudine) == []
+
+
+def test_somebody_who_only_ever_called_off_was_never_her_client(gym, branch, claudine, deep_tissue):
+    grace = a_member(gym, "Grace Kamanzi", "0788111222")
+    booking = services.book(
+        by=gym.assignment,
+        massage_type=deep_tissue,
+        masseuse=claudine,
+        branch=branch,
+        day=tomorrow(),
+        at=time(10, 0),
+        person=grace.person,
+        member=grace,
+    )
+    services.cancel(by=gym.assignment, booking=booking, reason="ill")
+
+    assert services.lapsed_clients(claudine) == []
+
+
+def test_she_is_shown_her_own_clients_and_not_another_masseuses(
+    gym, branch, claudine, deep_tissue, add_staff
+):
+    other = add_staff(gym.gym, "0788000099", Role.TRAINER, "Alice Mugisha")
+    alice = classes.save_trainer(by=gym.assignment, staff=other.assignment, gives_massages=True)
+    grace = a_member(gym, "Grace Kamanzi", "0788111222")
+    done_massage(gym, branch, alice, deep_tissue, grace, days_ago=70)
+
+    assert services.lapsed_clients(claudine) == []
+    assert [client.full_name for client in services.lapsed_clients(alice)] == ["Grace Kamanzi"]
+
+
+def test_the_list_stays_short_enough_to_act_on(gym, branch, claudine, deep_tissue):
+    for number in range(14):
+        person = a_member(gym, f"Client {number}", f"078820{number:04d}")
+        done_massage(gym, branch, claudine, deep_tissue, person, days_ago=70 + number)
+
+    lapsed = services.lapsed_clients(claudine)
+
+    assert len(lapsed) == services.LAPSED_MOST
+    # Longest away first, so the ones most likely to be lost come up.
+    assert lapsed[0].weeks_away >= lapsed[-1].weeks_away
+
+
+def test_the_message_is_written_for_her_to_send_herself(gym, branch, claudine, deep_tissue):
+    grace = a_member(gym, "Grace Kamanzi", "0788111222")
+    done_massage(gym, branch, claudine, deep_tissue, grace, days_ago=70)
+    client = services.lapsed_clients(claudine)[0]
+
+    text = services.come_back_message(gym.gym, client)
+
+    assert "Grace" in text
+    assert gym.gym.name in text
+
+
+# --- Who may see massage at all -----------------------------------------------
+
+
+def test_a_trainer_who_only_takes_classes_is_kept_out_of_the_diary(gym, add_staff, sign_in, branch):
+    staff = add_staff(gym.gym, "0788000077", Role.TRAINER, "Kevin Bizimana")
+    classes.save_trainer(by=gym.assignment, staff=staff.assignment, gives_massages=False)
+
+    response = sign_in(staff).get(reverse("massage:diary"))
+
+    assert response.status_code == 403
+
+
+def test_a_masseuse_reaches_her_own_day(gym, add_staff, sign_in, branch):
+    staff = add_staff(gym.gym, "0788000079", Role.TRAINER, "Olivier Uwase")
+    classes.save_trainer(by=gym.assignment, staff=staff.assignment, gives_massages=True)
+
+    response = sign_in(staff).get(reverse("massage:my_day"))
+
+    assert response.status_code == 200
+
+
+def test_a_class_only_trainer_is_sent_to_their_timetable_instead(gym, add_staff, sign_in):
+    staff = add_staff(gym.gym, "0788000078", Role.TRAINER, "Kevin Bizimana")
+    classes.save_trainer(by=gym.assignment, staff=staff.assignment, gives_massages=False)
+
+    response = sign_in(staff).get(reverse("massage:my_day"))
+
+    assert response.status_code == 302
+    assert response.url == reverse("classes:timetable")
+
+
+def test_a_trainer_lands_on_their_own_page_not_the_receptionists_desk(gym, add_staff, sign_in):
+    """
+    The desk page shows arrivals and follow-ups, which are the receptionist's
+    job and nobody else's.
+    """
+    staff = add_staff(gym.gym, "0788000080", Role.TRAINER, "Olivier Uwase")
+    classes.save_trainer(by=gym.assignment, staff=staff.assignment, gives_massages=True)
+
+    response = sign_in(staff).get(reverse("gyms:home"))
+
+    assert response.status_code == 302
+    assert response.url == reverse("massage:my_day")
+
+
+def test_a_masseuse_is_not_shown_the_desk_in_her_menu(gym, add_staff, sign_in, branch):
+    """
+    Who arrived and who to chase is the receptionist's work. Her menu should
+    offer her own day, not somebody else's job.
+    """
+    staff = add_staff(gym.gym, "0788000081", Role.TRAINER, "Olivier Uwase")
+    classes.save_trainer(by=gym.assignment, staff=staff.assignment, gives_massages=True)
+
+    page = sign_in(staff).get(reverse("massage:my_day")).content.decode()
+
+    assert reverse("frontdesk:desk") not in page
+    assert reverse("massage:my_day") in page
+
+
+def test_even_at_its_address_the_desk_shows_a_trainer_no_arrivals(gym, add_staff, sign_in, branch):
+    staff = add_staff(gym.gym, "0788000082", Role.TRAINER, "Olivier Uwase")
+    classes.save_trainer(by=gym.assignment, staff=staff.assignment, gives_massages=True)
+
+    page = sign_in(staff).get(reverse("frontdesk:desk")).content.decode()
+
+    assert "Checked in today" not in page
+    assert "Reach out today" not in page

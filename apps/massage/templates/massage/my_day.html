@@ -28,6 +28,35 @@
     </div>
   </div>
 
+  {% if lapsed %}
+    <section class="card stack">
+      <div class="card-head">
+        <div>
+          <h2>{% translate "Not seen in a while" %}</h2>
+          <p class="sub">{% blocktranslate with n=lapsed_weeks %}Your clients who have not been back for {{ n }} weeks or more, longest away first. Anyone already booked in is left out.{% endblocktranslate %}</p>
+        </div>
+      </div>
+      <ul class="item-list">
+        {% for client, whatsapp in lapsed %}
+          <li>
+            <div class="item-main">
+              <strong>{{ client.full_name }}</strong>
+              <span class="small muted">
+                {% blocktranslate with n=client.weeks_away %}{{ n }} weeks ago{% endblocktranslate %}
+                {% if client.type_name %} · {{ client.type_name }}{% endif %}
+                · {% blocktranslate count n=client.times %}{{ n }} massage with you{% plural %}{{ n }} massages with you{% endblocktranslate %}
+              </span>
+            </div>
+            <div class="item-actions">
+              <a class="btn btn-small" href="{{ whatsapp }}" target="_blank" rel="noopener">{% translate "Message" %}</a>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+      <p class="small muted">{% translate "The message opens on your own phone, already written. Change it before you send it." %}</p>
+    </section>
+  {% endif %}
+
   <section class="card stack">
     <div class="card-head">
       <div>

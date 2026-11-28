@@ -1457,3 +1457,200 @@ def spend_ticket_at_tablet(
         target=use,
     )
     return use
+
+
+# --- The price grid -----------------------------------------------------------
+
+# The lengths a gym sells a single service for. The order is the order the
+# columns appear in, shortest first, which is how an owner thinks about price.
+GRID_LENGTHS = (
+    ("day", 1, DurationUnit.DAY, "Day pass"),
+    ("month", 1, DurationUnit.MONTH, "Monthly"),
+    ("quarter", 3, DurationUnit.MONTH, "Quarterly"),
+    ("year", 1, DurationUnit.YEAR, "Annual"),
+)
+GRID_BY_KEY = {key: (count, unit, label) for key, count, unit, label in GRID_LENGTHS}
+
+
+@dataclass(frozen=True)
+class GridCell:
+    """One box in the grid: a service for a length, priced or not."""
+
+    key: str
+    label: str
+    package: Package | None
+
+    @property
+    def price_rwf(self) -> int | None:
+        return self.package.price_rwf if self.package else None
+
+    @property
+    def field_name(self) -> str:
+        return f"price-{self.service_id}-{self.key}"
+
+
+@dataclass(frozen=True)
+class GridRow:
+    """One service, across every length, plus whatever tickets it sells."""
+
+    service: Service
+    cells: list[GridCell]
+    bundles: list[Package]
+
+    @property
+    def name(self) -> str:
+        return self.service.name
+
+
+def _single_service_packages(gym: Gym) -> dict[tuple[int, str], Package]:
+    """
+    The packages that the grid owns: one service, for a length.
+
+    A package the grid made is recognised by its shape rather than by a flag,
+    because that shape is exactly what a grid box means. A package covering
+    two services, or a ticketbook, belongs to the builder below the grid and
+    is never touched from here.
+    """
+    found: dict[tuple[int, str], Package] = {}
+    packages = (
+        Package.objects.for_gym(gym)
+        .filter(kind=PackageKind.TIME, is_active=True)
+        .prefetch_related("included_services")
+        .order_by("id")
+    )
+    for package in packages:
+        services = list(package.included_services.all())
+        if len(services) != 1:
+            continue
+        for key, count, unit, _label in GRID_LENGTHS:
+            if package.duration_count == count and package.duration_unit == unit:
+                found.setdefault((services[0].pk, key), package)
+                break
+    return found
+
+
+def price_grid(gym: Gym) -> list[GridRow]:
+    """Every service the gym sells, with the prices set against it."""
+    owned = _single_service_packages(gym)
+    bundles = _ticket_bundles(gym)
+    rows = []
+    for service in Service.objects.for_gym(gym).filter(is_active=True).order_by("name"):
+        cells = [
+            GridCell(key=key, label=label, package=owned.get((service.pk, key)))
+            for key, _count, _unit, label in GRID_LENGTHS
+        ]
+        for cell in cells:
+            object.__setattr__(cell, "service_id", service.pk)
+        rows.append(GridRow(service=service, cells=cells, bundles=bundles.get(service.pk, [])))
+    return rows
+
+
+def _ticket_bundles(gym: Gym) -> dict[int, list[Package]]:
+    """
+    Ticketbooks for a single service, by service.
+
+    Tickets are not a grid box. A gym sells 5, 10 or 20 at different prices,
+    and the bigger bundle is usually cheaper per visit, so each size is its
+    own thing with its own price.
+    """
+    found: dict[int, list[Package]] = {}
+    packages = (
+        Package.objects.for_gym(gym)
+        .filter(kind=PackageKind.COUNT, is_active=True)
+        .prefetch_related("included_services")
+        .order_by("visit_count")
+    )
+    for package in packages:
+        services = list(package.included_services.all())
+        if len(services) == 1:
+            found.setdefault(services[0].pk, []).append(package)
+    return found
+
+
+def _grid_name(service: Service, key: str) -> str:
+    _count, _unit, label = GRID_BY_KEY[key]
+    return f"{service.name}, {label.lower()}"
+
+
+@transaction.atomic
+def save_price_grid(*, by: StaffAssignment, prices: dict[tuple[int, str], int | None]) -> int:
+    """
+    Write the grid back. Owner only.
+
+    A box with a price in it becomes a package the gym sells. A box emptied
+    stops that package being sold — it is archived, never deleted, because
+    everyone who already bought it keeps what they bought.
+
+    Returns how many packages changed, so the owner is told something true.
+    """
+    require_role(by, OWNER_ONLY)
+    owned = _single_service_packages(by.gym)
+    services = {
+        service.pk: service for service in Service.objects.for_gym(by.gym).filter(is_active=True)
+    }
+    changed = 0
+    for (service_id, key), price in prices.items():
+        service = services.get(service_id)
+        if service is None or key not in GRID_BY_KEY:
+            continue
+        count, unit, _label = GRID_BY_KEY[key]
+        package = owned.get((service_id, key))
+        if price is None:
+            if package is not None:
+                set_package_active(by=by, package=package, active=False)
+                changed += 1
+            continue
+        if package is None:
+            create_package(
+                by=by,
+                name=_unused_name(by.gym, _grid_name(service, key)),
+                price_rwf=price,
+                services=[service],
+                kind=PackageKind.TIME,
+                duration_count=count,
+                duration_unit=unit,
+            )
+            changed += 1
+        elif package.price_rwf != price:
+            update_package(
+                by=by,
+                package=package,
+                name=package.name,
+                price_rwf=price,
+                services=[service],
+                kind=PackageKind.TIME,
+                duration_count=count,
+                duration_unit=unit,
+            )
+            changed += 1
+    return changed
+
+
+def _unused_name(gym: Gym, wanted: str) -> str:
+    """Package names are unique per gym, and the owner did not choose this one."""
+    name = wanted
+    number = 2
+    while Package.objects.for_gym(gym).filter(name__iexact=name).exists():
+        name = f"{wanted} ({number})"
+        number += 1
+    return name
+
+
+def add_ticket_bundle(
+    *, by: StaffAssignment, service: Service, visits: int, price_rwf: int
+) -> Package:
+    """
+    Sell a fixed number of visits to one service at one price. Owner only.
+
+    Five tickets and twenty tickets are two different things to sell, because
+    the twenty is usually cheaper per visit. So each is its own package.
+    """
+    require_role(by, OWNER_ONLY)
+    return create_package(
+        by=by,
+        name=_unused_name(by.gym, f"{visits} {service.name.lower()} tickets"),
+        price_rwf=price_rwf,
+        services=[service],
+        kind=PackageKind.COUNT,
+        visit_count=visits,
+    )

@@ -9,6 +9,31 @@
     </div>
     <div class="actions"><a class="btn btn-primary" href="{% url 'team:staff_add' %}">{% translate "Add staff" %}</a></div>
   </div>
+  {# Thirty staff over four branches is a list nobody reads. #}
+  <form method="get" class="card stack" style="margin-bottom:12px">
+    <div class="form-row">
+      <div class="field">
+        <label for="branch">{% translate "Branch" %}</label>
+        <select id="branch" name="branch" onchange="this.form.submit()">
+          <option value="">{% translate "Every branch" %}</option>
+          {% for b in branches %}<option value="{{ b.public_id }}" {% if b == branch %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="role">{% translate "Role" %}</label>
+        <select id="role" name="role" onchange="this.form.submit()">
+          <option value="">{% translate "Every role" %}</option>
+          {% for value, label in roles %}<option value="{{ value }}" {% if value == role %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <noscript><button type="submit" class="btn">{% translate "Filter" %}</button></noscript>
+        {% if filtered %}<a class="btn" href="{% url 'team:staff_list' %}">{% translate "Clear" %}</a>{% endif %}
+      </div>
+    </div>
+  </form>
+
   <div class="card">
     <ul class="item-list">
       {% for row in rows %}
@@ -38,6 +63,8 @@
             </div>
           </li>
         {% endwith %}
+      {% empty %}
+        <li><p class="muted">{% translate "Nobody matches that. Clear the filter to see everyone." %}</p></li>
       {% endfor %}
     </ul>
   </div>

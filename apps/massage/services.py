@@ -18,6 +18,7 @@ from datetime import date, datetime, time, timedelta
 
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
+from django.db.models import Count, Max
 from django.utils import timezone
 
 from apps.audit import services as audit
@@ -619,3 +620,89 @@ def count_for(gym: Gym, masseuse: TrainerProfile, *, since: date) -> int:
 
 def service_of(massage_type: MassageType) -> Service:
     return massage_type.service
+
+
+# --- Clients who have stopped coming ------------------------------------------
+
+# How long a gap has to be before the masseuse is shown a name. Six weeks: long
+# enough that a regular has clearly stopped, short enough to win them back.
+LAPSED_WEEKS = 6
+
+# A short list is a list somebody acts on. A long one is a list nobody reads.
+LAPSED_MOST = 10
+
+
+@dataclass(frozen=True)
+class LapsedClient:
+    """Somebody this masseuse used to see, who has not been back."""
+
+    person: Person
+    last_seen: date
+    type_name: str
+    times: int
+
+    @property
+    def full_name(self) -> str:
+        return self.person.full_name
+
+    @property
+    def phone(self) -> str:
+        return self.person.phone
+
+    @property
+    def weeks_away(self) -> int:
+        return (timezone.localdate() - self.last_seen).days // 7
+
+
+def lapsed_clients(masseuse: TrainerProfile, *, weeks: int = LAPSED_WEEKS) -> list[LapsedClient]:
+    """
+    People this masseuse has massaged who have not been back for a while,
+    longest away first.
+
+    Only her own clients, and only massages that actually happened: somebody
+    who booked once and called off was never her client. A client who has a
+    massage booked already is left out, because she is about to see them.
+    """
+    today = timezone.localdate()
+    cutoff = today - timedelta(weeks=weeks)
+    been = (
+        MassageBooking.objects.for_gym(masseuse.gym)
+        .filter(masseuse=masseuse, status=BookingStatus.DONE, held_on__lte=today)
+        .values("person")
+        .annotate(last_seen=Max("held_on"), times=Count("id"))
+        .filter(last_seen__lte=cutoff)
+        .order_by("last_seen")
+    )
+    coming = set(
+        MassageBooking.objects.for_gym(masseuse.gym)
+        .filter(masseuse=masseuse, held_on__gt=today)
+        .exclude(status__in=(BookingStatus.DECLINED, BookingStatus.CANCELLED))
+        .values_list("person_id", flat=True)
+    )
+    rows = [row for row in been if row["person"] not in coming][:LAPSED_MOST]
+    people = Person.objects.in_bulk([row["person"] for row in rows])
+    last_type = {
+        booking.person_id: booking.type_name
+        for booking in MassageBooking.objects.for_gym(masseuse.gym)
+        .filter(masseuse=masseuse, person_id__in=people, status=BookingStatus.DONE)
+        .order_by("held_on")
+    }
+    return [
+        LapsedClient(
+            person=people[row["person"]],
+            last_seen=row["last_seen"],
+            type_name=last_type.get(row["person"], ""),
+            times=row["times"],
+        )
+        for row in rows
+        if row["person"] in people
+    ]
+
+
+def come_back_message(gym: Gym, client: LapsedClient) -> str:
+    """What the masseuse sends. She sends it herself, from her own phone."""
+    return (
+        f"Hello {client.full_name.split()[0]}, it's {gym.name}. "
+        f"It has been a while since your last {client.type_name or 'massage'}. "
+        "Would you like me to book you a time this week?"
+    )

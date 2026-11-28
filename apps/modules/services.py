@@ -4,9 +4,10 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.audit import services as audit
-from apps.gyms.models import Gym
+from apps.gyms.models import Gym, StaffAssignment
+from apps.gyms.permissions import MANAGER_ROLES, require_role
 from apps.modules.catalog import BY_CODE, CATALOG, AppModule
-from apps.modules.models import ModuleActivation
+from apps.modules.models import ModuleActivation, ModuleRequest
 from apps.people.models import Person
 
 
@@ -34,6 +35,10 @@ class HasActiveDependents(ModuleError):
         self.module, self.dependents = module, dependents
         names = ", ".join(m.name for m in dependents)
         super().__init__(f"{module.name} cannot be switched off while {names} is on.")
+
+
+class CannotAsk(ModuleError):
+    """Asked for something that cannot be asked for."""
 
 
 class CannotDisable(ModuleError):
@@ -145,3 +150,41 @@ def disable_module(*, gym: Gym, code: str, actor: Person | None = None) -> bool:
         details={"module": code},
     )
     return True
+
+
+def requested_modules(gym: Gym) -> dict[str, ModuleRequest]:
+    """Which applications this gym has asked for, by code."""
+    return {row.module: row for row in ModuleRequest.objects.for_gym(gym)}
+
+
+def ask_for_module(*, by: StaffAssignment, code: str) -> ModuleRequest:
+    """
+    Record that this gym wants an application. Managers only.
+
+    Asking does not switch anything on: only the platform side does that. It
+    puts the gym on a list somebody can act on.
+    """
+    require_role(by, MANAGER_ROLES)
+    module = get_module(code)
+    if module.always_on:
+        raise CannotAsk("Every gym already has that one.")
+    if is_enabled(by.gym, code):
+        raise CannotAsk("This gym already has that application.")
+    asked, created = ModuleRequest.objects.get_or_create(
+        gym=by.gym, module=code, defaults={"asked_by": by.person}
+    )
+    if created:
+        audit.record(
+            action="module.requested",
+            summary=f"{by.gym.name} asked for {module.name}",
+            gym=by.gym,
+            actor=by.person,
+            target=asked,
+        )
+    return asked
+
+
+def withdraw_request(*, by: StaffAssignment, code: str) -> None:
+    """Take back an ask. Managers only."""
+    require_role(by, MANAGER_ROLES)
+    ModuleRequest.objects.for_gym(by.gym).filter(module=code).delete()
