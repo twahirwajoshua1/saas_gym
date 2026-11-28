@@ -60,10 +60,10 @@ def test_someone_who_left_can_be_added_again(alpha):
     first = add(alpha)
     gyms.remove_staff(assignment=first.assignment)
 
-    again = add(alpha, role=Role.SALES_REP)
+    again = add(alpha, role=Role.TRAINER)
 
     assert again.reactivated and again.assignment.pk == first.assignment.pk
-    assert again.assignment.role == Role.SALES_REP and again.assignment.is_active
+    assert again.assignment.role == Role.TRAINER and again.assignment.is_active
     assert StaffAssignment.objects.for_gym(alpha.gym).count() == 2  # owner + this one
 
 
@@ -290,12 +290,12 @@ def test_staff_screens_change_reset_and_remove(alpha, sign_in):
     client = sign_in(alpha)
     key = added.assignment.person.public_id
 
-    client.post(reverse("team:staff_edit", args=[key]), {"role": "sales_rep"})
+    client.post(reverse("team:staff_edit", args=[key]), {"role": "trainer"})
     reset = client.post(reverse("team:staff_reset_password", args=[key]))
     removed = client.post(reverse("team:staff_remove", args=[key]), follow=True)
 
     added.assignment.refresh_from_db()
-    assert added.assignment.role == Role.SALES_REP
+    assert added.assignment.role == Role.TRAINER
     assert "New temporary password for Claudine Mukamana" in reset.content.decode()
     assert "no longer has access" in removed.content.decode()
     assert not added.assignment.is_active

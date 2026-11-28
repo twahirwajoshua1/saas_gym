@@ -70,10 +70,18 @@ class Branch(GymOwnedModel):
 
 
 class Role(models.TextChoices):
+    """
+    What somebody does at the gym.
+
+    There was a sales representative here too. It was never finished: it had
+    no screens of its own, and signing in as one landed on a page the role was
+    then refused. Rather than leave a job nobody could do, it was taken out.
+    It comes back when there is sales work for it to do.
+    """
+
     OWNER = "owner", "Owner"
     BRANCH_MANAGER = "branch_manager", "Branch manager"
     RECEPTIONIST = "receptionist", "Receptionist"
-    SALES_REP = "sales_rep", "Sales representative"
     TRAINER = "trainer", "Trainer"
 
 

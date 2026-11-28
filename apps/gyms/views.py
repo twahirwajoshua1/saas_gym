@@ -9,6 +9,7 @@ from django.views.decorators.http import require_POST
 from apps.audit import services as audit_services
 from apps.gyms import services, tenancy
 from apps.gyms.models import Branch, Role
+from apps.gyms.permissions import MANAGER_ROLES
 
 
 @login_required
@@ -36,13 +37,23 @@ def choose(request):
 
 @tenancy.gym_required()
 def home(request):
-    # Everybody starts where their own work is. The desk's people start at the
-    # Desk; a trainer starts at their own day, never at the receptionist's
-    # page, which shows arrivals and follow-ups that are none of their job.
-    if request.assignment.role == Role.TRAINER:
+    """
+    Send everybody to their own work.
+
+    Every role is named here on purpose. Sending a role somewhere it is then
+    refused is how a sales representative came to be shown a 403 on the one
+    page sign-in led to, so an unknown role is told plainly rather than
+    bounced into a locked door.
+    """
+    role = request.assignment.role
+    if role == Role.TRAINER:
+        # Their own day, never the receptionist's page: that one shows
+        # arrivals and follow-ups which are none of a trainer's business.
         return redirect("massage:my_day")
-    if request.assignment.role not in (Role.OWNER, Role.BRANCH_MANAGER):
+    if role == Role.RECEPTIONIST:
         return redirect("frontdesk:desk")
+    if role not in MANAGER_ROLES:
+        return render(request, "gyms/no_role.html", status=403)
     return render(
         request,
         "gyms/home.html",

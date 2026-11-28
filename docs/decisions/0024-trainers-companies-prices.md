@@ -104,3 +104,27 @@ platform side can act on, instead of waiting for a phone to ring.
 - The masseuse's lapsed list counts weeks away; it does not measure whether
   the message worked. If gyms start using it, that is the next thing to
   measure.
+
+## Postscript: the sales representative role was removed
+
+A sales representative could sign in and then be refused. `/gym/` sent
+everyone who was not an owner, manager or trainer to the Desk, and the Desk is
+limited to the people who may admit members at the door — which never included
+sales. The comment in the code claimed otherwise. Nobody had signed in as one
+until a founder did.
+
+The role had no screens of its own and no work the other roles did not already
+cover, so rather than invent a landing page for a job that does not exist yet,
+the role was taken out: off the staff form, out of the front-desk group, out of
+the sample data, out of the tests. A migration ends any assignment still on it
+rather than quietly moving somebody to another job, because what somebody does
+at a gym is the owner's to say. It comes back when there is sales work for it.
+
+The deeper fault was the routing, so `/gym/` now names every role on purpose
+and an unrecognised one is told in words that it has no work here yet. A test
+signs in as every role in the list and fails if any of them lands somewhere it
+is refused. That test immediately found a second case: a trainer at a gym with
+Training and Classes switched off. Their page now routes them rather than
+refusing — a trainer with no trainer page, or one who only takes classes, goes
+to the timetable, and only a gym that does not run classes at all gives the
+"no work here yet" page.

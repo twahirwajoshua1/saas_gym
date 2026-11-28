@@ -328,7 +328,7 @@ def test_rows_registered_at_the_desk_after_the_preview_are_skipped(alpha):
     assert Member.objects.count() == 1
 
 
-@pytest.mark.parametrize("role", [Role.RECEPTIONIST, Role.SALES_REP, Role.TRAINER])
+@pytest.mark.parametrize("role", [Role.RECEPTIONIST, Role.TRAINER])
 def test_only_owners_and_managers_import(alpha, add_staff, role):
     staff = add_staff(alpha.gym, "0788000005", role)
 
@@ -440,7 +440,7 @@ def test_the_template_downloads_and_can_be_read_back(alpha, sign_in):
     assert rows[0]["package"] == "Monthly"
 
 
-@pytest.mark.parametrize("role", [Role.RECEPTIONIST, Role.SALES_REP, Role.TRAINER])
+@pytest.mark.parametrize("role", [Role.RECEPTIONIST, Role.TRAINER])
 def test_other_roles_have_no_import_or_export_screens(alpha, add_staff, sign_in, role):
     client = sign_in(add_staff(alpha.gym, "0788000005", role))
 

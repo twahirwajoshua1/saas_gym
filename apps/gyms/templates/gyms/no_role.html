@@ -1,0 +1,10 @@
+{% extends "layouts/plain.html" %}
+{% load i18n %}
+{% block title %}{% translate "No access yet" %}{% endblock %}
+{% block content %}
+  <div class="plain-card stack">
+    <h1>{% translate "Your account has no work here yet" %}</h1>
+    <p class="muted">{% translate "You can sign in, but the gym has not given you a job in the system. Ask the gym owner to set your role on the Staff page, and then sign in again." %}</p>
+    <p><a class="btn" href="{% url 'accounts:logout' %}">{% translate "Sign out" %}</a></p>
+  </div>
+{% endblock %}

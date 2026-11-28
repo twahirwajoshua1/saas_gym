@@ -245,8 +245,6 @@ class Generator:
             sim.trainers[branch.id] = self.staff(
                 sim, Role.TRAINER, branch, f"Trainer, {branch.name}"
             )
-        if len(branches) >= 3:
-            self.staff(sim, Role.SALES_REP, None, "Sales representative")
         self.set_up_classes(sim)
 
         total = max(3, round(spec["members"] * self.scale))

@@ -121,7 +121,7 @@ def test_extending_cannot_run_into_the_next_membership(alpha, membership, monthl
     assert problem.value.reason == "runs_into_next"
 
 
-@pytest.mark.parametrize("role", [Role.RECEPTIONIST, Role.SALES_REP, Role.TRAINER])
+@pytest.mark.parametrize("role", [Role.RECEPTIONIST, Role.TRAINER])
 def test_only_owners_and_managers_extend_or_freeze(alpha, membership, add_staff, role):
     staff = add_staff(alpha.gym, "0788000005", role)
 

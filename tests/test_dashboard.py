@@ -336,7 +336,7 @@ def test_the_owner_sees_the_figures_on_the_overview_page(alpha, packages, sign_i
     assert "<html" in full and "Active members" in full
 
 
-@pytest.mark.parametrize("role", [Role.RECEPTIONIST, Role.SALES_REP, Role.TRAINER])
+@pytest.mark.parametrize("role", [Role.RECEPTIONIST, Role.TRAINER])
 def test_only_owners_and_managers_see_the_figures(alpha, add_staff, sign_in, role):
     client = sign_in(add_staff(alpha.gym, "0788000005", role))
 

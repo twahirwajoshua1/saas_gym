@@ -13,7 +13,7 @@ from apps.gyms.models import Role
 MANAGER_ROLES = (Role.OWNER, Role.BRANCH_MANAGER)
 
 # People who deal with members at the desk or on the phone.
-FRONT_DESK_ROLES = (Role.OWNER, Role.BRANCH_MANAGER, Role.RECEPTIONIST, Role.SALES_REP)
+FRONT_DESK_ROLES = (Role.OWNER, Role.BRANCH_MANAGER, Role.RECEPTIONIST)
 
 # People who may admit members at the door.
 CHECK_IN_ROLES = (Role.OWNER, Role.BRANCH_MANAGER, Role.RECEPTIONIST, Role.TRAINER)

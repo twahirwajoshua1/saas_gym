@@ -43,7 +43,7 @@ def test_duration_labels():
     assert Package(duration_count=1, duration_unit="day").duration_label == "1 day"
 
 
-@pytest.mark.parametrize("role", [Role.BRANCH_MANAGER, Role.RECEPTIONIST, Role.SALES_REP])
+@pytest.mark.parametrize("role", [Role.BRANCH_MANAGER, Role.RECEPTIONIST])
 def test_only_the_owner_may_add_or_change_packages(alpha, add_staff, role):
     staff = add_staff(alpha.gym, "0788000005", role)
     package = services.create_package(by=alpha.assignment, **MONTHLY)

@@ -20,7 +20,7 @@ from apps.members import services as member_services
 from apps.members.models import Membership
 from apps.members.services import MemberDetails
 from apps.modules import services as module_services
-from apps.modules.catalog import ATTENDANCE_ACCESS, PAYMENTS_FINANCE
+from apps.modules.catalog import ATTENDANCE_ACCESS, PAYMENTS_FINANCE, TRAINING_CLASSES
 
 pytestmark = pytest.mark.django_db
 
@@ -205,7 +205,6 @@ def test_a_member_without_a_valid_membership_cannot_be_checked_in(alpha, member)
         (Role.BRANCH_MANAGER, True),
         (Role.RECEPTIONIST, True),
         (Role.TRAINER, True),
-        (Role.SALES_REP, False),
     ],
 )
 def test_who_may_check_members_in(alpha, valid_member, add_staff, role, may):
@@ -364,13 +363,31 @@ def test_a_trainer_can_check_in_but_gets_no_links_into_member_records(
     assert visits.status_code == 403
 
 
-def test_a_sales_rep_has_no_check_in_screen(alpha, valid_member, add_staff, sign_in):
-    client = sign_in(add_staff(alpha.gym, "0788000005", Role.SALES_REP))
+@pytest.mark.parametrize("role", list(Role))
+def test_signing_in_never_lands_on_a_page_the_role_is_refused(alpha, add_staff, sign_in, role):
+    """
+    Sending somebody to a page they are then refused is how a sales
+    representative came to see a bare 403 on the one page sign-in led to.
+    Every role has to land somewhere it is allowed to be.
+    """
+    module_services.enable_module(gym=alpha.gym, code=TRAINING_CLASSES)
+    client = sign_in(alpha if role == Role.OWNER else add_staff(alpha.gym, "0788000005", role))
 
-    assert client.get(reverse("attendance:home")).status_code == 403
-    denied = client.post(reverse("attendance:check_in", args=[valid_member.public_id]))
-    assert denied.status_code == 403
-    assert reverse("attendance:home") not in client.get(reverse("gyms:home")).content.decode()
+    landed = client.get(reverse("gyms:home"), follow=True)
+
+    assert landed.status_code == 200, f"{role} was refused at {landed.request['PATH_INFO']}"
+
+
+def test_a_trainer_at_a_gym_with_no_classes_is_told_so_in_words(alpha, add_staff, sign_in):
+    """
+    There is genuinely no work for them. They should read why, not meet a
+    locked door with nothing on it.
+    """
+    client = sign_in(add_staff(alpha.gym, "0788000006", Role.TRAINER))
+
+    landed = client.get(reverse("gyms:home"), follow=True)
+
+    assert "no work here yet" in landed.content.decode()
 
 
 def test_an_owner_with_several_branches_picks_which_one_they_are_at(alpha, valid_member, sign_in):

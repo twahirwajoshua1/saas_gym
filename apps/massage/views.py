@@ -32,6 +32,7 @@ from apps.massage.models import MassageBooking, MassageType
 from apps.members import services as member_services
 from apps.members.models import Member
 from apps.members.services import InvalidDetails
+from apps.modules import services as module_services
 from apps.modules.catalog import TRAINING_CLASSES
 from apps.modules.decorators import module_required
 
@@ -362,17 +363,24 @@ def mark_done(request, public_id):
 # --- The masseuse's own page -------------------------------------------------
 
 
-@massage_page(*CHECK_IN_ROLES)
+@gym_required(*CHECK_IN_ROLES)
 def my_day(request):
     """
     What a masseuse sees: her next massage, the rest of today, and her hours.
     Her notes are on this page and nowhere else.
+
+    This is where a trainer lands after signing in, so it does the routing
+    for them and never refuses: a trainer who only takes classes goes on to
+    the timetable, and a trainer at a gym that does not run classes at all is
+    told there is no work for them here rather than shown a locked door.
     """
+    if not module_services.is_enabled(request.gym, TRAINING_CLASSES):
+        return render(request, "gyms/no_role.html", status=403)
     profile = TrainerProfile.objects.for_gym(request.gym).filter(staff=request.assignment).first()
-    if profile is None:
-        raise Http404
-    # A trainer who only takes classes has no day of massages to look at.
-    if not profile.gives_massages:
+    # Somebody with no trainer page yet, and somebody who only takes classes,
+    # both belong on the timetable: it is the trainer's page that needs no
+    # setting up.
+    if profile is None or not profile.gives_massages:
         return redirect("classes:timetable")
     day = _day(request)
     bookings = list(services.day_for(profile, day))

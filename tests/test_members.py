@@ -117,7 +117,7 @@ def test_a_trainer_cannot_register_members(alpha, add_staff):
         register(trainer)
 
 
-@pytest.mark.parametrize("role", [Role.BRANCH_MANAGER, Role.RECEPTIONIST, Role.SALES_REP])
+@pytest.mark.parametrize("role", [Role.BRANCH_MANAGER, Role.RECEPTIONIST])
 def test_front_desk_roles_can_register_members(alpha, add_staff, role):
     staff = add_staff(alpha.gym, "0788000005", role)
 

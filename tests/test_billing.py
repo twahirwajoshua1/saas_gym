@@ -327,7 +327,7 @@ def test_a_payment_cannot_be_reversed_twice_or_without_a_reason(alpha, member, m
     assert Reversal.objects.count() == 1
 
 
-@pytest.mark.parametrize("role", [Role.BRANCH_MANAGER, Role.RECEPTIONIST, Role.SALES_REP])
+@pytest.mark.parametrize("role", [Role.BRANCH_MANAGER, Role.RECEPTIONIST])
 def test_only_the_owner_can_reverse_but_front_desk_can_sell_and_take_payments(
     alpha, member, monthly, add_staff, role
 ):
