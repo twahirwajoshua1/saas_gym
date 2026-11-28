@@ -275,9 +275,9 @@ def test_a_shift_adds_up_the_cash_and_closing_it_starts_again(alpha, monthly, ad
     assert shift.cash_rwf == 30000 and shift.payments == 1 and shift.sales == 1
 
     client = sign_in(desk)
-    page = client.get(reverse("billing:my_shift")).content.decode()
+    page = client.get(reverse("frontdesk:my_shift")).content.decode()
     assert "30,000" in page
-    client.post(reverse("billing:my_shift"))
+    client.post(reverse("frontdesk:my_shift"))
     closed = ShiftClose.objects.get()
     assert closed.cash_rwf == 30000
     assert billing.shift_summary(alpha.gym, desk.person).cash_rwf == 0

@@ -15,7 +15,7 @@ from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from apps.classes import services
-from apps.classes.forms import ClassTypeForm, HoursForm, ScheduleForm, TrainerForm
+from apps.classes.forms import ClassTypeForm, HoursForm, NewTrainerForm, ScheduleForm, TrainerForm
 from apps.classes.models import ClassSession, ClassType, Review, TrainerProfile
 from apps.gyms.models import Branch, Role, StaffAssignment
 from apps.gyms.permissions import CHECK_IN_ROLES, MANAGER_ROLES
@@ -24,6 +24,7 @@ from apps.gyms.tenancy import gym_required
 from apps.members.services import InvalidDetails
 from apps.modules.catalog import TRAINING_CLASSES
 from apps.modules.decorators import module_required
+from apps.team import services as team
 
 MESSAGES = {
     ("name", "required"): _("Give the class a name."),
@@ -75,8 +76,8 @@ def timetable(request):
         "classes/timetable.html",
         {
             "week_start": start,
-            "previous": start - timedelta(days=7),
             "next_week": start + timedelta(days=7),
+            "pattern": services.weekly_pattern(request.gym, branch),
             "days": days,
             "branch": branch,
             "branches": Branch.objects.for_gym(request.gym).filter(is_active=True),
@@ -373,3 +374,47 @@ def review_hide(request, public_id):
     else:
         messages.success(request, _("The review is hidden. The reason is in the activity log."))
     return redirect("classes:trainer_detail", public_id=review.trainer.public_id)
+
+
+# Why adding a trainer can fail, in words the desk can act on.
+STAFF_PROBLEMS = {
+    "phone_invalid": _("Enter a valid phone number, for example 0788 123 456."),
+    "name_required": _("Enter the trainer's name."),
+    "already_staff": _("This person already works at this gym."),
+}
+
+
+@gym_required(*CHECK_IN_ROLES)
+@module_required(TRAINING_CLASSES)
+def trainer_add(request):
+    """
+    Add a trainer from the desk, so they can be put on the timetable at once.
+
+    No login is created here: that is the owner's to give on the staff page.
+    """
+    form = NewTrainerForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        try:
+            assignment = team.add_trainer(
+                by=request.assignment,
+                full_name=data["full_name"],
+                phone=data["phone"],
+                branch=desk_branch(request),
+            )
+        except team.StaffProblem as problem:
+            form.add_error(None, STAFF_PROBLEMS.get(problem.reason, _("Check these details.")))
+        else:
+            trainer = services.save_trainer(
+                by=request.assignment,
+                staff=assignment,
+                headline=data["headline"],
+                gives_massages=data["gives_massages"],
+            )
+            messages.success(
+                request,
+                _("%(name)s was added. Set their hours so people can book them.")
+                % {"name": assignment.person.full_name},
+            )
+            return redirect("classes:trainer_hours", public_id=trainer.public_id)
+    return render(request, "classes/trainer_add.html", {"form": form})

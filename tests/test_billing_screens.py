@@ -407,3 +407,40 @@ def test_pressing_sell_twice_on_a_package_of_visits_sells_one_book(alpha, member
     assert Ticketbook.objects.count() == 1
     assert Invoice.objects.count() == 1
     assert Payment.objects.count() == 1
+
+
+# --- Sending the receipt instead of printing it ------------------------------
+
+
+def test_the_receipt_can_be_sent_to_the_members_phone(alpha, member, monthly, sign_in):
+    """
+    Less paper. The button opens the gym's own WhatsApp with the receipt
+    already written; the system sends nothing by itself.
+    """
+    client = sign_in(alpha)
+    client.post(reverse("billing:sell", args=[member.public_id]), sale_form(monthly))
+    payment = Payment.objects.get()
+
+    page = client.get(reverse("billing:receipt", args=[payment.public_id])).content.decode()
+
+    assert "Send on WhatsApp" in page and "Send by SMS" in page
+    assert "https://wa.me/" in page
+    assert "Paid%20in%20full" in page  # the words are in the link, ready to send
+    assert "RWF%2030%2C000" in page
+
+
+def test_a_part_payment_says_what_is_still_owed_in_the_message(alpha, member, monthly, sign_in):
+    client = sign_in(alpha)
+    client.post(
+        reverse("billing:sell", args=[member.public_id]),
+        sale_form(monthly, pay_now="part", amount_rwf="10,000"),
+    )
+    payment = Payment.objects.get()
+
+    message = services.receipt_message(
+        gym=alpha.gym, payment=payment, invoice=Invoice.objects.get()
+    )
+
+    assert "RWF 10,000 paid by Cash" in message.text
+    assert "Still to pay: RWF 20,000" in message.text
+    assert "For: Monthly," in message.text

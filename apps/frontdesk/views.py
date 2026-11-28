@@ -4,25 +4,30 @@ tablet itself (which has no sign-in: it is identified by a secret cookie).
 """
 
 import uuid
+from datetime import timedelta
 
 from django.contrib import messages
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_time
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from apps.billing import services as billing
 from apps.billing.forms import PayNow, SignUpPaymentForm
+from apps.billing.models import PaymentMethod, ShiftClose
 from apps.corporate import services as corporate
 from apps.corporate.models import Employee
 from apps.frontdesk import services
+from apps.frontdesk.forms import DoorSaleForm
 from apps.frontdesk.models import EntranceTablet, ScanProblem
 from apps.gyms import session
 from apps.gyms.models import Branch
 from apps.gyms.permissions import CHECK_IN_ROLES, FRONT_DESK_ROLES, MANAGER_ROLES
 from apps.gyms.tenancy import gym_required
 from apps.massage import services as massage
+from apps.massage.models import MassageType
 from apps.members import services as member_services
 from apps.members.models import Member, SignUp, SignUpStatus
 from apps.modules import services as module_services
@@ -60,6 +65,7 @@ def desk(request):
     context = {
         "today": today,
         "branch": branch,
+        "payments_on": module_services.is_enabled(request.gym, PAYMENTS_FINANCE),
         "branches": Branch.objects.for_gym(request.gym).filter(is_active=True),
         "counts": services.counts_today(request.gym, today, branch),
         "problems": services.open_problems(request.gym, branch),
@@ -365,3 +371,225 @@ def signup_drop(request, public_id):
     member_services.drop_signup(by=request.assignment, signup=_signup(request, public_id))
     messages.success(request, _("Taken off the list."))
     return redirect("frontdesk:desk")
+
+
+# --- Selling at the door -------------------------------------------------------
+
+
+def _door_form(request, data=None):
+    return DoorSaleForm(
+        data,
+        services=services.door_services(request.gym),
+        massage_types=(
+            massage.types_for(request.gym)
+            if module_services.is_enabled(request.gym, TRAINING_CLASSES)
+            else None
+        ),
+    )
+
+
+@gym_required(*FRONT_DESK_ROLES)
+@module_required(PAYMENTS_FINANCE)
+def door(request):
+    """
+    Somebody has walked in off the street and wants one visit.
+
+    A sauna, a swim or a day in the gym is sold and paid for here and then.
+    A massage needs a masseuse and a time, so it goes on to the next screen.
+    """
+    branch = session.desk_branch(request)
+    form = _door_form(request, request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        if data.get("massage_type") is not None:
+            return _door_massage_times(
+                request,
+                full_name=data["full_name"],
+                phone=data["phone"],
+                massage_type=data["massage_type"],
+                method=data["method"],
+                day=timezone.localdate(),
+            )
+        try:
+            sale = services.sell_at_the_door(
+                by=request.assignment,
+                full_name=data["full_name"],
+                phone=data["phone"],
+                service=data["service"],
+                method=data["method"],
+                idempotency_key=data["idempotency_key"],
+                branch=branch,
+            )
+        except member_services.InvalidDetails as problem:
+            form.add_error(None, _door_error(problem))
+        else:
+            messages.success(
+                request,
+                _("%(what)s sold to %(who)s. Send them the receipt.")
+                % {"what": data["service"].name, "who": sale.member.full_name},
+            )
+            return redirect("billing:receipt", public_id=sale.payment.public_id)
+    return render(request, "frontdesk/door.html", {"form": form, "branch": branch})
+
+
+def _door_error(problem) -> str:
+    return {
+        ("phone", "invalid"): _("Enter a valid phone number, for example 0788 123 456."),
+        ("full_name", "required"): _("Enter their name."),
+        ("branch", "required"): _("No branch has been set for you. Ask the owner."),
+        ("starts_at", "taken"): _("That time has just gone. Pick another one."),
+        ("service", "archived"): _("This is no longer sold."),
+    }.get((problem.field, problem.reason), _("Check these details."))
+
+
+def _door_massage_times(request, *, full_name, phone, massage_type, method, day):
+    """The free times a walk-in could be put into, with what they owe."""
+    branch = session.desk_branch(request)
+    slots = (
+        massage.free_slots(
+            request.gym, branch=branch, massage_type=massage_type, day=day, masseuse=None
+        )
+        if branch
+        else []
+    )
+    today = timezone.localdate()
+    return render(
+        request,
+        "frontdesk/door_massage.html",
+        {
+            "full_name": full_name,
+            "phone": phone,
+            "massage_type": massage_type,
+            "method": method,
+            "method_label": dict(PaymentMethod.choices).get(method, method),
+            "branch": branch,
+            "day": day,
+            "days": [today + timedelta(days=step) for step in range(3)],
+            "today": today,
+            "slots": slots,
+            "idempotency_key": uuid.uuid4(),
+        },
+    )
+
+
+@gym_required(*FRONT_DESK_ROLES)
+@module_required(PAYMENTS_FINANCE)
+@module_required(TRAINING_CLASSES)
+@require_POST
+def door_massage(request):
+    """
+    Book a walk-in into a massage and take the money for it now.
+
+    Pressing a day shows that day's free times. Pressing a time takes the
+    money and holds the slot, in one go: a booked time is a masseuse sitting
+    waiting, so it is paid for before it is held.
+    """
+    massage_type = get_object_or_404(
+        MassageType.objects.for_gym(request.gym), public_id=request.POST.get("massage_type", "")
+    )
+    full_name = request.POST.get("full_name", "")
+    phone = request.POST.get("phone", "")
+    method = request.POST.get("method", "")
+    day = parse_date(request.POST.get("day", "")) or timezone.localdate()
+    at = parse_time(request.POST.get("at", "") or "")
+
+    if at is None:  # a day was pressed, not a time
+        return _door_massage_times(
+            request,
+            full_name=full_name,
+            phone=phone,
+            massage_type=massage_type,
+            method=method,
+            day=day,
+        )
+
+    branch = session.desk_branch(request)
+    slots = massage.free_slots(
+        request.gym, branch=branch, massage_type=massage_type, day=day, masseuse=None
+    )
+    masseuse = next((slot.masseuse for slot in slots if slot.at == at), None)
+    try:
+        if masseuse is None:
+            raise member_services.InvalidDetails("starts_at", "taken")
+        sale = services.book_a_massage_at_the_door(
+            by=request.assignment,
+            full_name=full_name,
+            phone=phone,
+            massage_type=massage_type,
+            masseuse=masseuse,
+            branch=branch,
+            day=day,
+            at=at,
+            method=method,
+            idempotency_key=request.POST.get("idempotency_key") or uuid.uuid4(),
+        )
+    except member_services.InvalidDetails as problem:
+        messages.error(request, _door_error(problem))
+        return _door_massage_times(
+            request,
+            full_name=full_name,
+            phone=phone,
+            massage_type=massage_type,
+            method=method,
+            day=day,
+        )
+    messages.success(
+        request,
+        _("%(what)s booked and paid for %(who)s, %(day)s at %(time)s with %(masseuse)s.")
+        % {
+            "what": sale.booking.type_name,
+            "who": sale.member.full_name,
+            "day": _("today") if day == timezone.localdate() else f"{day:%A %d %B}",
+            "time": f"{sale.booking.starts_at:%H:%M}",
+            "masseuse": sale.booking.masseuse.staff.person.full_name,
+        },
+    )
+    return redirect("billing:receipt", public_id=sale.payment.public_id)
+
+
+# --- My shift -----------------------------------------------------------------
+
+
+@gym_required(*FRONT_DESK_ROLES)
+@module_required(PAYMENTS_FINANCE)
+def my_shift(request):
+    """
+    What I took in since my shift began, what is still open, and closing it.
+
+    Closing finishes none of the open work: it stays on the desk's home page
+    for whoever is on next. It is listed here so that nothing is handed over
+    without being seen, and so the person going home can say a word about it to
+    the person coming in.
+    """
+    branch = session.desk_branch(request)
+    open_now = services.handover(request.gym, branch)
+    if request.method == "POST":
+        if open_now.anything_open and not request.POST.get("understood"):
+            messages.error(
+                request,
+                _("Read what is still open and tick the box, so the next person is told."),
+            )
+            return redirect("frontdesk:my_shift")
+        closed = services.close_shift(by=request.assignment, branch=branch)
+        messages.success(
+            request,
+            _("Shift closed. Hand over RWF %(cash)s in cash.") % {"cash": f"{closed.cash_rwf:,}"},
+        )
+        if closed.left_open:
+            messages.info(
+                request,
+                _("%(n)s things are still open, and waiting on the desk's home page.")
+                % {"n": closed.left_open},
+            )
+        return redirect("frontdesk:my_shift")
+    return render(
+        request,
+        "frontdesk/my_shift.html",
+        {
+            "shift": billing.shift_summary(request.gym, request.user.person),
+            "handover": open_now,
+            "closes": ShiftClose.objects.for_gym(request.gym)
+            .filter(person=request.user.person)
+            .order_by("-closed_at")[:10],
+        },
+    )

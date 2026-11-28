@@ -4,7 +4,7 @@
     <div class="card stat"><span class="stat-label">{% translate "In today" %}</span><span class="stat-value">{{ counts.total }}</span><span class="stat-foot">{% blocktranslate with n=counts.tablet %}{{ n }} scanned themselves at the tablet{% endblocktranslate %}</span></div>
     <div class="card stat {% if problems %}stat-warn{% endif %}"><span class="stat-label">{% translate "Need you now" %}</span><span class="stat-value">{{ problems|length }}</span><span class="stat-foot">{% if problems %}{% translate "See below" %}{% else %}{% translate "Everyone else went straight in" %}{% endif %}</span></div>
     {% if shift %}
-      <a class="card stat card-link" href="{% url 'billing:my_shift' %}"><span class="stat-label">{% translate "My shift · cash to hand over" %}</span><span class="stat-value"><span class="cur">RWF</span>{{ shift.cash_rwf|thousands }}</span><span class="stat-foot">{% blocktranslate with t=shift.started_at|time:"H:i" n=shift.payments %}{{ n }} payments since {{ t }}{% endblocktranslate %}</span></a>
+      <a class="card stat card-link" href="{% url 'frontdesk:my_shift' %}"><span class="stat-label">{% translate "My shift · cash to hand over" %}</span><span class="stat-value"><span class="cur">RWF</span>{{ shift.cash_rwf|thousands }}</span><span class="stat-foot">{% blocktranslate with t=shift.started_at|time:"H:i" n=shift.payments %}{{ n }} payments since {{ t }}{% endblocktranslate %}</span></a>
     {% endif %}
   </div>
 

@@ -373,12 +373,16 @@ def test_a_sales_rep_has_no_check_in_screen(alpha, valid_member, add_staff, sign
     assert reverse("attendance:home") not in client.get(reverse("gyms:home")).content.decode()
 
 
-def test_a_gym_with_several_branches_chooses_the_desk_once(alpha, valid_member, sign_in):
+def test_an_owner_with_several_branches_picks_which_one_they_are_at(alpha, valid_member, sign_in):
+    """
+    An owner belongs to no one branch, so they say which they are looking at.
+    A receptionist never does: see the test below.
+    """
     remera = gym_services.add_branch(gym=alpha.gym, name="Remera")
     client = sign_in(alpha)
 
     page = client.get(reverse("attendance:home")).content.decode()
-    assert "Which branch is this desk at?" in page and 'name="q"' not in page
+    assert "Which branch are you looking at?" in page and 'name="q"' not in page
 
     client.post(reverse("attendance:set_branch"), {"branch": str(remera.public_id)})
     page = client.get(reverse("attendance:home")).content.decode()
@@ -386,6 +390,32 @@ def test_a_gym_with_several_branches_chooses_the_desk_once(alpha, valid_member, 
 
     client.post(reverse("attendance:check_in", args=[valid_member.public_id]))
     assert CheckIn.objects.get().branch == remera
+
+
+def test_a_receptionist_is_never_asked_which_branch_they_are_at(alpha, add_staff, sign_in):
+    """
+    Where somebody works is part of their job, decided when they are added to
+    the staff. Letting the desk choose would put money on the wrong branch.
+    """
+    gym_services.add_branch(gym=alpha.gym, name="Remera")
+    kigali = gym_services.add_branch(gym=alpha.gym, name="Kigali")
+    desk = add_staff(alpha.gym, "0788000009", Role.RECEPTIONIST, branch=kigali)
+
+    page = sign_in(desk).get(reverse("attendance:home")).content.decode()
+
+    assert "Which branch are you looking at?" not in page
+    assert "Kigali" in page  # it is stated, not asked
+    assert 'name="q"' in page  # and they can get straight on with the work
+
+
+def test_a_receptionist_with_no_branch_is_told_rather_than_guessed_at(alpha, add_staff, sign_in):
+    gym_services.add_branch(gym=alpha.gym, name="Remera")
+    nowhere = add_staff(alpha.gym, "0788000010", Role.RECEPTIONIST)
+
+    page = sign_in(nowhere).get(reverse("attendance:home")).content.decode()
+
+    assert "No branch has been set for you" in page
+    assert 'name="q"' not in page
 
 
 def test_the_desk_cannot_be_set_to_another_gyms_branch(alpha, bravo, sign_in):

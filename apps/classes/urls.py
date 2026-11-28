@@ -23,5 +23,6 @@ urlpatterns = [
     path("trainers/<uuid:public_id>/edit/", views.trainer_edit, name="trainer_edit"),
     path("trainers/<uuid:public_id>/hours/", views.trainer_hours, name="trainer_hours"),
     path("trainers/new/<uuid:staff_id>/", views.trainer_edit, name="trainer_new"),
+    path("trainers/add/", views.trainer_add, name="trainer_add"),
     path("reviews/<uuid:public_id>/hide/", views.review_hide, name="review_hide"),
 ]

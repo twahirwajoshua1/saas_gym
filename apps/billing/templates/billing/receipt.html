@@ -34,11 +34,20 @@
     </dl>
   </div>
 
+  {# Less paper: the receipt goes to the member's phone from the gym's own
+     WhatsApp, with the words already written. Nothing is sent by the system. #}
   <div class="form-actions no-print">
-    <button type="button" class="btn btn-primary" onclick="window.print()">{% translate "Print" %}</button>
+    <a class="btn btn-primary" href="{{ message.whatsapp_url }}" target="_blank" rel="noopener">{% translate "Send on WhatsApp" %}</a>
+    <a class="btn" href="{{ message.sms_url }}">{% translate "Send by SMS" %}</a>
+    <button type="button" class="btn" onclick="window.print()">{% translate "Print" %}</button>
     <a class="btn" href="{% url 'members:member_detail' payment.member.public_id %}">{% translate "Back to member" %}</a>
     {% if role_is_owner and not payment.is_reversed %}
       <a class="btn" href="{% url 'billing:payment_reverse' payment.public_id %}">{% translate "Reverse this payment" %}</a>
     {% endif %}
   </div>
+
+  <details class="quiet no-print">
+    <summary class="small strong">{% translate "What the message will say" %}</summary>
+    <pre class="small muted" style="white-space:pre-wrap;margin:8px 0 0">{{ message.text }}</pre>
+  </details>
 {% endblock %}

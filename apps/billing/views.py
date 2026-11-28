@@ -17,7 +17,7 @@ from apps.billing.forms import (
     SellMembershipForm,
     SellSessionsForm,
 )
-from apps.billing.models import Invoice, Payment, ShiftClose
+from apps.billing.models import Invoice, Payment
 from apps.gyms.permissions import FRONT_DESK_ROLES, OWNER_ONLY
 from apps.gyms.tenancy import gym_required
 from apps.members import services as member_services
@@ -140,32 +140,6 @@ def sell_sessions(request, public_id):
     )
 
 
-# --- My shift ------------------------------------------------------------------
-
-
-@gym_required(*FRONT_DESK_ROLES)
-@module_required(PAYMENTS_FINANCE)
-def my_shift(request):
-    """What I received since my shift began, and closing it to hand over the cash."""
-    if request.method == "POST":
-        closed = services.close_shift(by=request.assignment)
-        messages.success(
-            request,
-            _("Shift closed. Hand over RWF %(cash)s in cash.") % {"cash": f"{closed.cash_rwf:,}"},
-        )
-        return redirect("billing:my_shift")
-    return render(
-        request,
-        "billing/my_shift.html",
-        {
-            "shift": services.shift_summary(request.gym, request.user.person),
-            "closes": ShiftClose.objects.for_gym(request.gym)
-            .filter(person=request.user.person)
-            .order_by("-closed_at")[:10],
-        },
-    )
-
-
 # --- A member's account -----------------------------------------------------
 
 
@@ -239,6 +213,7 @@ def receipt(request, public_id):
             "payment": payment,
             "invoice": invoice,
             "still_owed": services.outstanding_on(invoice),
+            "message": services.receipt_message(gym=request.gym, payment=payment, invoice=invoice),
         },
     )
 

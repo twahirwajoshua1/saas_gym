@@ -11,24 +11,31 @@
     <div>
       <h1>{% translate "Check-in" %}</h1>
       <p class="muted">
-        {{ today|date:"l j F Y" }}{% if desk_branch and branches|length > 1 %} · {{ desk_branch.name }}{% endif %} ·
+        {{ today|date:"l j F Y" }}{% if desk_branch %} · <strong>{{ desk_branch.name }}</strong>{% endif %} ·
         {% blocktranslate count n=check_in_count %}{{ n }} check-in today{% plural %}{{ n }} check-ins today{% endblocktranslate %}
       </p>
     </div>
   </div>
 
   {% if not desk_branch %}
+    {# Where somebody works is set when they are added to the staff. Only an
+       owner or a branch manager, who belong to no one branch, pick one here. #}
     <div class="card">
-      <form method="post" action="{% url 'attendance:set_branch' %}" class="form">
-        {% csrf_token %}
-        <div class="field">
-          <label for="desk-branch">{% translate "Which branch is this desk at?" %}</label>
-          <select id="desk-branch" name="branch" required>
-            {% for branch in branches %}<option value="{{ branch.public_id }}">{{ branch.name }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="form-actions"><button type="submit" class="btn btn-primary">{% translate "Continue" %}</button></div>
-      </form>
+      {% if may_choose_branch %}
+        <form method="post" action="{% url 'attendance:set_branch' %}" class="form">
+          {% csrf_token %}
+          <div class="field">
+            <label for="desk-branch">{% translate "Which branch are you looking at?" %}</label>
+            <select id="desk-branch" name="branch" required>
+              {% for branch in branches %}<option value="{{ branch.public_id }}">{{ branch.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-actions"><button type="submit" class="btn btn-primary">{% translate "Continue" %}</button></div>
+        </form>
+      {% else %}
+        <p><strong>{% translate "No branch has been set for you." %}</strong></p>
+        <p class="muted">{% translate "Until it is, a check-in cannot be recorded against the right branch. Ask the gym owner to set your branch on the staff page." %}</p>
+      {% endif %}
     </div>
   {% else %}
     {# Typing asks the server for matching members and swaps them in below (HTMX). #}

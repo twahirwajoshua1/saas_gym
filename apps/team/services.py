@@ -23,7 +23,7 @@ from apps.accounts import services as accounts
 from apps.accounts.models import User
 from apps.gyms import services as gyms
 from apps.gyms.models import Branch, Gym, Role, StaffAssignment
-from apps.gyms.permissions import OWNER_ONLY, require_role
+from apps.gyms.permissions import FRONT_DESK_ROLES, OWNER_ONLY, require_role
 from apps.people import services as people
 from apps.people.phones import InvalidPhoneNumber, normalize_phone
 
@@ -187,3 +187,49 @@ def reset_password(*, by: StaffAssignment, assignment: StaffAssignment) -> str:
         raise StaffProblem("cannot_reset")
     user = User.objects.get(person=assignment.person)
     return accounts.set_temporary_password(user=user, actor=by.person, gym=by.gym)
+
+
+def add_trainer(
+    *, by: StaffAssignment, full_name: str, phone: str, branch: Branch | None = None
+) -> StaffAssignment:
+    """
+    Put a trainer on the books without giving them a login. Front-desk roles.
+
+    The desk usually knows a new trainer before the owner gets round to the
+    paperwork, and until the trainer exists nobody can put them on the
+    timetable or book a massage with them. So the receptionist may add them.
+
+    What the receptionist cannot do is let them in: no account is created, so
+    there is no way to sign in as this person. A way into the system stays the
+    owner's to give, on the staff page. Giving the desk that power would mean
+    a receptionist could make themselves another account.
+    """
+    require_role(by, FRONT_DESK_ROLES)
+    try:
+        standard_phone = normalize_phone(phone)
+    except InvalidPhoneNumber:
+        raise StaffProblem("phone_invalid") from None
+
+    person = people.find_person_by_phone(standard_phone)
+    if person is None:
+        try:
+            person = people.create_person(full_name=full_name, phone=standard_phone)
+        except people.InvalidPersonDetails:
+            raise StaffProblem("name_required") from None
+
+    existing = StaffAssignment.objects.for_gym(by.gym).filter(person=person).first()
+    if existing is not None and existing.is_active:
+        raise StaffProblem("already_staff")
+
+    where = branch if branch is not None else by.branch
+    if existing is not None:
+        return gyms.change_staff(
+            assignment=existing,
+            role=Role.TRAINER,
+            branch=where,
+            actor=by.person,
+            reactivate=True,
+        )
+    return gyms.assign_staff(
+        gym=by.gym, person=person, role=Role.TRAINER, branch=where, actor=by.person
+    )

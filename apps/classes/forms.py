@@ -118,3 +118,29 @@ class ReviewForm(forms.Form):
         widget=forms.Textarea(attrs={"rows": 3}),
         help_text=_("Everyone at the gym can read this."),
     )
+
+
+class NewTrainerForm(forms.Form):
+    """
+    A trainer the desk is adding. Name and phone are all that is needed to put
+    them on the timetable; the rest of their page can be filled in later.
+    """
+
+    full_name = forms.CharField(label=_("Full name"), max_length=150)
+    phone = forms.CharField(
+        label=_("Phone number"),
+        max_length=20,
+        help_text=_("For example 0788 123 456"),
+        widget=forms.TextInput(attrs={"inputmode": "tel"}),
+    )
+    headline = forms.CharField(
+        label=_("What they do"),
+        max_length=120,
+        required=False,
+        help_text=_("For example: Strength and conditioning. Shown to members."),
+    )
+    gives_massages = forms.BooleanField(
+        label=_("Gives massages"),
+        required=False,
+        help_text=_("Massages are booked in their own diary, under Sessions."),
+    )

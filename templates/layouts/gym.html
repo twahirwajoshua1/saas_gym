@@ -51,7 +51,7 @@
             <a href="{% url 'corporate:reports' %}" {% if nav_section == 'reports' %}class="is-current" aria-current="page"{% endif %}>{% icon "building" %}{% translate "Reports" %}</a>
           {% endif %}
           {% if role_is_front_desk and 'payments_finance' in modules_on %}
-            <a href="{% url 'billing:my_shift' %}" {% if nav_section == 'shift' %}class="is-current" aria-current="page"{% endif %}>{% icon "wallet" %}{% translate "My shift" %}</a>
+            <a href="{% url 'frontdesk:my_shift' %}" {% if nav_section == 'shift' %}class="is-current" aria-current="page"{% endif %}>{% icon "wallet" %}{% translate "My shift" %}</a>
           {% endif %}
         {% endif %}
       </nav>

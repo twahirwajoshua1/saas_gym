@@ -21,16 +21,24 @@ from django.utils import timezone
 from apps.attendance import services as attendance
 from apps.attendance.models import CheckIn, CheckInMethod
 from apps.audit import services as audit
+from apps.billing import services as billing
 from apps.core import streaks, tenant_db
 from apps.corporate import services as corporate
 from apps.corporate.models import CorporateVisit, Employee, VisitMethod
 from apps.frontdesk.models import EntranceTablet, ProblemKind, ScanProblem
 from apps.gyms.models import Branch, Gym, StaffAssignment
-from apps.gyms.permissions import CHECK_IN_ROLES, MANAGER_ROLES, require_role
+from apps.gyms.permissions import (
+    CHECK_IN_ROLES,
+    FRONT_DESK_ROLES,
+    MANAGER_ROLES,
+    require_role,
+)
 from apps.massage import services as massage
 from apps.members import services as member_services
-from apps.members.models import Member, Membership
+from apps.members.models import Member, Membership, Service
 from apps.members.services import InvalidDetails
+from apps.modules import services as module_services
+from apps.modules.catalog import PAYMENTS_FINANCE, TRAINING_CLASSES
 from apps.people.phones import InvalidPhoneNumber, normalize_phone
 
 PAIRING_MINUTES = 15
@@ -839,3 +847,215 @@ def starting_soon(gym: Gym, *, within_minutes: int | None = None) -> list[Soon]:
             )
         )
     return rows
+
+
+# --- Selling at the door ------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class DoorSale:
+    """What came out of a sale at the desk to somebody off the street."""
+
+    member: Member
+    invoice: object
+    payment: object
+    is_new: bool
+    booking: object | None = None
+
+
+def door_services(gym: Gym):
+    """
+    What can be sold one visit at a time: a sauna, a swim, a day in the gym.
+
+    Massages are not here. They need a masseuse and a time, so they are sold
+    through `book_a_massage_at_the_door`.
+    """
+    massage_service_ids = [
+        massage_type.service_id for massage_type in massage.types_for(gym, active_only=False)
+    ]
+    return (
+        Service.objects.for_gym(gym)
+        .filter(is_active=True)
+        .exclude(pk__in=massage_service_ids)
+        .order_by("name")
+    )
+
+
+def _door_member(*, by: StaffAssignment, full_name: str, phone: str, branch: Branch | None):
+    """
+    The person at the desk, as a member of this gym.
+
+    Somebody buying a single sauna is not signing up for anything, but the gym
+    still needs a name against the receipt, and the money has to belong to
+    somebody for the books to balance. So a plain record is kept: a name and a
+    phone number, no membership. They are counted in none of the membership
+    lists, and if they come back the same record is used again, so the desk can
+    see they are a regular and offer them a package.
+    """
+    try:
+        standard_phone = normalize_phone(phone)
+    except InvalidPhoneNumber:
+        raise InvalidDetails("phone", "invalid") from None
+
+    known = Member.objects.for_gym(by.gym).filter(person__phone=standard_phone).first()
+    if known is not None:
+        return known, False
+    member = member_services.register_member(
+        by=by,
+        phone=standard_phone,
+        details=member_services.MemberDetails(full_name=full_name, branch=branch),
+    )
+    return member, True
+
+
+@transaction.atomic
+def sell_at_the_door(
+    *,
+    by: StaffAssignment,
+    full_name: str,
+    phone: str,
+    service: Service,
+    quantity: int = 1,
+    method: str,
+    idempotency_key,
+    branch: Branch | None = None,
+) -> DoorSale:
+    """
+    Sell a single visit to somebody who has walked in. Front-desk roles.
+
+    The whole amount is taken now. Nobody walks out of the door owing for a
+    sauna they have already had, so there is no part payment here and nothing
+    to chase afterwards.
+    """
+    require_role(by, FRONT_DESK_ROLES)
+    member, is_new = _door_member(by=by, full_name=full_name, phone=phone, branch=branch)
+    sale = billing.sell_sessions(
+        by=by,
+        member=member,
+        service=service,
+        quantity=quantity,
+        idempotency_key=idempotency_key,
+        payment=billing.PaymentInput(method=method),
+    )
+    return DoorSale(member=member, invoice=sale.invoice, payment=sale.payment, is_new=is_new)
+
+
+@transaction.atomic
+def book_a_massage_at_the_door(
+    *,
+    by: StaffAssignment,
+    full_name: str,
+    phone: str,
+    massage_type,
+    masseuse,
+    branch: Branch,
+    day: date,
+    at,
+    method: str,
+    idempotency_key,
+) -> DoorSale:
+    """
+    Book a walk-in into a massage and take the money now. Front-desk roles.
+
+    A booked time is a masseuse sitting waiting, so a walk-in pays when the
+    time is taken. There is then nothing to chase and no empty hour.
+
+    If the time has gone between the desk reading it off the screen and
+    pressing the button, nothing is saved and InvalidDetails("starts_at",
+    "taken") says so, so the desk can offer another time rather than take
+    money for a massage that cannot happen.
+    """
+    require_role(by, FRONT_DESK_ROLES)
+    member, is_new = _door_member(by=by, full_name=full_name, phone=phone, branch=branch)
+    booking = massage.book(
+        by=by,
+        massage_type=massage_type,
+        masseuse=masseuse,
+        branch=branch,
+        day=day,
+        at=at,
+        person=member.person,
+        member=member,
+    )
+    sale = billing.sell_sessions(
+        by=by,
+        member=member,
+        service=massage.service_of(massage_type),
+        quantity=1,
+        idempotency_key=idempotency_key,
+        payment=billing.PaymentInput(method=method),
+    )
+    return DoorSale(
+        member=member,
+        invoice=sale.invoice,
+        payment=sale.payment,
+        is_new=is_new,
+        booking=booking,
+    )
+
+
+# --- Handing the desk over ----------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Handover:
+    """
+    Work that is still open when somebody goes home.
+
+    Closing a shift does not finish any of it. It stays on the desk's home page
+    for whoever is on next, who can pick it up where it was left. This list is
+    shown before the close so nothing is handed over silently.
+    """
+
+    signups: list
+    massage_requests: list
+    part_paid: list
+
+    @property
+    def count(self) -> int:
+        return len(self.signups) + len(self.massage_requests) + len(self.part_paid)
+
+    @property
+    def anything_open(self) -> bool:
+        return self.count > 0
+
+    @property
+    def owed_rwf(self) -> int:
+        return sum(invoice.owed_rwf for invoice in self.part_paid)
+
+
+def handover(gym: Gym, branch: Branch | None = None) -> Handover:
+    """What the next person on the desk will find waiting."""
+    today = timezone.localdate()
+    signups = list(member_services.waiting_signups(gym))
+    requests = []
+    if module_services.is_enabled(gym, TRAINING_CLASSES):
+        requests = list(massage.waiting_for_the_gym(gym, branch))
+    part_paid = []
+    if module_services.is_enabled(gym, PAYMENTS_FINANCE):
+        part_paid = [
+            invoice for invoice in billing.unpaid_invoices(gym) if invoice.issued_on == today
+        ]
+    return Handover(signups=signups, massage_requests=requests, part_paid=part_paid)
+
+
+def close_shift(*, by: StaffAssignment, branch: Branch | None = None):
+    """
+    Close the shift and count what is being handed on. Front-desk roles.
+
+    Nothing open is closed, cancelled or written off here. The desk is warned
+    about it first, and then the shift closes whatever the answer: somebody
+    going home at seven cannot be kept there by a massage request nobody has
+    answered. The counts go on the closed shift so the owner can see what each
+    shift passed to the next.
+    """
+    require_role(by, FRONT_DESK_ROLES)
+    open_now = handover(by.gym, branch)
+    return billing.close_shift(
+        by=by,
+        left_open=billing.LeftOpen(
+            signups=len(open_now.signups),
+            massages=len(open_now.massage_requests),
+            part_paid=len(open_now.part_paid),
+        ),
+    )

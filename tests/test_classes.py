@@ -20,7 +20,7 @@ from apps.audit.models import AuditEntry
 from apps.billing import services as billing
 from apps.billing.services import PaymentInput
 from apps.classes import services
-from apps.classes.models import Booking, ClassSession, Review
+from apps.classes.models import Booking, ClassSession, Review, TrainerProfile
 from apps.gyms.models import Branch, Role
 from apps.members import services as members
 from apps.members.services import InvalidDetails, MemberDetails
@@ -570,3 +570,144 @@ def test_the_desk_writes_a_friend_in_from_the_screen(
     assert answer.status_code == 302
     page = client.get(reverse("attendance:guest_new")).content.decode()
     assert "Jean Bosco" in page and monthly_member.full_name in page
+
+
+# --- What runs every week -----------------------------------------------------
+
+
+def test_the_timetable_says_what_runs_every_week(alpha, aerobics, branch, trainer):
+    """
+    "Spinning every Wednesday, 07:30 to 08:30." Nothing stores a repeating
+    timetable; it is read back from the classes that are actually scheduled.
+    """
+    next_wednesday = _next_weekday(2)
+    services.add_to_timetable(
+        by=alpha.assignment,
+        class_type=aerobics,
+        branch=branch,
+        trainer=trainer,
+        first_day=next_wednesday,
+        at=time(7, 30),
+        minutes=60,
+        places=20,
+        repeat_weeks=3,
+    )
+
+    pattern = services.weekly_pattern(alpha.gym, branch, from_day=next_wednesday)
+
+    assert len(pattern) == 1
+    slot = pattern[0]
+    assert slot.class_name == "Aerobics"
+    assert slot.every_day_of == "Wednesday"
+    assert (slot.starts_at, slot.ends_at) == (time(7, 30), time(8, 30))
+
+
+def test_several_days_of_the_same_class_read_as_one_line(alpha, aerobics, branch):
+    """Aerobics on Monday, Wednesday and Thursday is one habit, not three."""
+    monday = _next_weekday(0)
+    for offset in (0, 2, 3):
+        services.add_to_timetable(
+            by=alpha.assignment,
+            class_type=aerobics,
+            branch=branch,
+            first_day=monday + timedelta(days=offset),
+            at=time(18, 0),
+            minutes=60,
+            places=20,
+            repeat_weeks=2,
+        )
+
+    pattern = services.weekly_pattern(alpha.gym, branch, from_day=monday)
+
+    assert len(pattern) == 1
+    assert pattern[0].every_day_of == "Monday, Wednesday and Thursday"
+
+
+def test_a_one_off_class_is_not_called_weekly(alpha, aerobics, branch):
+    monday = _next_weekday(0)
+    services.add_to_timetable(
+        by=alpha.assignment,
+        class_type=aerobics,
+        branch=branch,
+        first_day=monday,
+        at=time(9, 0),
+        minutes=45,
+        places=10,
+        repeat_weeks=1,
+    )
+
+    assert services.weekly_pattern(alpha.gym, branch, from_day=monday) == []
+
+
+def _next_weekday(weekday: int):
+    """The next date that falls on this weekday, today included."""
+    today = timezone.localdate()
+    return today + timedelta(days=(weekday - today.weekday()) % 7)
+
+
+# --- The desk adding a trainer ------------------------------------------------
+
+
+def test_the_desk_can_add_a_trainer_and_put_them_to_work(alpha, add_staff, sign_in, classes_on):
+    desk = add_staff(alpha.gym, "0788000021", Role.RECEPTIONIST, "Gisele Mugwaneza")
+    client = sign_in(desk)
+
+    response = client.post(
+        reverse("classes:trainer_add"),
+        {
+            "full_name": "Claudine Uwase",
+            "phone": "0788000031",
+            "headline": "Massage therapist",
+            "gives_massages": "on",
+        },
+        follow=True,
+    )
+
+    assert response.status_code == 200
+    trainer = TrainerProfile.objects.get()
+    assert trainer.staff.person.full_name == "Claudine Uwase"
+    assert trainer.staff.role == Role.TRAINER
+    assert trainer.gives_massages is True
+
+
+def test_a_trainer_added_by_the_desk_cannot_sign_in(alpha, add_staff, sign_in, classes_on):
+    """
+    A way into the system is the owner's to give. A receptionist who could
+    create logins could create one for themselves.
+    """
+    from apps.accounts.models import User
+
+    desk = add_staff(alpha.gym, "0788000022", Role.RECEPTIONIST)
+
+    sign_in(desk).post(
+        reverse("classes:trainer_add"),
+        {"full_name": "Claudine Uwase", "phone": "0788000032"},
+    )
+
+    trainer = TrainerProfile.objects.get()
+    assert not User.objects.filter(person=trainer.staff.person).exists()
+
+
+def test_a_trainer_cannot_be_added_twice(alpha, add_staff, sign_in, classes_on):
+    desk = add_staff(alpha.gym, "0788000023", Role.RECEPTIONIST)
+    client = sign_in(desk)
+    form = {"full_name": "Claudine Uwase", "phone": "0788000033"}
+    client.post(reverse("classes:trainer_add"), form)
+
+    page = client.post(reverse("classes:trainer_add"), form).content.decode()
+
+    assert "already works at this gym" in page
+    assert TrainerProfile.objects.count() == 1
+
+
+def test_a_bad_phone_number_is_refused_kindly(alpha, add_staff, sign_in, classes_on):
+    desk = add_staff(alpha.gym, "0788000024", Role.RECEPTIONIST)
+
+    page = (
+        sign_in(desk)
+        .post(reverse("classes:trainer_add"), {"full_name": "Someone", "phone": "12"})
+        .content.decode()
+    )
+
+    assert "valid phone number" in page
+    assert not TrainerProfile.objects.exists()

@@ -15,6 +15,7 @@ from django.utils import timezone
 
 from apps.audit import services as audit
 from apps.classes.models import (
+    WEEKDAY_NAMES,
     Booking,
     ClassSession,
     ClassType,
@@ -24,7 +25,7 @@ from apps.classes.models import (
     TrainerProfile,
 )
 from apps.gyms.models import Branch, Gym, Role, StaffAssignment
-from apps.gyms.permissions import MANAGER_ROLES, require_role
+from apps.gyms.permissions import FRONT_DESK_ROLES, MANAGER_ROLES, require_role
 from apps.members.models import Member
 from apps.members.services import InvalidDetails
 
@@ -66,11 +67,15 @@ def save_trainer(
     is_listed: bool = True,
 ) -> TrainerProfile:
     """
-    Write what members see about a trainer. Managers, or the trainer about
-    themselves.
+    Write what members see about a trainer: a headline, a few words, whether
+    they give massages.
+
+    The trainer themselves, or anybody who works the desk. The desk hears
+    about a new trainer first, and a trainer's page gives nobody access to
+    anything: a login stays the owner's to grant.
     """
     if by.pk != staff.pk:
-        require_role(by, MANAGER_ROLES)
+        require_role(by, FRONT_DESK_ROLES)
     _same_gym(by, staff)
     if staff.role != Role.TRAINER:
         raise InvalidDetails("staff", "not_a_trainer")
@@ -608,3 +613,107 @@ def hide_review(*, by: StaffAssignment, review: Review, reason: str) -> Review:
         details={"reason": review.hidden_reason, "stars": review.stars},
     )
     return review
+
+
+# --- What runs every week -----------------------------------------------------
+
+# How many weeks ahead to read when working out the pattern.
+PATTERN_WEEKS = 4
+
+
+@dataclass(frozen=True)
+class WeeklySlot:
+    """
+    One line of "what we do every week": Spinning, Wednesdays, 07:30 to 08:30.
+
+    Nothing stores a repeating timetable; this is read back from the classes
+    that are actually scheduled, so it can never disagree with them.
+    """
+
+    class_name: str
+    weekdays: tuple[int, ...]
+    starts_at: time
+    minutes: int
+    branch_name: str
+    trainer_names: tuple[str, ...]
+
+    @property
+    def ends_at(self) -> time:
+        finish = datetime.combine(date(2000, 1, 1), self.starts_at) + timedelta(
+            minutes=self.minutes
+        )
+        return finish.time()
+
+    @property
+    def weekday_names(self) -> list[str]:
+        return [WEEKDAY_NAMES[day] for day in self.weekdays]
+
+    @property
+    def every_day_of(self) -> str:
+        names = self.weekday_names
+        if len(names) == 1:
+            return names[0]
+        return f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def weekly_pattern(
+    gym: Gym, branch: Branch | None = None, *, from_day: date | None = None
+) -> list[WeeklySlot]:
+    """
+    What this gym does every week, in words: which class, which days, what time.
+
+    A class counts as weekly when the same class, at the same time, on the same
+    weekday, is scheduled in at least two of the coming weeks. A one-off is
+    left out, because it is already in the timetable below.
+    """
+    start = from_day or timezone.localdate()
+    sessions = (
+        ClassSession.objects.for_gym(gym)
+        .filter(
+            held_on__range=(start, start + timedelta(days=PATTERN_WEEKS * 7 - 1)),
+            cancelled_at__isnull=True,
+        )
+        .select_related("class_type", "branch", "trainer__staff__person")
+    )
+    if branch is not None:
+        sessions = sessions.filter(branch=branch)
+
+    # (class, time, minutes, branch, weekday) -> the weeks it was seen in
+    seen: dict[tuple, set[int]] = {}
+    trainers: dict[tuple, set[str]] = {}
+    for session in sessions:
+        key = (
+            session.class_type.name,
+            session.starts_at,
+            session.minutes,
+            session.branch.name,
+            session.held_on.weekday(),
+        )
+        seen.setdefault(key, set()).add((session.held_on - start).days // 7)
+        if session.trainer_id is not None:
+            trainers.setdefault(key, set()).add(session.trainer.full_name)
+
+    # Gather the weekdays back together under one class and time.
+    slots: dict[tuple, set[int]] = {}
+    who: dict[tuple, set[str]] = {}
+    for key, weeks in seen.items():
+        if len(weeks) < 2:
+            continue  # a one-off, not a weekly fixture
+        name, starts_at, minutes, branch_name, weekday = key
+        slot = (name, starts_at, minutes, branch_name)
+        slots.setdefault(slot, set()).add(weekday)
+        who.setdefault(slot, set()).update(trainers.get(key, ()))
+
+    return [
+        WeeklySlot(
+            class_name=name,
+            weekdays=tuple(sorted(weekdays)),
+            starts_at=starts_at,
+            minutes=minutes,
+            branch_name=branch_name,
+            trainer_names=tuple(sorted(who[(name, starts_at, minutes, branch_name)])),
+        )
+        for (name, starts_at, minutes, branch_name), weekdays in sorted(
+            slots.items(), key=lambda row: (row[0][1], row[0][0])
+        )
+    ]

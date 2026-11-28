@@ -7,6 +7,9 @@
       <p class="sub">{% translate "Trainers: what members see, and how members rate them." %}</p></div>
   </div>
   {% include "components/session_tabs.html" with tab="personal" %}
+  <div class="form-actions" style="margin-bottom:12px">
+    <a class="btn btn-primary" href="{% url 'classes:trainer_add' %}">{% translate "+ Add a trainer" %}</a>
+  </div>
   <div class="card stack">
     {% if people %}
       <ul class="item-list">

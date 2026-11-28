@@ -59,10 +59,10 @@ def make_gym(db):
 def add_staff(db):
     """add_staff(gym, "0788000005", Role.RECEPTIONIST) adds a staff member with a login."""
 
-    def add(gym: Gym, phone: str, role: str, name: str = "Staff Member") -> Staff:
+    def add(gym: Gym, phone: str, role: str, name: str = "Staff Member", branch=None) -> Staff:
         person = people_services.create_person(full_name=name, phone=phone)
         user = account_services.create_user_account(person=person, password=TEST_PASSWORD)
-        assignment = gym_services.assign_staff(gym=gym, person=person, role=role)
+        assignment = gym_services.assign_staff(gym=gym, person=person, role=role, branch=branch)
         return Staff(user=user, assignment=assignment)
 
     return add

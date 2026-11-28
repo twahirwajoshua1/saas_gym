@@ -1,0 +1,51 @@
+{% extends "layouts/gym.html" %}
+{% load i18n money %}
+{% block title %}{% translate "A massage at the door" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <a class="back-link" href="{% url 'frontdesk:door' %}">← {% translate "Sell at the door" %}</a>
+  <div class="page-head">
+    <div>
+      <h1>{{ massage_type.name }} {% translate "for" %} {{ full_name }}</h1>
+      <p class="muted">
+        {% blocktranslate with minutes=massage_type.minutes price=massage_type.price_rwf|thousands %}{{ minutes }} minutes · RWF {{ price }}{% endblocktranslate %}
+        · {{ method_label }}
+      </p>
+    </div>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="full_name" value="{{ full_name }}">
+    <input type="hidden" name="phone" value="{{ phone }}">
+    <input type="hidden" name="massage_type" value="{{ massage_type.public_id }}">
+    <input type="hidden" name="method" value="{{ method }}">
+    <input type="hidden" name="idempotency_key" value="{{ idempotency_key }}">
+
+    <div class="chips">
+      {% for choice in days %}
+        <button type="submit" name="day" value="{{ choice|date:'Y-m-d' }}"
+                class="btn btn-small {% if choice == day %}btn-primary{% endif %}">
+          {% if choice == today %}{% translate "Today" %}{% else %}{{ choice|date:"D j M" }}{% endif %}
+        </button>
+      {% endfor %}
+    </div>
+
+    <div class="card stack">
+      {% if slots %}
+        <h2 class="card-title">{% translate "Free times" %}</h2>
+        <p class="muted small">{% translate "Pressing a time takes the money and holds the slot." %}</p>
+        <div class="chips">
+          {% for slot in slots %}
+            <button type="submit" name="at" value="{{ slot.at|time:'H:i' }}" class="btn btn-primary btn-small">
+              {{ slot.label }} · {{ slot.masseuse.staff.person.full_name }}
+            </button>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="muted">{% translate "Nothing is free on this day. Try another day, or tell them there is no time left." %}</p>
+      {% endif %}
+    </div>
+  </form>
+  <p class="muted small">{% translate "If they will not wait, press Cancel: nothing is booked and no money is taken." %}</p>
+  <p><a class="btn" href="{% url 'frontdesk:door' %}">{% translate "Cancel" %}</a></p>
+{% endblock %}

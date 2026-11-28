@@ -17,8 +17,34 @@
   </div>
   {% include "components/session_tabs.html" with tab="group" %}
 
+  {# What runs every week, read back from the timetable itself so the two can
+     never disagree. A one-off is left out: it is in the list below. #}
+  {% if pattern %}
+    <section class="card stack">
+      <div class="card-head">
+        <div>
+          <h2>{% translate "Every week here" %}</h2>
+          <p class="sub">{% translate "The regular timetable. Anything one-off is in the days below." %}</p>
+        </div>
+      </div>
+      <ul class="item-list">
+        {% for slot in pattern %}
+          <li>
+            <div class="item-main">
+              <strong>{{ slot.class_name }}</strong>
+              <span class="small muted">
+                {% blocktranslate with days=slot.every_day_of a=slot.starts_at|time:"H:i" b=slot.ends_at|time:"H:i" %}every {{ days }}, {{ a }} to {{ b }}{% endblocktranslate %}
+                {% if not branch %} · {{ slot.branch_name }}{% endif %}
+                {% if slot.trainer_names %} · {{ slot.trainer_names|join:", " }}{% endif %}
+              </span>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
   <div class="row" style="margin-bottom:16px">
-    <a class="btn btn-small" href="?week={{ previous|date:'Y-m-d' }}">← {% translate "Previous week" %}</a>
     <a class="btn btn-small" href="{% url 'classes:timetable' %}">{% translate "This week" %}</a>
     <a class="btn btn-small" href="?week={{ next_week|date:'Y-m-d' }}">{% translate "Next week" %} →</a>
   </div>

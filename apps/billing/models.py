@@ -208,9 +208,20 @@ class ShiftClose(GymOwnedModel):
     other_rwf = models.PositiveIntegerField()
     payments = models.PositiveIntegerField()
 
+    # What was still open when the shift ended. Closing a shift settles none of
+    # it: these are counted so the owner can see what one shift handed to the
+    # next, and so a desk that leaves work behind every evening shows up.
+    left_signups = models.PositiveIntegerField(default=0)
+    left_massages = models.PositiveIntegerField(default=0)
+    left_part_paid = models.PositiveIntegerField(default=0)
+
     class Meta:
         ordering = ["-closed_at"]
 
     @property
     def total_rwf(self) -> int:
         return self.cash_rwf + self.mobile_money_rwf + self.other_rwf
+
+    @property
+    def left_open(self) -> int:
+        return self.left_signups + self.left_massages + self.left_part_paid

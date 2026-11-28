@@ -28,6 +28,7 @@ from apps.billing.models import (
     Sequence,
     ShiftClose,
 )
+from apps.core import messaging
 from apps.gyms.models import Gym, StaffAssignment
 from apps.gyms.permissions import FRONT_DESK_ROLES, OWNER_ONLY, require_role
 from apps.members import services as member_services
@@ -703,12 +704,30 @@ def shift_summary(gym: Gym, person, since=None) -> ShiftSummary:
     )
 
 
+@dataclass(frozen=True)
+class LeftOpen:
+    """
+    How much unfinished work a shift is handing on: people who signed up and
+    have not paid, massage requests nobody has answered, and invoices with
+    money still owed.
+
+    Counts only. Closing a shift settles none of these; they stay on the desk's
+    home page for whoever is on next. The numbers are kept so the owner can see
+    what each shift passed along.
+    """
+
+    signups: int = 0
+    massages: int = 0
+    part_paid: int = 0
+
+
 @transaction.atomic
-def close_shift(*, by: StaffAssignment) -> ShiftClose:
+def close_shift(*, by: StaffAssignment, left_open: LeftOpen | None = None) -> ShiftClose:
     """Close the person's shift and record what they hand over."""
     require_role(by, FRONT_DESK_ROLES)
     _lock_billing(by.gym)
     summary = shift_summary(by.gym, by.person)
+    still_open = left_open or LeftOpen()
     closed = ShiftClose.objects.create(
         gym=by.gym,
         person=by.person,
@@ -717,6 +736,9 @@ def close_shift(*, by: StaffAssignment) -> ShiftClose:
         mobile_money_rwf=summary.mobile_money_rwf,
         other_rwf=summary.other_rwf,
         payments=summary.payments,
+        left_signups=still_open.signups,
+        left_massages=still_open.massages,
+        left_part_paid=still_open.part_paid,
     )
     audit.record(
         action="shift.closed",
@@ -724,7 +746,11 @@ def close_shift(*, by: StaffAssignment) -> ShiftClose:
         gym=by.gym,
         actor=by.person,
         target=closed,
-        details={"cash_rwf": summary.cash_rwf, "total_rwf": summary.total_rwf},
+        details={
+            "cash_rwf": summary.cash_rwf,
+            "total_rwf": summary.total_rwf,
+            "left_open": closed.left_open,
+        },
     )
     return closed
 
@@ -757,3 +783,45 @@ def cash_by_person_today(gym: Gym) -> list[dict]:
             }
         )
     return sorted(result, key=lambda r: -r["cash_rwf"])
+
+
+# --- The receipt, sent rather than printed ------------------------------------
+
+
+@dataclass(frozen=True)
+class ReceiptMessage:
+    """
+    A receipt written out for the member's phone.
+
+    Less paper is the point: the receptionist presses one button and the
+    gym's own WhatsApp opens with the receipt already typed. Nothing is sent
+    by the system.
+    """
+
+    text: str
+    whatsapp_url: str
+    sms_url: str
+
+
+def receipt_message(*, gym: Gym, payment: Payment, invoice: Invoice) -> ReceiptMessage:
+    """Write the receipt out as a short message, and the links that send it."""
+    what = ", ".join(line.description for line in invoice.lines.all())
+    owing = outstanding_on(invoice)
+    lines = [
+        gym.name,
+        f"Receipt {payment.display_number} · {payment.received_on:%d %b %Y}",
+        f"{payment.member.full_name}",
+        f"RWF {payment.amount_rwf:,} paid by {payment.get_method_display()}",
+    ]
+    if what:
+        lines.append(f"For: {what}")
+    lines.append(
+        "Paid in full. Thank you." if owing == 0 else f"Still to pay: RWF {owing:,}. Thank you."
+    )
+    text = "\n".join(lines)
+    phone = payment.member.person.phone
+    return ReceiptMessage(
+        text=text,
+        whatsapp_url=messaging.whatsapp_url(phone, text),
+        sms_url=messaging.sms_url(phone, text),
+    )

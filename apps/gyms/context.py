@@ -1,5 +1,6 @@
 """Makes the current gym and the person's role available to every page template."""
 
+from apps.gyms import session as gym_session
 from apps.gyms.models import Role
 from apps.gyms.permissions import (
     CHECK_IN_ROLES,
@@ -66,4 +67,5 @@ def current_gym(request):
         "role_is_front_desk": assignment.role in FRONT_DESK_ROLES,
         "role_can_check_in": assignment.role in CHECK_IN_ROLES,
         "role_is_trainer": assignment.role == Role.TRAINER,
+        "may_choose_branch": gym_session.may_choose_branch(request),
     }

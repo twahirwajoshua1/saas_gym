@@ -1,0 +1,11 @@
+{% load i18n %}
+{% comment %}
+  A single yes/no field, drawn as one tappable row with its label beside the
+  box. Use it like this:
+  {% include "components/checkbox.html" with field=form.gives_massages %}
+{% endcomment %}
+<div class="field{% if field.errors %} has-error{% endif %}">
+  <label class="option">{{ field }}<span>{{ field.label }}</span></label>
+  {% if field.help_text %}<p class="help">{{ field.help_text }}</p>{% endif %}
+  {% for error in field.errors %}<p class="error" role="alert">{{ error }}</p>{% endfor %}
+</div>

@@ -1,0 +1,85 @@
+{% extends "layouts/gym.html" %}
+{% load i18n money icons %}
+{% block title %}{% translate "My shift" %} · {{ gym.name }}{% endblock %}
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>{% translate "My shift" %}</h1>
+      <p class="sub">{% blocktranslate with t=shift.started_at|time:"H:i" %}Since {{ t }} today{% endblocktranslate %}</p>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="card stat"><span class="stat-label">{% translate "Cash to hand over" %}</span><span class="stat-value"><span class="cur">RWF</span>{{ shift.cash_rwf|thousands }}</span><span class="stat-foot">{% translate "In the drawer" %}</span></div>
+    <div class="card stat"><span class="stat-label">{% translate "Mobile money" %}</span><span class="stat-value"><span class="cur">RWF</span>{{ shift.mobile_money_rwf|thousands }}</span><span class="stat-foot">MoMo {{ shift.mtn_rwf|thousands }} · Airtel {{ shift.airtel_rwf|thousands }}</span></div>
+    <div class="card stat"><span class="stat-label">{% translate "Payments" %}</span><span class="stat-value">{{ shift.payments }}</span><span class="stat-foot">{% blocktranslate count n=shift.sales %}{{ n }} sale{% plural %}{{ n }} sales{% endblocktranslate %}</span></div>
+  </div>
+
+  {% if handover.anything_open %}
+    <div class="card stack">
+      <div class="card-head">
+        <div>
+          <h2>{% translate "Still open" %}</h2>
+          <p class="sub">{% translate "Closing your shift does not finish any of this. It stays on the home page for whoever is on next — tell them about it before you go." %}</p>
+        </div>
+      </div>
+      <ul class="item-list">
+        {% for signup in handover.signups %}
+          <li>
+            <div class="item-main">
+              <strong>{{ signup.full_name }}</strong>
+              <span class="small muted">{% translate "signed up, has not paid" %} · {{ signup.package.name }}</span>
+            </div>
+            <div class="item-actions"><a class="btn btn-small" href="{% url 'frontdesk:desk' %}">{% translate "On the desk" %}</a></div>
+          </li>
+        {% endfor %}
+        {% for booking in handover.massage_requests %}
+          <li>
+            <div class="item-main">
+              <strong>{{ booking.person.full_name }}</strong>
+              <span class="small muted">{% translate "massage asked for, not answered" %} · {{ booking.type_name }} · {{ booking.held_on|date:"j M" }} {{ booking.starts_at|time:"H:i" }}</span>
+            </div>
+            <div class="item-actions"><a class="btn btn-small" href="{% url 'massage:diary' %}">{% translate "Answer" %}</a></div>
+          </li>
+        {% endfor %}
+        {% for invoice in handover.part_paid %}
+          <li>
+            <div class="item-main">
+              <strong>{{ invoice.member.full_name }}</strong>
+              <span class="small muted">{% blocktranslate with owed=invoice.owed_rwf|thousands %}still owes RWF {{ owed }}{% endblocktranslate %} · {{ invoice.display_number }}</span>
+            </div>
+            <div class="item-actions"><a class="btn btn-small" href="{% url 'billing:member_account' public_id=invoice.member.public_id %}">{% translate "Take payment" %}</a></div>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <div class="card stack">
+    <div class="card-head"><div><h2>{% translate "Close my shift" %}</h2><p class="sub">{% translate "Count the cash in the drawer. It should match the amount above. Closing records it for the owner, and your next shift starts at zero." %}</p></div></div>
+    <p class="small muted">{% translate "Best closed when the person taking over is already here, so the drawer and anything still open change hands at once." %}</p>
+    <form method="post" class="form-actions">
+      {% csrf_token %}
+      {% if handover.anything_open %}
+        <label class="option">
+          <input type="checkbox" name="understood" required>
+          {% blocktranslate count n=handover.count %}I know {{ n }} thing is still open and the next person will pick it up{% plural %}I know {{ n }} things are still open and the next person will pick them up{% endblocktranslate %}
+        </label>
+      {% endif %}
+      <button type="submit" class="btn btn-primary btn-big">{% icon "check" %}{% blocktranslate with c=shift.cash_rwf|thousands %}Close shift and hand over RWF {{ c }}{% endblocktranslate %}</button>
+    </form>
+    {% if shift.other_rwf %}<p class="small muted">{% blocktranslate with o=shift.other_rwf|thousands %}Also RWF {{ o }} by bank or card.{% endblocktranslate %}</p>{% endif %}
+  </div>
+
+  {% if closes %}
+    <div class="card stack">
+      <h2>{% translate "My last closed shifts" %}</h2>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>{% translate "Closed" %}</th><th class="num">{% translate "Cash" %}</th><th class="num">{% translate "Mobile money" %}</th><th class="num">{% translate "Payments" %}</th><th class="num">{% translate "Handed on" %}</th></tr></thead>
+          <tbody>{% for c in closes %}<tr><td>{{ c.closed_at|date:"j M, H:i" }}</td><td class="num">{{ c.cash_rwf|thousands }}</td><td class="num">{{ c.mobile_money_rwf|thousands }}</td><td class="num">{{ c.payments }}</td><td class="num">{% if c.left_open %}{{ c.left_open }}{% else %}—{% endif %}</td></tr>{% endfor %}</tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,16 @@
+{% load i18n %}
+{% comment %}
+  A radio or checkbox field drawn as a list of tappable rows, for a desk that
+  may be on a tablet. Use it like this:
+  {% include "components/choices.html" with field=form.service %}
+{% endcomment %}
+<div class="field{% if field.errors %} has-error{% endif %}">
+  <p class="label">{{ field.label }}</p>
+  <div class="options">
+    {% for choice in field %}
+      <label class="option">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>
+    {% endfor %}
+  </div>
+  {% if field.help_text %}<p class="help">{{ field.help_text }}</p>{% endif %}
+  {% for error in field.errors %}<p class="error" role="alert">{{ error }}</p>{% endfor %}
+</div>
